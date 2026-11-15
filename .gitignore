@@ -1,0 +1,83 @@
+# Dependencies / tooling
+node_modules/
+.npm/
+.yarn/
+.pnp.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+bower_components/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials.json
+secrets.json
+
+# OS junk
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Editors / IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+*.code-workspace
+
+# Caches & build artifacts
+.cache/
+.parcel-cache/
+.turbo/
+.vite/
+.rollup.cache/
+dist/
+build/
+out/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+*.map
+
+# Logs & temp
+logs/
+*.log
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Test / demo captures (keep out of repo)
+*.webm
+recording_*.mp4
+playwright-report/
+test-results/
+
+# Local agent / Cursor
+.cursor/
+.agent/
+
+# Misc
+*.local
+.vercel/
+.netlify/

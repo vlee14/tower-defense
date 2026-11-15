@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#0b1c24" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="Endless runway tower defense. Play offline on a plane." />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <title>Runway Defense</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header id="hud" aria-label="Game status">
+      <div class="hud-left">
+        <div class="stat" title="Base HP">
+          <span class="label">HP</span>
+          <span id="hp" class="value">20</span>
+        </div>
+        <div class="stat" title="Scrap">
+          <span class="label">Scrap</span>
+          <span id="scrap" class="value">120</span>
+        </div>
+      </div>
+      <div class="hud-center">
+        <div class="brand">RUNWAY</div>
+        <div class="wave-line">
+          <span id="wave">Wave 1</span>
+          <span class="dot">·</span>
+          <span id="score">0</span>
+        </div>
+      </div>
+      <div class="hud-right">
+        <button type="button" id="btn-mute" class="icon-btn" aria-label="Mute">🔊</button>
+        <button type="button" id="btn-pause" class="icon-btn" aria-label="Pause">❚❚</button>
+      </div>
+    </header>
+
+    <main id="stage-wrap">
+      <canvas id="game" width="390" height="620" aria-label="Runway defense battlefield"></canvas>
+      <div id="banner" class="hidden" aria-live="polite"></div>
+      <div id="toast" class="hidden"></div>
+    </main>
+
+    <div id="inspect" class="inspect hidden" aria-live="polite">
+      <div id="inspect-text" class="inspect-text"></div>
+      <div id="element-bar" class="element-bar" aria-label="Apply element">
+        <button type="button" class="el-btn" data-el="fire" title="Fire: burn">Fire</button>
+        <button type="button" class="el-btn" data-el="water" title="Water: chill">Water</button>
+        <button type="button" class="el-btn" data-el="earth" title="Earth: vs armor">Earth</button>
+        <button type="button" class="el-btn" data-el="wind" title="Wind: vs air">Wind</button>
+      </div>
+      <div class="inspect-actions">
+        <button type="button" id="btn-sell" class="util-btn" disabled>Sell</button>
+        <button type="button" id="btn-upgrade" class="util-btn" disabled>Up +</button>
+      </div>
+    </div>
+
+    <nav id="dock" aria-label="Tower shop">
+      <button type="button" class="tower-btn" data-tower="turret" aria-pressed="false">
+        <span class="tb-icon turret"></span>
+        <span class="tb-name">Turret</span>
+        <span class="tb-trade">DPS · short</span>
+        <span class="tb-cost" data-cost="turret">60</span>
+      </button>
+      <button type="button" class="tower-btn" data-tower="mortar" aria-pressed="false">
+        <span class="tb-icon mortar"></span>
+        <span class="tb-name">Mortar</span>
+        <span class="tb-trade">AoE · no air</span>
+        <span class="tb-cost" data-cost="mortar">90</span>
+      </button>
+      <button type="button" class="tower-btn" data-tower="coil" aria-pressed="false">
+        <span class="tb-icon coil"></span>
+        <span class="tb-name">Coil</span>
+        <span class="tb-trade">Slow · anti-air</span>
+        <span class="tb-cost" data-cost="coil">75</span>
+      </button>
+      <button type="button" id="btn-codex" class="util-btn">Codex</button>
+    </nav>
+
+    <!-- Title / Hub -->
+    <section id="screen-hub" class="screen">
+      <div class="hub-bg"></div>
+      <div class="hub-panel">
+        <p class="eyebrow">Vincent Lee · Offline PWA</p>
+        <h1>Runway Defense</h1>
+        <p class="tagline">Endless waves. Spend chips between runs. Flyable offline.</p>
+        <div class="hub-stats">
+          <div><span class="k">Best wave</span><span id="best-wave" class="v">0</span></div>
+          <div><span class="k">Best score</span><span id="best-score" class="v">0</span></div>
+          <div><span class="k">Chips</span><span id="chips" class="v">0</span></div>
+        </div>
+        <div class="diff-block" aria-label="Difficulty">
+          <span class="diff-label">Difficulty</span>
+          <div id="diff-picks" class="diff-picks" role="radiogroup"></div>
+          <p id="diff-hint" class="diff-hint"></p>
+        </div>
+        <div class="hub-actions">
+          <button type="button" id="btn-play" class="primary">New Run</button>
+          <button type="button" id="btn-continue" class="secondary hidden">Continue</button>
+          <button type="button" id="btn-upgrades" class="secondary">Upgrade Trees</button>
+        </div>
+        <p class="hint">Place towers, socket Fire/Water/Earth/Wind (max 2), exploit combos. Survive endless waves.</p>
+      </div>
+    </section>
+
+    <!-- Codex: elements + tradeoffs -->
+    <section id="screen-codex" class="screen overlay hidden">
+      <div class="panel codex-panel">
+        <header class="panel-head">
+          <button type="button" id="btn-codex-back" class="text-btn">← Back</button>
+          <h2>Codex</h2>
+          <span class="chips-pill">Combos</span>
+        </header>
+        <div class="codex-scroll">
+          <h3>Towers</h3>
+          <ul class="codex-list">
+            <li><strong>Turret</strong> — high single-target DPS, short range, hits air &amp; ground.</li>
+            <li><strong>Mortar</strong> — big splash, slow reload, long reach, <em>cannot hit flying</em>.</li>
+            <li><strong>Coil</strong> — slows, strong vs air, weak vs heavy armor.</li>
+          </ul>
+          <h3>Enemies</h3>
+          <ul class="codex-list">
+            <li><strong>Drone</strong> (flying/fast) — weak to Wind, shrugs Earth.</li>
+            <li><strong>Crawler</strong> — balanced ground target.</li>
+            <li><strong>Armor</strong> (heavy) — weak to Earth, resists Fire &amp; Wind.</li>
+            <li><strong>Swarm</strong> — fragile packs; Fire / Mortar excel.</li>
+            <li><strong>Boss</strong> — armored + tough; bring shred &amp; DPS.</li>
+          </ul>
+          <h3>Elements (socket up to 2)</h3>
+          <ul class="codex-list">
+            <li><strong>Fire</strong> — burn DoT.</li>
+            <li><strong>Water</strong> — chill slow.</li>
+            <li><strong>Earth</strong> — bonus vs armor + shred.</li>
+            <li><strong>Wind</strong> — bonus vs flying + shove.</li>
+          </ul>
+          <h3>Combos</h3>
+          <ul class="codex-list">
+            <li><strong>Fire+Water</strong> → Steam burst (small AoE).</li>
+            <li><strong>Fire+Earth</strong> → Magma (explode on kill).</li>
+            <li><strong>Fire+Wind</strong> → Wildfire (burn spreads).</li>
+            <li><strong>Water+Earth</strong> → Mud (heavy slow).</li>
+            <li><strong>Water+Wind</strong> → Storm (shatter chilled foes).</li>
+            <li><strong>Earth+Wind</strong> → Tempest (full dmg to air &amp; armor).</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Upgrade trees -->
+    <section id="screen-upgrades" class="screen hidden">
+      <div class="panel upgrades-panel">
+        <header class="panel-head">
+          <button type="button" id="btn-upgrades-back" class="text-btn">← Hub</button>
+          <h2>Upgrade Trees</h2>
+          <span id="chips-up" class="chips-pill">0 chips</span>
+        </header>
+        <div class="tower-tabs" role="tablist">
+          <button type="button" class="tab active" data-tab="turret">Turret</button>
+          <button type="button" class="tab" data-tab="mortar">Mortar</button>
+          <button type="button" class="tab" data-tab="coil">Coil</button>
+        </div>
+        <div id="upgrade-list" class="upgrade-list"></div>
+      </div>
+    </section>
+
+    <!-- Pause overlay -->
+    <section id="screen-pause" class="screen overlay hidden">
+      <div class="panel pause-panel">
+        <h2>Paused</h2>
+        <p>Progress is saved. You can close the tab and resume later.</p>
+        <div class="hub-actions">
+          <button type="button" id="btn-resume" class="primary">Resume</button>
+          <button type="button" id="btn-to-hub" class="secondary">Save & Hub</button>
+          <button type="button" id="btn-abandon" class="danger">Abandon Run</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Game over -->
+    <section id="screen-over" class="screen overlay hidden">
+      <div class="panel over-panel">
+        <h2>Runway Breached</h2>
+        <p id="over-summary">Wave 1 · Score 0</p>
+        <p id="over-chips" class="chips-earned">+0 chips</p>
+        <div class="hub-actions">
+          <button type="button" id="btn-again" class="primary">New Run</button>
+          <button type="button" id="btn-over-hub" class="secondary">Hub & Upgrades</button>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script src="game.js" defer></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
