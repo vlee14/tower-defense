@@ -453,20 +453,22 @@
     };
   }
 
+  function livingEnemyCount() {
+    let n = 0;
+    for (const e of state.enemies) if (e.alive) n++;
+    return n;
+  }
   function livingBossCount() {
     let n = 0;
     for (const e of state.enemies) if (e.alive && e.type === "boss") n++;
     return n;
   }
-  function canAdvanceWave() {
-    const living = state.enemies.filter((e) => e.alive);
-    if (!living.length) return true;
-    // Late endless: allow the next wave while a boss is still on the rift (overlap).
-    if (state.wave < 25) return false;
-    if (living.some((e) => e.type !== "boss")) return false;
-    const bosses = living.length;
-    if (state.wave >= 40) return bosses <= 2;
-    return bosses <= 1;
+  /** Gap after a wave's spawn queue empties before the next wave — overlaps are intentional. */
+  function nextWaveDelay() {
+    const living = livingEnemyCount();
+    // Slightly longer when the field is already crowded, but never gated on a full clear.
+    const crowd = Math.min(1.2, living * 0.045);
+    return 1.6 + crowd;
   }
 
   const state = {
@@ -1285,10 +1287,10 @@
           state.spawnTimer = plan.interval * (next.type === "swarm" ? 0.35 : 1);
         }
       }
-    } else if (state.betweenWaves <= 0 && canAdvanceWave() && state.wave > 0) {
-      // Keep living bosses when overlapping; drop only corpses.
+    } else if (state.betweenWaves <= 0 && state.wave > 0) {
+      // Timer advance: next wave starts even if foes remain (overlaps OK).
       state.enemies = state.enemies.filter((e) => e.alive);
-      state.betweenWaves = livingBossCount() > 0 ? 1.4 : 2.2;
+      state.betweenWaves = nextWaveDelay();
       state.scrap += 28 + state.wave * 4;
       saveRun();
     }
