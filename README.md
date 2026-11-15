@@ -14,8 +14,9 @@ Endless mobile-first tower defense along a molten rift. Static PWA — works off
 - Boss roster: **Behemoth**, **Emberwyrm**, **Shellwarden**, **Broodmother**, **Galeheart** (distinct silhouettes, resists, abilities). Decade packs can mix several.
 - Survive endless waves, earn scrap in-run and chips between runs.
 - Spend chips on per-tower upgrade trees in the hub.
-- Unlock **Hard** (wave 12 on Normal) and **Nightmare** (wave 15 on Hard).
-- Pause anytime; mid-run progress, meta unlocks, and settings save locally.
+- Unlock **Hard** (wave 10 on Normal) and **Nightmare** (wave 12 on Hard).
+- **Daily Rift** uses a shared UTC date seed; milestones pay chips for wave goals.
+- Toggle **damage numbers** in Settings. Pause anytime; progress saves locally.
 
 ## Offline & versioning
 

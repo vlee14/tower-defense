@@ -441,6 +441,47 @@ html, body {
   line-height: 1.4;
   font-weight: 600;
 }
+.daily-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.35;
+  font-weight: 600;
+  min-height: 1.3em;
+}
+.milestones {
+  margin-top: 14px;
+}
+.milestone-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.milestone-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--stroke);
+  color: var(--cream);
+  font-size: 12px;
+  font-weight: 700;
+}
+.milestone-list li.done {
+  border-color: rgba(111, 191, 138, 0.4);
+  color: var(--moss);
+}
+.milestone-list li span:last-child {
+  color: var(--ember-hot);
+  font-variant-numeric: tabular-nums;
+}
+.milestone-list li.done span:last-child { color: var(--moss); }
 
 .volume-row {
   display: grid;

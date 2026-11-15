@@ -7,12 +7,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="description" content="Endless molten-rift tower defense. Play offline anywhere." />
-  <link rel="manifest" href="manifest.webmanifest?v=1.5.0" />
+  <link rel="manifest" href="manifest.webmanifest?v=1.6.0" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <title>Emberwell</title>
-  <script src="version.js?v=1.5.0"></script>
-  <link rel="stylesheet" href="styles.css?v=1.5.0" />
+  <script src="version.js?v=1.6.0"></script>
+  <link rel="stylesheet" href="styles.css?v=1.6.0" />
 </head>
 <body>
   <div id="app" data-ui="hub">
@@ -119,9 +119,15 @@
         </div>
         <div class="hub-actions">
           <button type="button" id="btn-play" class="primary">New Run</button>
+          <button type="button" id="btn-daily" class="secondary">Daily Rift</button>
           <button type="button" id="btn-continue" class="secondary hidden">Continue</button>
           <button type="button" id="btn-upgrades" class="secondary">Upgrade Trees</button>
           <button type="button" id="btn-settings" class="secondary">Settings</button>
+        </div>
+        <p id="daily-hint" class="daily-hint"></p>
+        <div class="milestones" aria-label="Milestones">
+          <span class="diff-label">Milestones</span>
+          <ul id="milestone-list" class="milestone-list"></ul>
         </div>
         <p class="hub-tip">Coach teaches the first run in ~30s — place beside the rift, socket elements, then speed up.</p>
         <p class="app-version" id="app-version" aria-hidden="true"></p>
@@ -223,6 +229,7 @@
             <label class="setting-toggle"><input type="checkbox" id="opt-hitflash" /> Hit flash</label>
             <label class="setting-toggle"><input type="checkbox" id="opt-screenflash" /> Damage flash</label>
             <label class="setting-toggle"><input type="checkbox" id="opt-combatfx" /> Combat FX rings</label>
+            <label class="setting-toggle"><input type="checkbox" id="opt-dmgnumbers" /> Damage numbers</label>
             <label class="setting-toggle"><input type="checkbox" id="opt-haptics" /> Haptics</label>
           </div>
           <p class="setting-hint">Choices save on this device. Reduce-motion / juice Off also quiet haptics and shake.</p>
@@ -257,10 +264,10 @@
       </div>
     </section>
   </div>
-  <script src="game.js?v=1.5.0" defer></script>
+  <script src="game.js?v=1.6.0" defer></script>
   <script>
     (function () {
-      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "1.5.0";
+      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "1.6.0";
       var el = document.getElementById("app-version");
       if (el) el.textContent = "v" + ver;
 

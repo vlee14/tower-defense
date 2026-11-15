@@ -15,24 +15,24 @@
 
   const DIFFICULTIES = {
     normal: { id: "normal", name: "Normal", hpMul: 1, speedMul: 1, countMul: 1, intervalMul: 1, rewardMul: 1, chipMul: 1, unlock: null },
-    hard: { id: "hard", name: "Hard", hpMul: 1.45, speedMul: 1.12, countMul: 1.2, intervalMul: 0.88, rewardMul: 1.35, chipMul: 1.5, unlock: { kind: "wave", difficulty: "normal", wave: 12 } },
-    nightmare: { id: "nightmare", name: "Nightmare", hpMul: 2.1, speedMul: 1.28, countMul: 1.4, intervalMul: 0.75, rewardMul: 1.75, chipMul: 2.25, unlock: { kind: "wave", difficulty: "hard", wave: 15 } },
+    hard: { id: "hard", name: "Hard", hpMul: 1.42, speedMul: 1.1, countMul: 1.18, intervalMul: 0.9, rewardMul: 1.4, chipMul: 1.55, unlock: { kind: "wave", difficulty: "normal", wave: 10 } },
+    nightmare: { id: "nightmare", name: "Nightmare", hpMul: 2.0, speedMul: 1.24, countMul: 1.35, intervalMul: 0.78, rewardMul: 1.85, chipMul: 2.35, unlock: { kind: "wave", difficulty: "hard", wave: 12 } },
   };
 
   const BASE_TOWER = {
     turret: {
-      name: "Turret", cost: 55, damage: 30, range: 82, fireRate: 0.40, sell: 28, color: "#e8883a",
+      name: "Turret", cost: 52, damage: 32, range: 84, fireRate: 0.38, sell: 26, color: "#e8883a",
       hitsAir: true, hitsGround: true, splash: 0,
       blurb: "High DPS · short range · hits air & ground",
     },
     mortar: {
-      name: "Mortar", cost: 85, damage: 44, range: 128, fireRate: 1.28, splash: 52, sell: 42, color: "#6fbf8a",
+      name: "Mortar", cost: 82, damage: 46, range: 130, fireRate: 1.22, splash: 54, sell: 40, color: "#6fbf8a",
       hitsAir: false, hitsGround: true,
       blurb: "AoE splash · slow · cannot hit flying",
     },
     coil: {
-      name: "Coil", cost: 70, damage: 15, range: 108, fireRate: 0.55, sell: 35, color: "#4db8c4",
-      hitsAir: true, hitsGround: true, airBonus: 1.55, armorPenalty: 0.55, slow: 0.55, slowDur: 1.45,
+      name: "Coil", cost: 68, damage: 16, range: 110, fireRate: 0.52, sell: 34, color: "#4db8c4",
+      hitsAir: true, hitsGround: true, airBonus: 1.6, armorPenalty: 0.58, slow: 0.52, slowDur: 1.5,
       blurb: "Slows · anti-air · weak vs armor",
     },
   };
@@ -213,16 +213,36 @@
     try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* quota */ }
   }
 
+  const MILESTONES = [
+    { id: "w5", label: "Wave 5", kind: "wave", difficulty: "normal", wave: 5, chips: 12 },
+    { id: "w10", label: "Wave 10", kind: "wave", difficulty: "normal", wave: 10, chips: 24 },
+    { id: "w20", label: "Wave 20", kind: "wave", difficulty: "normal", wave: 20, chips: 48 },
+    { id: "hard", label: "Hard clear 8", kind: "wave", difficulty: "hard", wave: 8, chips: 36 },
+    { id: "daily3", label: "3 Dailies", kind: "dailies", count: 3, chips: 30 },
+  ];
+
   const defaultMeta = () => ({
     chips: 0, owned: {}, unlockedDifficulties: { normal: true }, selectedDifficulty: "normal",
     bestByDifficulty: { normal: { wave: 0, score: 0 }, hard: { wave: 0, score: 0 }, nightmare: { wave: 0, score: 0 } },
+    milestones: {}, dailiesCompleted: 0, lastDailyKey: null, lastDailyBest: { wave: 0, score: 0 },
   });
   const defaultSettings = () => ({
     muted: false, volume: 0.7, music: false, haptics: true,
     gameSpeed: 1, tutorialDone: false, coachStep: 0,
     shake: "low", particles: true, hitFlash: true, screenFlash: true, combatFx: true,
+    dmgNumbers: true,
   });
   const defaultBest = () => ({ wave: 0, score: 0 });
+
+  function dailyKey(d = new Date()) {
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(d.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  function dailySeedFor(key) {
+    return `ew-daily-${key}`;
+  }
   const prefersReducedMotion = () =>
     typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -241,10 +261,15 @@
   if (typeof settings.volume !== "number" || settings.volume < 0 || settings.volume > 1) settings.volume = 0.7;
   if (typeof settings.music !== "boolean") settings.music = false;
   if (typeof settings.haptics !== "boolean") settings.haptics = true;
+  if (typeof settings.dmgNumbers !== "boolean") settings.dmgNumbers = true;
+  if (!meta.milestones) meta.milestones = {};
+  if (typeof meta.dailiesCompleted !== "number") meta.dailiesCompleted = 0;
   if (prefersReducedMotion() && settings.shake !== "off") {
     /* honor OS reduce-motion without overwriting saved prefs permanently */
   }
   let best = loadJSON(STORAGE.best, defaultBest());
+  let runIsDaily = false;
+  let runDailyKey = null;
 
   function juiceOff() {
     return settings.shake === "off" && settings.particles === false;
@@ -540,18 +565,19 @@
   function wavePlan(seed, wave, diffId) {
     const diff = DIFFICULTIES[diffId] || DIFFICULTIES.normal;
     const rng = mulberry32(hashSeed(seed + ":wave:" + wave + ":" + diff.id));
-    // Gentler early-mid HP curve; steeper after wave 20 so endless stays fair.
+    // Skill-forward curve: punchy early, readable mid, firm late without brick walls.
     const early = Math.min(wave, 10);
-    const mid = Math.max(0, Math.min(wave, 20) - 10);
-    const late = Math.max(0, wave - 20);
-    const difficulty = (1 + (early - 1) * 0.11 + mid * 0.16 + late * 0.24) * diff.hpMul;
+    const mid = Math.max(0, Math.min(wave, 22) - 10);
+    const late = Math.max(0, Math.min(wave, 40) - 22);
+    const deep = Math.max(0, wave - 40);
+    const difficulty = (1 + (early - 1) * 0.1 + mid * 0.145 + late * 0.2 + deep * 0.22) * diff.hpMul;
     const bossN = bossCountForWave(wave, rng);
     const isBoss = bossN > 0;
-    const count = Math.min(52, Math.floor((6 + Math.floor(wave * 1.35 + rng() * 3)) * diff.countMul));
-    const interval = Math.max(0.2, (0.92 - wave * 0.028 + (rng() - 0.5) * 0.12) * diff.intervalMul);
+    const count = Math.min(50, Math.floor((6 + Math.floor(wave * 1.28 + rng() * 3)) * diff.countMul));
+    const interval = Math.max(0.22, (0.94 - wave * 0.026 + (rng() - 0.5) * 0.12) * diff.intervalMul);
     const mix = [];
     // Shared HP budget across multi-boss packs keeps them fair and readable.
-    const bossHpShare = bossN <= 1 ? 1 : (0.7 + 0.3 / bossN);
+    const bossHpShare = bossN <= 1 ? 1 : (0.62 + 0.38 / bossN);
     const usedBosses = new Set();
     const bossPacks = [];
     for (let i = 0; i < bossN; i++) {
@@ -788,6 +814,7 @@
   function serializeRun() {
     return {
       seed: state.seed, difficulty: state.difficulty || "normal",
+      isDaily: !!runIsDaily, dailyKey: runDailyKey || null,
       hp: state.hp, scrap: state.scrap, score: state.score, wave: state.wave,
       betweenWaves: state.betweenWaves, spawnTimer: state.spawnTimer, spawnQueue: state.spawnQueue,
       towers: state.towers.map((t) => ({
@@ -839,6 +866,8 @@
       if (!data || !data.seed) return false;
       state.seed = data.seed;
       state.difficulty = data.difficulty || "normal";
+      runIsDaily = !!data.isDaily;
+      runDailyKey = data.dailyKey || (runIsDaily ? dailyKey() : null);
       meta.selectedDifficulty = state.difficulty;
       state.path = generatePath(state.seed, state.w, state.h);
       state.hp = data.hp; state.scrap = data.scrap; state.score = data.score; state.wave = data.wave;
@@ -869,15 +898,53 @@
     } catch { return false; }
   }
 
-  function startNewRun() {
+  function claimMilestones(wave, score, diffId) {
+    if (!meta.milestones) meta.milestones = {};
+    const newly = [];
+    for (const m of MILESTONES) {
+      if (meta.milestones[m.id]) continue;
+      let ok = false;
+      if (m.kind === "wave") {
+        const rec = (meta.bestByDifficulty && meta.bestByDifficulty[m.difficulty]) || { wave: 0 };
+        const reached = m.difficulty === diffId ? Math.max(rec.wave, wave) : rec.wave;
+        ok = reached >= m.wave;
+      } else if (m.kind === "dailies") {
+        ok = (meta.dailiesCompleted || 0) >= m.count;
+      }
+      if (!ok) continue;
+      meta.milestones[m.id] = { at: Date.now(), wave, score };
+      meta.chips += m.chips || 0;
+      newly.push(m.label + (m.chips ? ` (+${m.chips})` : ""));
+    }
+    return newly;
+  }
+
+  function refreshMilestonesUI() {
+    const el = $("milestone-list");
+    if (!el) return;
+    const claimed = meta.milestones || {};
+    el.innerHTML = MILESTONES.map((m) => {
+      const done = !!claimed[m.id];
+      return `<li class="${done ? "done" : ""}"><span>${m.label}</span><span>${done ? "✓" : m.chips + "c"}</span></li>`;
+    }).join("");
+  }
+
+  function startNewRun(opts = {}) {
     syncDifficultyUnlocks();
-    if (!isDifficultyUnlocked(meta.selectedDifficulty)) meta.selectedDifficulty = "normal";
-    state.difficulty = meta.selectedDifficulty || "normal";
-    state.seed = newRunSeed();
+    runIsDaily = !!opts.daily;
+    runDailyKey = opts.dailyKey || null;
+    if (!runIsDaily) {
+      if (!isDifficultyUnlocked(meta.selectedDifficulty)) meta.selectedDifficulty = "normal";
+      state.difficulty = meta.selectedDifficulty || "normal";
+      state.seed = newRunSeed();
+    } else {
+      state.difficulty = "normal";
+      state.seed = dailySeedFor(runDailyKey || dailyKey());
+    }
     state.path = generatePath(state.seed, state.w, state.h);
     const diff = currentDiff();
-    state.hp = diff.id === "nightmare" ? 15 : diff.id === "hard" ? 18 : 20;
-    state.scrap = diff.id === "nightmare" ? 100 : 120;
+    state.hp = diff.id === "nightmare" ? 16 : diff.id === "hard" ? 18 : 20;
+    state.scrap = diff.id === "nightmare" ? 110 : diff.id === "hard" ? 130 : 145;
     state.score = 0; state.wave = 0;
     state.towers = []; state.enemies = []; state.projectiles = []; state.fx = []; state.particles = [];
     state.spawnQueue = []; state.spawnTimer = 0; state.betweenWaves = 1.2;
@@ -902,7 +969,8 @@
   function endRun(abandoned) {
     const wave = state.wave, score = state.score;
     const diff = DIFFICULTIES[state.difficulty] || DIFFICULTIES.normal;
-    const chips = Math.floor((abandoned ? wave * 3 + score / 60 : wave * 6 + score / 28) * diff.chipMul);
+    const dailyBonus = runIsDaily && !abandoned && wave >= 8 ? 18 : 0;
+    const chips = Math.floor((abandoned ? wave * 3 + score / 55 : wave * 6.5 + score / 26) * diff.chipMul) + dailyBonus;
     meta.chips += Math.max(0, chips);
     if (!meta.bestByDifficulty[diff.id]) meta.bestByDifficulty[diff.id] = { wave: 0, score: 0 };
     const rec = meta.bestByDifficulty[diff.id];
@@ -915,15 +983,34 @@
         newly.push(DIFFICULTIES[id].name);
       }
     }
+    if (runIsDaily && runDailyKey) {
+      if (meta.lastDailyKey !== runDailyKey) {
+        meta.dailiesCompleted = (meta.dailiesCompleted || 0) + 1;
+        meta.lastDailyKey = runDailyKey;
+      }
+      const db = meta.lastDailyBest || { wave: 0, score: 0 };
+      if (wave > (db.wave || 0)) db.wave = wave;
+      if (score > (db.score || 0)) db.score = score;
+      meta.lastDailyBest = db;
+    }
+    const mile = claimMilestones(wave, score, diff.id);
+    for (const m of mile) newly.push(m);
     saveJSON(STORAGE.meta, meta);
     if (wave > best.wave) best.wave = wave;
     if (score > best.score) best.score = score;
     saveJSON(STORAGE.best, best);
+    const wasDaily = runIsDaily;
+    runIsDaily = false; runDailyKey = null;
     clearRun();
     state.mode = "over";
     hideCoach(false);
-    els.overSummary.textContent = `${diff.name} · Wave ${wave} · Score ${score}` + (abandoned ? " (abandoned)" : "");
-    els.overChips.textContent = `+${Math.max(0, chips)} chips` + (newly.length ? ` · Unlocked ${newly.join(", ")}!` : "");
+    els.overSummary.textContent =
+      `${wasDaily ? "Daily · " : ""}${diff.name} · Wave ${wave} · Score ${formatCompact(score)}` +
+      (abandoned ? " (abandoned)" : "");
+    els.overChips.textContent =
+      `+${Math.max(0, chips)} chips` +
+      (dailyBonus ? ` · daily +${dailyBonus}` : "") +
+      (newly.length ? ` · ${newly.join(", ")}` : "");
     showScreen("over"); refreshHub();
     sfx.over();
     addShake(1.1);
@@ -966,6 +1053,21 @@
     els.chips.textContent = formatCompact(meta.chips);
     els.chips.title = String(meta.chips);
     els.btnContinue.classList.toggle("hidden", !hasSavedRun());
+    const dailyBtn = $("btn-daily");
+    if (dailyBtn) {
+      const key = dailyKey();
+      const doneToday = meta.lastDailyKey === key;
+      dailyBtn.textContent = doneToday ? "Daily · Replay" : "Daily Rift";
+      dailyBtn.title = "Seed " + dailySeedFor(key);
+      const hint = $("daily-hint");
+      if (hint) {
+        const bestD = meta.lastDailyBest || { wave: 0, score: 0 };
+        hint.textContent = doneToday
+          ? `Today’s best: W${bestD.wave || 0} · ${formatCompact(bestD.score || 0)} · ${meta.dailiesCompleted || 0} dailies`
+          : `Shared seed ${key} · clear W8 for bonus chips`;
+      }
+    }
+    refreshMilestonesUI();
     syncMuteUI();
     syncSpeedUI();
     renderDifficultyPicks();
@@ -1026,6 +1128,7 @@
     bindToggle("opt-screenflash", "screenFlash");
     bindToggle("opt-combatfx", "combatFx");
     bindToggle("opt-haptics", "haptics");
+    bindToggle("opt-dmgnumbers", "dmgNumbers");
     const musicEl = $("opt-music");
     if (musicEl) {
       musicEl.checked = !!settings.music;
@@ -1478,8 +1581,10 @@
   function damageEnemy(e, amount, tower, opts = {}) {
     if (!e.alive) return 0;
     let dmg = amount * damageMultiplier(tower, e);
+    let didCrit = false;
     if (opts.critChance && Math.random() < opts.critChance) {
       dmg *= 2;
+      didCrit = true;
       const p = posOnPath(state.path, e.dist);
       state.fx.push({ kind: "text", x: p.x, y: p.y - 14, t: 0.5, text: "CRIT", color: "#ffb34a" });
       addShake(0.4);
@@ -1505,6 +1610,17 @@
     applyOnHitEffects(tower, e, dmg);
     const p = posOnPath(state.path, e.dist);
     pushCombatFx({ kind: "spark", x: p.x, y: p.y, t: 0.28, color: opts.color || tower.color });
+    if (settings.dmgNumbers !== false && dmg >= 1) {
+      const shown = Math.max(1, Math.round(dmg));
+      state.fx.push({
+        kind: "text",
+        x: p.x + (Math.random() - 0.5) * 10,
+        y: p.y - e.r - 8,
+        t: 0.55,
+        text: String(shown),
+        color: didCrit ? "#ffb34a" : (opts.color || "#f3ebe2"),
+      });
+    }
     spawnParticles(p.x, p.y, opts.color || tower.color, 4, 55);
     sfx.hit();
     if (e.hp <= 0) {
@@ -1586,7 +1702,7 @@
       // Timer advance: next wave starts even if foes remain (overlaps OK).
       state.enemies = state.enemies.filter((e) => e.alive);
       state.betweenWaves = nextWaveDelay();
-      state.scrap += 28 + state.wave * 4;
+      state.scrap += 32 + state.wave * 5;
       saveRun();
     }
 
@@ -2562,31 +2678,35 @@
     ctx.fillStyle = hg;
     roundRect(-barW / 2, barY, barW * pct, 4, 1.5); ctx.fill();
 
-    // Element resist pips (filled = resists, hollow-ish bright = weak)
+    // Element resist pips: filled square = resist, bright triangle = weak
     const resist = enemyResist(e);
     const pipEls = ["fire", "water", "earth", "wind"].filter((el) => {
       const v = resist[el];
       return v != null && (v <= 0.85 || v >= 1.15);
     });
     if (pipEls.length) {
-      const pipW = pipEls.length * 7;
+      const pipW = pipEls.length * 9;
       pipEls.forEach((el, i) => {
-        const px = -pipW / 2 + i * 7 + 3;
-        const py = barY - 6;
+        const px = -pipW / 2 + i * 9 + 4;
+        const py = barY - 7;
         const v = resist[el];
+        ctx.save();
         ctx.fillStyle = ELEMENTS[el].color;
-        ctx.globalAlpha = v <= 0.85 ? 0.95 : 0.55;
+        ctx.strokeStyle = "rgba(0,0,0,0.45)";
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = v <= 0.85 ? 1 : 0.9;
         ctx.beginPath();
         if (v <= 0.85) {
-          ctx.rect(px - 2.2, py - 2.2, 4.4, 4.4);
+          roundRect(px - 3, py - 3, 6, 6, 1.5); ctx.fill(); ctx.stroke();
         } else {
-          ctx.moveTo(px, py - 3);
-          ctx.lineTo(px + 2.6, py + 2.2);
-          ctx.lineTo(px - 2.6, py + 2.2);
+          ctx.moveTo(px, py - 4);
+          ctx.lineTo(px + 3.4, py + 2.6);
+          ctx.lineTo(px - 3.4, py + 2.6);
           ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
         }
-        ctx.fill();
-        ctx.globalAlpha = 1;
+        ctx.restore();
       });
     }
 
@@ -2868,7 +2988,21 @@
       state.scrap -= cost;
       t.elements.push(el);
       burstPlace(t.x, t.y, ELEMENTS[el].color);
-      toast(describeCombo(t.elements));
+      const combo = describeCombo(t.elements);
+      toast(combo);
+      if (t.elements.length >= 2) {
+        const short = ({
+          "fire+water": "STEAM",
+          "earth+fire": "MAGMA",
+          "fire+wind": "WILDFIRE",
+          "earth+water": "MUD",
+          "water+wind": "STORM",
+          "earth+wind": "TEMPEST",
+        })[comboKey(t.elements)] || "COMBO";
+        state.fx.push({ kind: "text", x: t.x, y: t.y - 28, t: 0.85, text: short, color: ELEMENTS[el].color });
+        pushCombatFx({ kind: "ring", x: t.x, y: t.y, t: 0.45, r0: 12, r1: 48, color: ELEMENTS[el].color });
+        haptic([10, 40, 18]);
+      }
       sfx.socket();
       updateHUD(); saveRun();
       advanceCoach(1);
@@ -2934,6 +3068,14 @@
   }
 
   $("btn-play").addEventListener("click", () => { clearRun(); resize(); startNewRun(); });
+  if ($("btn-daily")) {
+    $("btn-daily").addEventListener("click", () => {
+      clearRun();
+      resize();
+      startNewRun({ daily: true, dailyKey: dailyKey() });
+      toast("Daily rift · " + dailyKey());
+    });
+  }
   $("btn-continue").addEventListener("click", continueRun);
   $("btn-upgrades").addEventListener("click", () => { showScreen("upgrades"); renderUpgrades(); });
   $("btn-upgrades-back").addEventListener("click", () => { showScreen("hub"); refreshHub(); });
