@@ -8,7 +8,9 @@
     run: "rd_run_v1",
   };
 
-  const SPEED_STEPS = [1, 1.5, 2];
+  const SPEED_STEPS = [1, 1.5, 2, 3, 5];
+  const SHAKE_LEVELS = ["off", "low", "med", "high"];
+  const SHAKE_MUL = { off: 0, low: 0.28, med: 0.6, high: 1 };
   const MAX_PARTICLES = 180;
 
   const DIFFICULTIES = {
@@ -19,18 +21,18 @@
 
   const BASE_TOWER = {
     turret: {
-      name: "Turret", cost: 60, damage: 22, range: 78, fireRate: 0.48, sell: 30, color: "#e8883a",
+      name: "Turret", cost: 55, damage: 30, range: 82, fireRate: 0.40, sell: 28, color: "#e8883a",
       hitsAir: true, hitsGround: true, splash: 0,
       blurb: "High DPS · short range · hits air & ground",
     },
     mortar: {
-      name: "Mortar", cost: 90, damage: 34, range: 125, fireRate: 1.45, splash: 48, sell: 45, color: "#6fbf8a",
+      name: "Mortar", cost: 85, damage: 44, range: 128, fireRate: 1.28, splash: 52, sell: 42, color: "#6fbf8a",
       hitsAir: false, hitsGround: true,
       blurb: "AoE splash · slow · cannot hit flying",
     },
     coil: {
-      name: "Coil", cost: 75, damage: 9, range: 105, fireRate: 0.65, sell: 38, color: "#4db8c4",
-      hitsAir: true, hitsGround: true, airBonus: 1.55, armorPenalty: 0.55, slow: 0.6, slowDur: 1.3,
+      name: "Coil", cost: 70, damage: 15, range: 108, fireRate: 0.55, sell: 35, color: "#4db8c4",
+      hitsAir: true, hitsGround: true, airBonus: 1.55, armorPenalty: 0.55, slow: 0.55, slowDur: 1.45,
       blurb: "Slows · anti-air · weak vs armor",
     },
   };
@@ -46,42 +48,94 @@
 
   const UPGRADE_TREES = {
     turret: [
-      { id: "t_dmg1", name: "Hot Rounds I", desc: "+20% damage", cost: 40, req: null, effect: { damage: 1.2 } },
-      { id: "t_dmg2", name: "Hot Rounds II", desc: "+25% damage", cost: 70, req: "t_dmg1", effect: { damage: 1.25 } },
-      { id: "t_dmg3", name: "AP Core", desc: "+30% damage", cost: 110, req: "t_dmg2", effect: { damage: 1.3 } },
-      { id: "t_rng1", name: "Long Barrel", desc: "+15% range", cost: 50, req: null, effect: { range: 1.15 } },
-      { id: "t_rng2", name: "Spotter Link", desc: "+20% range", cost: 90, req: "t_rng1", effect: { range: 1.2 } },
-      { id: "t_spd1", name: "Servo Drive", desc: "+18% fire rate", cost: 55, req: null, effect: { fireRate: 0.85 } },
-      { id: "t_spd2", name: "Burst Mag", desc: "+22% fire rate", cost: 95, req: "t_spd1", effect: { fireRate: 0.82 } },
-      { id: "t_crit", name: "Crit Optics", desc: "18% chance ×2 damage", cost: 120, req: "t_dmg2", effect: { crit: 0.18 } },
+      { id: "t_dmg1", name: "Hot Rounds I", desc: "+28% damage", cost: 28, req: null, effect: { damage: 1.28 } },
+      { id: "t_dmg2", name: "Hot Rounds II", desc: "+30% damage", cost: 48, req: "t_dmg1", effect: { damage: 1.3 } },
+      { id: "t_dmg3", name: "AP Core", desc: "+35% damage", cost: 80, req: "t_dmg2", effect: { damage: 1.35 } },
+      { id: "t_rng1", name: "Long Barrel", desc: "+18% range", cost: 32, req: null, effect: { range: 1.18 } },
+      { id: "t_rng2", name: "Spotter Link", desc: "+22% range", cost: 65, req: "t_rng1", effect: { range: 1.22 } },
+      { id: "t_spd1", name: "Servo Drive", desc: "+22% fire rate", cost: 35, req: null, effect: { fireRate: 0.82 } },
+      { id: "t_spd2", name: "Burst Mag", desc: "+25% fire rate", cost: 70, req: "t_spd1", effect: { fireRate: 0.8 } },
+      { id: "t_crit", name: "Crit Optics", desc: "22% chance ×2 damage", cost: 90, req: "t_dmg2", effect: { crit: 0.22 } },
     ],
     mortar: [
-      { id: "m_dmg1", name: "HE Shells I", desc: "+20% damage", cost: 45, req: null, effect: { damage: 1.2 } },
-      { id: "m_dmg2", name: "HE Shells II", desc: "+25% damage", cost: 80, req: "m_dmg1", effect: { damage: 1.25 } },
-      { id: "m_splash1", name: "Wider Blast", desc: "+25% splash", cost: 60, req: null, effect: { splash: 1.25 } },
-      { id: "m_splash2", name: "Cluster Cap", desc: "+30% splash", cost: 100, req: "m_splash1", effect: { splash: 1.3 } },
-      { id: "m_rng1", name: "Arc Sight", desc: "+12% range", cost: 50, req: null, effect: { range: 1.12 } },
-      { id: "m_spd1", name: "Fast Loader", desc: "+15% fire rate", cost: 65, req: null, effect: { fireRate: 0.87 } },
-      { id: "m_burn", name: "Incendiary Base", desc: "Mild burn without Fire socket", cost: 130, req: "m_dmg1", effect: { burn: 4 } },
+      { id: "m_dmg1", name: "HE Shells I", desc: "+28% damage", cost: 30, req: null, effect: { damage: 1.28 } },
+      { id: "m_dmg2", name: "HE Shells II", desc: "+30% damage", cost: 55, req: "m_dmg1", effect: { damage: 1.3 } },
+      { id: "m_splash1", name: "Wider Blast", desc: "+28% splash", cost: 40, req: null, effect: { splash: 1.28 } },
+      { id: "m_splash2", name: "Cluster Cap", desc: "+35% splash", cost: 72, req: "m_splash1", effect: { splash: 1.35 } },
+      { id: "m_rng1", name: "Arc Sight", desc: "+15% range", cost: 34, req: null, effect: { range: 1.15 } },
+      { id: "m_spd1", name: "Fast Loader", desc: "+18% fire rate", cost: 42, req: null, effect: { fireRate: 0.85 } },
+      { id: "m_burn", name: "Incendiary Base", desc: "Mild burn without Fire socket", cost: 95, req: "m_dmg1", effect: { burn: 6 } },
     ],
     coil: [
-      { id: "c_dmg1", name: "Amp Coil I", desc: "+25% damage", cost: 40, req: null, effect: { damage: 1.25 } },
-      { id: "c_dmg2", name: "Amp Coil II", desc: "+30% damage", cost: 75, req: "c_dmg1", effect: { damage: 1.3 } },
-      { id: "c_slow1", name: "Deep Freeze", desc: "Stronger base slow", cost: 55, req: null, effect: { slow: 0.45 } },
-      { id: "c_slow2", name: "Cryo Hold", desc: "Longer slow", cost: 85, req: "c_slow1", effect: { slowDur: 1.35 } },
-      { id: "c_rng1", name: "Field Expand", desc: "+15% range", cost: 50, req: null, effect: { range: 1.15 } },
-      { id: "c_spd1", name: "Pulse Sync", desc: "+20% fire rate", cost: 60, req: null, effect: { fireRate: 0.83 } },
-      { id: "c_chain", name: "Arc Jump", desc: "Chain to 2nd target", cost: 120, req: "c_dmg1", effect: { chain: 1 } },
+      { id: "c_dmg1", name: "Amp Coil I", desc: "+30% damage", cost: 28, req: null, effect: { damage: 1.3 } },
+      { id: "c_dmg2", name: "Amp Coil II", desc: "+35% damage", cost: 52, req: "c_dmg1", effect: { damage: 1.35 } },
+      { id: "c_slow1", name: "Deep Freeze", desc: "Stronger base slow", cost: 36, req: null, effect: { slow: 0.4 } },
+      { id: "c_slow2", name: "Cryo Hold", desc: "Longer slow", cost: 60, req: "c_slow1", effect: { slowDur: 1.5 } },
+      { id: "c_rng1", name: "Field Expand", desc: "+18% range", cost: 34, req: null, effect: { range: 1.18 } },
+      { id: "c_spd1", name: "Pulse Sync", desc: "+24% fire rate", cost: 40, req: null, effect: { fireRate: 0.8 } },
+      { id: "c_chain", name: "Arc Jump", desc: "Chain to 2nd target", cost: 88, req: "c_dmg1", effect: { chain: 1 } },
     ],
   };
 
+  // resist: <1 resists that element, >1 is weak. Applied per socketed element on hit.
   const ENEMY = {
-    drone: { hp: 36, speed: 70, reward: 8, r: 10, color: "#4db8c4", shape: "tri", tags: ["flying", "fast"], label: "Drone" },
-    crawler: { hp: 95, speed: 40, reward: 14, r: 12, color: "#e8883a", shape: "sq", tags: ["ground"], label: "Crawler" },
-    armor: { hp: 240, speed: 26, reward: 30, r: 14, color: "#a89a8c", shape: "hex", tags: ["ground", "armored"], label: "Armor" },
-    swarm: { hp: 20, speed: 82, reward: 5, r: 7, color: "#6fbf8a", shape: "dot", tags: ["ground", "swarm"], label: "Swarm" },
-    boss: { hp: 980, speed: 20, reward: 90, r: 22, color: "#e85d4c", shape: "boss", tags: ["ground", "armored", "boss"], label: "Boss" },
+    drone: {
+      hp: 34, speed: 70, reward: 11, r: 11, color: "#4db8c4", shape: "tri",
+      tags: ["flying", "fast"], label: "Drone",
+      resist: { fire: 0.9, water: 1.2, earth: 0.5, wind: 1.45 },
+    },
+    crawler: {
+      hp: 88, speed: 40, reward: 18, r: 13, color: "#e8883a", shape: "sq",
+      tags: ["ground"], label: "Crawler",
+      resist: { fire: 1.2, water: 1.0, earth: 1.1, wind: 0.8 },
+    },
+    armor: {
+      hp: 220, speed: 26, reward: 38, r: 15, color: "#a89a8c", shape: "hex",
+      tags: ["ground", "armored"], label: "Armor",
+      resist: { fire: 0.55, water: 0.8, earth: 1.5, wind: 0.5 },
+    },
+    swarm: {
+      hp: 18, speed: 84, reward: 7, r: 8, color: "#6fbf8a", shape: "dot",
+      tags: ["ground", "swarm"], label: "Swarm",
+      resist: { fire: 1.55, water: 0.65, earth: 0.9, wind: 0.85 },
+    },
+    boss: {
+      hp: 920, speed: 20, reward: 120, r: 24, color: "#e85d4c", shape: "boss",
+      tags: ["ground", "armored", "boss"], label: "Boss",
+      resist: { fire: 0.65, water: 0.7, earth: 1.25, wind: 0.55 },
+    },
   };
+
+  function enemyResist(enemy) {
+    if (enemy && enemy.resist) return enemy.resist;
+    const def = ENEMY[enemy && enemy.type] || null;
+    return (def && def.resist) || {};
+  }
+  function elementResistMul(enemy, elsArr) {
+    if (!elsArr || !elsArr.length) return 1;
+    const r = enemyResist(enemy);
+    let m = 1;
+    for (const el of elsArr) {
+      if (r[el] != null) m *= r[el];
+    }
+    // Soften dual-socket extremes so mixed sockets stay readable.
+    if (elsArr.length > 1) m = Math.pow(m, 0.78);
+    return m;
+  }
+  function formatResistLine(resist) {
+    const weak = [], tank = [];
+    for (const el of ["fire", "water", "earth", "wind"]) {
+      const v = resist[el];
+      if (v == null) continue;
+      const name = ELEMENTS[el].name;
+      if (v >= 1.15) weak.push(name);
+      else if (v <= 0.85) tank.push(name);
+    }
+    const parts = [];
+    if (tank.length) parts.push(`Resists ${tank.join("/")}`);
+    if (weak.length) parts.push(`Weak to ${weak.join("/")}`);
+    return parts.join(" · ") || "No strong elemental bias";
+  }
 
   function hashSeed(str) {
     let h = 2166136261 >>> 0;
@@ -115,7 +169,10 @@
     chips: 0, owned: {}, unlockedDifficulties: { normal: true }, selectedDifficulty: "normal",
     bestByDifficulty: { normal: { wave: 0, score: 0 }, hard: { wave: 0, score: 0 }, nightmare: { wave: 0, score: 0 } },
   });
-  const defaultSettings = () => ({ muted: false, gameSpeed: 1, tutorialDone: false, coachStep: 0 });
+  const defaultSettings = () => ({
+    muted: false, gameSpeed: 1, tutorialDone: false, coachStep: 0,
+    shake: "low", particles: true, hitFlash: true, screenFlash: true, combatFx: true,
+  });
   const defaultBest = () => ({ wave: 0, score: 0 });
 
   let meta = loadJSON(STORAGE.meta, defaultMeta());
@@ -125,6 +182,11 @@
   let settings = loadJSON(STORAGE.settings, defaultSettings());
   if (!SPEED_STEPS.includes(settings.gameSpeed)) settings.gameSpeed = 1;
   if (settings.coachStep == null) settings.coachStep = 0;
+  if (!SHAKE_LEVELS.includes(settings.shake)) settings.shake = "low";
+  if (typeof settings.particles !== "boolean") settings.particles = true;
+  if (typeof settings.hitFlash !== "boolean") settings.hitFlash = true;
+  if (typeof settings.screenFlash !== "boolean") settings.screenFlash = true;
+  if (typeof settings.combatFx !== "boolean") settings.combatFx = true;
   let best = loadJSON(STORAGE.best, defaultBest());
 
   function isDifficultyUnlocked(id) {
@@ -161,7 +223,7 @@
     hp: $("hp"), scrap: $("scrap"), wave: $("wave"), score: $("score"),
     banner: $("banner"), toast: $("toast"),
     hub: $("screen-hub"), upgrades: $("screen-upgrades"), pause: $("screen-pause"),
-    over: $("screen-over"), codex: $("screen-codex"),
+    over: $("screen-over"), codex: $("screen-codex"), settings: $("screen-settings"),
     bestWave: $("best-wave"), bestScore: $("best-score"), chips: $("chips"), chipsUp: $("chips-up"),
     btnContinue: $("btn-continue"), upgradeList: $("upgrade-list"),
     overSummary: $("over-summary"), overChips: $("over-chips"),
@@ -316,22 +378,47 @@
     return bestD;
   }
 
+  function bossCountForWave(wave, rng) {
+    // Decade waves always bring bosses; count scales with endless depth (cap 5).
+    if (wave > 0 && wave % 10 === 0) {
+      let n = 1 + Math.floor((wave - 10) / 10); // 10→1, 20→2, 30→3…
+      if (wave >= 50) n += Math.floor((wave - 50) / 25);
+      return Math.min(5, Math.max(1, n));
+    }
+    // Late endless: occasional mid-cycle boss so packs can overlap across waves.
+    if (wave >= 28 && wave % 5 === 0 && rng() < 0.5) return 1;
+    if (wave >= 42 && rng() < 0.1) return 1;
+    return 0;
+  }
+
   function wavePlan(seed, wave, diffId) {
     const diff = DIFFICULTIES[diffId] || DIFFICULTIES.normal;
     const rng = mulberry32(hashSeed(seed + ":wave:" + wave + ":" + diff.id));
-    const difficulty = (1 + (wave - 1) * 0.18) * diff.hpMul;
-    const count = Math.min(48, Math.floor((6 + Math.floor(wave * 1.4 + rng() * 3)) * diff.countMul));
-    const interval = Math.max(0.22, (0.95 - wave * 0.03 + (rng() - 0.5) * 0.12) * diff.intervalMul);
+    // Gentler early-mid HP curve; steeper after wave 20 so endless stays fair.
+    const early = Math.min(wave, 10);
+    const mid = Math.max(0, Math.min(wave, 20) - 10);
+    const late = Math.max(0, wave - 20);
+    const difficulty = (1 + (early - 1) * 0.11 + mid * 0.16 + late * 0.24) * diff.hpMul;
+    const bossN = bossCountForWave(wave, rng);
+    const isBoss = bossN > 0;
+    const count = Math.min(52, Math.floor((6 + Math.floor(wave * 1.35 + rng() * 3)) * diff.countMul));
+    const interval = Math.max(0.2, (0.92 - wave * 0.028 + (rng() - 0.5) * 0.12) * diff.intervalMul);
     const mix = [];
-    const isBoss = wave % 10 === 0;
-    if (isBoss) mix.push({ type: "boss", n: 1 + Math.floor(wave / 20) });
+    // Shared HP budget across multi-boss packs keeps them fair and readable.
+    const bossHpShare = bossN <= 1 ? 1 : (0.7 + 0.3 / bossN);
+    for (let i = 0; i < bossN; i++) {
+      mix.push({
+        type: "boss", n: 1, bossIndex: i, bossTotal: bossN, bossHpShare,
+      });
+    }
     const weights = {
       drone: 0.4 + rng() * 0.15,
       crawler: 0.28,
       armor: Math.min(0.4, 0.08 + wave * 0.02 + (diff.id === "nightmare" ? 0.08 : 0)),
       swarm: wave >= 3 ? 0.22 + rng() * 0.12 : 0,
     };
-    let left = count - (isBoss ? mix[0].n : 0);
+    let left = Math.max(0, count - bossN);
+    const fodder = [];
     while (left > 0) {
       const r = rng();
       let type = "drone";
@@ -341,19 +428,50 @@
       if (r > acc) { acc += weights.armor / sum; type = r <= acc ? "armor" : type; }
       if (r > acc) type = "swarm";
       const n = type === "swarm" ? Math.min(left, 3 + Math.floor(rng() * 4)) : Math.min(left, 1 + Math.floor(rng() * 3));
-      mix.push({ type, n });
+      fodder.push({ type, n });
       left -= n;
     }
-    for (let i = mix.length - 1; i > 0; i--) {
+    for (let i = fodder.length - 1; i > 0; i--) {
       const j = Math.floor(rng() * (i + 1));
-      [mix[i], mix[j]] = [mix[j], mix[i]];
+      [fodder[i], fodder[j]] = [fodder[j], fodder[i]];
     }
-    return { count, interval, mix, difficulty, isBoss, speedMul: diff.speedMul, rewardMul: diff.rewardMul };
+    // Keep bosses from stacking: fodder first half, then spaced bosses, then rest.
+    if (bossN > 0 && fodder.length) {
+      const split = Math.ceil(fodder.length * 0.45);
+      mix.length = 0;
+      for (let i = 0; i < split; i++) mix.push(fodder[i]);
+      for (let i = 0; i < bossN; i++) {
+        mix.push({ type: "boss", n: 1, bossIndex: i, bossTotal: bossN, bossHpShare });
+      }
+      for (let i = split; i < fodder.length; i++) mix.push(fodder[i]);
+    } else {
+      for (const f of fodder) mix.push(f);
+    }
+    return {
+      count, interval, mix, difficulty, isBoss, bossN,
+      speedMul: diff.speedMul, rewardMul: diff.rewardMul,
+    };
+  }
+
+  function livingBossCount() {
+    let n = 0;
+    for (const e of state.enemies) if (e.alive && e.type === "boss") n++;
+    return n;
+  }
+  function canAdvanceWave() {
+    const living = state.enemies.filter((e) => e.alive);
+    if (!living.length) return true;
+    // Late endless: allow the next wave while a boss is still on the rift (overlap).
+    if (state.wave < 25) return false;
+    if (living.some((e) => e.type !== "boss")) return false;
+    const bosses = living.length;
+    if (state.wave >= 40) return bosses <= 2;
+    return bosses <= 1;
   }
 
   const state = {
     mode: "hub", seed: null, difficulty: "normal", path: null,
-    w: 390, h: 620, hp: 20, scrap: 120, score: 0, wave: 0,
+    w: 390, h: 620, hp: 20, scrap: 155, score: 0, wave: 0,
     selectedTower: null, selectedBuilt: null,
     towers: [], enemies: [], projectiles: [], fx: [], particles: [],
     spawnQueue: [], spawnTimer: 0, betweenWaves: 0, time: 0, frame: 0,
@@ -385,10 +503,16 @@
   }
 
   /* ---- juice helpers ---- */
+  function shakeMul() {
+    return SHAKE_MUL[settings.shake] ?? SHAKE_MUL.low;
+  }
   function addShake(amount) {
-    state.shake = Math.min(10, state.shake + amount);
+    const mul = shakeMul();
+    if (mul <= 0 || amount <= 0) return;
+    state.shake = Math.min(3.2, state.shake + amount * mul);
   }
   function spawnParticles(x, y, color, n, speed = 60) {
+    if (settings.particles === false) return;
     const budget = MAX_PARTICLES - state.particles.length;
     const count = Math.min(n, Math.max(0, budget));
     for (let i = 0; i < count; i++) {
@@ -405,23 +529,31 @@
       });
     }
   }
+  function pushCombatFx(fx) {
+    if (settings.combatFx === false) return;
+    state.fx.push(fx);
+  }
+  function triggerScreenFlash(amount) {
+    if (settings.screenFlash === false) return;
+    state.flash = Math.max(state.flash, amount);
+  }
   function burstPlace(x, y, color) {
-    state.fx.push({ kind: "place", x, y, t: 0.5, color });
-    state.fx.push({ kind: "ring", x, y, t: 0.4, r0: 8, r1: 42, color });
+    pushCombatFx({ kind: "place", x, y, t: 0.5, color });
+    pushCombatFx({ kind: "ring", x, y, t: 0.4, r0: 8, r1: 42, color });
     spawnParticles(x, y, color, 14, 90);
   }
   function burstUpgrade(x, y, color) {
-    state.fx.push({ kind: "place", x, y, t: 0.55, color });
-    state.fx.push({ kind: "ring", x, y, t: 0.5, r0: 10, r1: 56, color: "#ffb34a" });
+    pushCombatFx({ kind: "place", x, y, t: 0.55, color });
+    pushCombatFx({ kind: "ring", x, y, t: 0.5, r0: 10, r1: 56, color: "#ffb34a" });
     spawnParticles(x, y, color, 20, 110);
     spawnParticles(x, y, "#ffb34a", 10, 70);
-    addShake(2.2);
+    addShake(0.55);
   }
 
   const COACH_STEPS = [
     "Tap Turret below, then tap stone beside the glowing rift.",
     "Great — tap your tower, then socket an element (Fire / Water / Earth / Wind).",
-    "Use the speed button (1×→1.5×→2×) when waves feel slow. Survive!",
+    "Use the speed button (1×→1.5×→2×→3×→5×) when waves feel slow. Survive!",
   ];
   function showCoach(step) {
     if (settings.tutorialDone || !els.coach) return;
@@ -480,7 +612,8 @@
       enemies: state.enemies.map((e) => ({
         type: e.type, dist: e.dist, hp: e.hp, maxHp: e.maxHp, speed: e.speed,
         slow: e.slow, slowT: e.slowT, burn: e.burn, burnT: e.burnT,
-        chillT: e.chillT, shred: e.shred, reward: e.reward, tags: e.tags,
+        chillT: e.chillT, shred: e.shred, knockCd: e.knockCd || 0, reward: e.reward, tags: e.tags,
+        resist: e.resist, bossIndex: e.bossIndex, bossTotal: e.bossTotal, color: e.color, r: e.r,
       })),
       paused: state.mode === "paused", savedAt: Date.now(),
     };
@@ -505,10 +638,12 @@
       type: t.type, x: t.nx * state.w, y: t.ny * state.h, nx: t.nx, ny: t.ny,
       level, cooldown: t.cooldown || 0, elements: [...(t.elements || [])],
       ...stats,
-      damage: stats.damage * (1 + (level - 1) * 0.25),
-      range: stats.range * (1 + (level - 1) * 0.08),
-      fireRate: stats.fireRate * Math.max(0.55, 1 - (level - 1) * 0.04),
-      splash: stats.splash ? stats.splash * (1 + (level - 1) * 0.1) : 0,
+      damage: stats.damage * (1 + (level - 1) * 0.35),
+      range: stats.range * (1 + (level - 1) * 0.1),
+      fireRate: stats.fireRate * Math.max(0.5, 1 - (level - 1) * 0.05),
+      splash: stats.splash ? stats.splash * (1 + (level - 1) * 0.12) : 0,
+      aim: typeof t.aim === "number" ? t.aim : -Math.PI / 2,
+      recoil: 0,
     };
   }
   function loadRun() {
@@ -529,8 +664,11 @@
         return {
           ...def, type: e.type, dist: e.dist, hp: e.hp, maxHp: e.maxHp,
           speed: e.speed || def.speed, tags: e.tags || def.tags,
+          color: e.color || def.color, r: e.r || def.r,
+          resist: e.resist || { ...(def.resist || {}) },
+          bossIndex: e.bossIndex || 0, bossTotal: e.bossTotal || 1,
           slow: e.slow || 1, slowT: e.slowT || 0, burn: e.burn || 0, burnT: e.burnT || 0,
-          chillT: e.chillT || 0, shred: e.shred || 0, reward: e.reward, alive: true, hitFlash: 0,
+          chillT: e.chillT || 0, shred: e.shred || 0, knockCd: e.knockCd || 0, reward: e.reward, alive: true, hitFlash: 0,
         };
       });
       state.projectiles = []; state.fx = []; state.particles = [];
@@ -570,7 +708,7 @@
   function endRun(abandoned) {
     const wave = state.wave, score = state.score;
     const diff = DIFFICULTIES[state.difficulty] || DIFFICULTIES.normal;
-    const chips = Math.floor((abandoned ? wave * 2 + score / 80 : wave * 4 + score / 40) * diff.chipMul);
+    const chips = Math.floor((abandoned ? wave * 3 + score / 60 : wave * 6 + score / 28) * diff.chipMul);
     meta.chips += Math.max(0, chips);
     if (!meta.bestByDifficulty[diff.id]) meta.bestByDifficulty[diff.id] = { wave: 0, score: 0 };
     const rec = meta.bestByDifficulty[diff.id];
@@ -594,7 +732,7 @@
     els.overChips.textContent = `+${Math.max(0, chips)} chips` + (newly.length ? ` · Unlocked ${newly.join(", ")}!` : "");
     showScreen("over"); refreshHub();
     sfx.over();
-    addShake(5);
+    addShake(1.1);
   }
 
   function showScreen(name) {
@@ -603,6 +741,7 @@
     els.pause.classList.toggle("hidden", name !== "pause");
     els.over.classList.toggle("hidden", name !== "over");
     els.codex.classList.toggle("hidden", name !== "codex");
+    if (els.settings) els.settings.classList.toggle("hidden", name !== "settings");
   }
 
   function refreshHub() {
@@ -626,6 +765,78 @@
     els.btnMute.setAttribute("aria-label", settings.muted ? "Unmute" : "Mute");
     els.btnMute.title = settings.muted ? "Unmute" : "Mute";
     els.btnMute.style.opacity = settings.muted ? "0.55" : "1";
+  }
+
+  function saveSettings() {
+    saveJSON(STORAGE.settings, settings);
+  }
+
+  function renderSettings() {
+    const wrap = $("shake-picks");
+    if (wrap) {
+      wrap.innerHTML = "";
+      const labels = { off: "Off", low: "Low", med: "Med", high: "High" };
+      for (const id of SHAKE_LEVELS) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "shake-btn" + (settings.shake === id ? " active" : "");
+        btn.textContent = labels[id];
+        btn.setAttribute("aria-pressed", settings.shake === id ? "true" : "false");
+        btn.addEventListener("click", () => {
+          settings.shake = id;
+          if (id === "off") state.shake = 0;
+          saveSettings();
+          renderSettings();
+          sfx.ui();
+          toast("Shake " + labels[id]);
+        });
+        wrap.appendChild(btn);
+      }
+    }
+    const bindToggle = (id, key) => {
+      const el = $(id);
+      if (!el) return;
+      el.checked = settings[key] !== false;
+      el.onchange = () => {
+        settings[key] = !!el.checked;
+        if (key === "particles" && !settings.particles) state.particles = [];
+        if (key === "combatFx" && !settings.combatFx) {
+          state.fx = state.fx.filter((f) => f.kind === "beam" || f.kind === "text");
+        }
+        if (key === "screenFlash" && !settings.screenFlash) state.flash = 0;
+        if (key === "hitFlash" && !settings.hitFlash) {
+          for (const e of state.enemies) e.hitFlash = 0;
+        }
+        saveSettings();
+        sfx.ui();
+      };
+    };
+    bindToggle("opt-particles", "particles");
+    bindToggle("opt-hitflash", "hitFlash");
+    bindToggle("opt-screenflash", "screenFlash");
+    bindToggle("opt-combatfx", "combatFx");
+  }
+
+  let settingsReturnScreen = "hub";
+  function openSettings(from) {
+    settingsReturnScreen = from || "hub";
+    if (state.mode === "playing") {
+      state.mode = "paused";
+      saveRun();
+      settingsReturnScreen = "pause";
+    }
+    renderSettings();
+    showScreen("settings");
+  }
+  function closeSettings() {
+    if (settingsReturnScreen === "pause" && state.seed) {
+      state.mode = "paused";
+      showScreen("pause");
+    } else {
+      state.mode = "hub";
+      showScreen("hub");
+      refreshHub();
+    }
   }
   function renderDifficultyPicks() {
     const wrap = $("diff-picks");
@@ -670,7 +881,7 @@
     });
   }
   function upgradeCost(t) {
-    return Math.floor(BASE_TOWER[t.type].cost * (0.7 + t.level * 0.55));
+    return Math.floor(BASE_TOWER[t.type].cost * (0.5 + t.level * 0.42));
   }
   function elementCost(t) {
     return (t.elements && t.elements.length) ? ELEMENT_SECOND_COST : ELEMENTS.fire.cost;
@@ -684,8 +895,12 @@
     }
     els.inspect.classList.remove("hidden");
     const elsList = sel.elements || [];
+    const matchTip = elsList.length
+      ? `<span class="match-tip">Sockets deal × resist on each foe — check Codex matchups.</span><br>`
+      : `<span class="match-tip">Socket elements: enemies resist / weaken specific ones.</span><br>`;
     els.inspectText.innerHTML =
       `<strong>${BASE_TOWER[sel.type].name}</strong> Lv${sel.level} · ${BASE_TOWER[sel.type].blurb}<br>` +
+      matchTip +
       `${describeCombo(elsList)} · socket ${elsList.length}/${MAX_ELEMENTS}` +
       (elsList.length < MAX_ELEMENTS ? ` · next ${elementCost(sel)} scrap` : "");
     els.btnSell.disabled = false;
@@ -763,25 +978,41 @@
         state.spawnQueue.push({
           type: pack.type, difficulty: plan.difficulty,
           speedMul: plan.speedMul, rewardMul: plan.rewardMul,
+          bossIndex: pack.bossIndex, bossTotal: pack.bossTotal, bossHpShare: pack.bossHpShare,
         });
       }
     }
     state.spawnTimer = 0.35; state.betweenWaves = 0;
     const diffName = (DIFFICULTIES[state.difficulty] || DIFFICULTIES.normal).name;
-    showBanner(plan.isBoss ? `BOSS ${state.wave}` : `${diffName.toUpperCase()} ${state.wave}`);
+    let banner = `${diffName.toUpperCase()} ${state.wave}`;
+    if (plan.bossN > 1) banner = `BOSSES ×${plan.bossN} · ${state.wave}`;
+    else if (plan.isBoss) banner = `BOSS ${state.wave}`;
+    if (livingBossCount() > 0 && plan.isBoss) banner = `OVERLAP · ${banner}`;
+    showBanner(banner);
     sfx.wave();
     saveRun();
   }
-  function spawnEnemy(type, difficulty, speedMul = 1, rewardMul = 1) {
+  const BOSS_TINTS = ["#e85d4c", "#e8883a", "#c44a2a", "#ffb34a", "#a84838"];
+  function spawnEnemy(type, difficulty, speedMul = 1, rewardMul = 1, meta = {}) {
     const def = ENEMY[type] || ENEMY.drone;
-    const hp = Math.floor(def.hp * difficulty * (type === "boss" ? 1 + state.wave * 0.05 : 1));
+    const bossTotal = meta.bossTotal || 1;
+    const bossIndex = meta.bossIndex || 0;
+    const hpShare = type === "boss" ? (meta.bossHpShare || (bossTotal <= 1 ? 1 : 0.7 + 0.3 / bossTotal)) : 1;
+    const bossScale = type === "boss" ? (1 + state.wave * 0.04) * hpShare : 1;
+    const hp = Math.floor(def.hp * difficulty * bossScale);
     const jitter = 0.95 + (hashSeed(state.seed + type + state.enemies.length) % 100) / 500;
+    // Multi-boss packs move a touch slower so they stay readable on the rift.
+    const packSlow = type === "boss" && bossTotal > 1 ? Math.max(0.78, 1 - (bossTotal - 1) * 0.07) : 1;
+    const color = type === "boss" ? BOSS_TINTS[bossIndex % BOSS_TINTS.length] : def.color;
+    const r = type === "boss" && bossTotal > 1 ? def.r * (0.9 + (bossIndex % 3) * 0.04) : def.r;
     state.enemies.push({
       type, dist: 0, hp, maxHp: hp,
-      speed: def.speed * jitter * speedMul,
-      reward: Math.floor(def.reward * (0.9 + difficulty * 0.05) * rewardMul),
-      r: def.r, color: def.color, shape: def.shape, tags: [...def.tags],
-      slow: 1, slowT: 0, burn: 0, burnT: 0, chillT: 0, shred: 0, alive: true, hitFlash: 0,
+      speed: def.speed * jitter * speedMul * packSlow,
+      reward: Math.floor(def.reward * (0.9 + difficulty * 0.05) * rewardMul * (type === "boss" && bossTotal > 1 ? 0.85 : 1)),
+      r, color, shape: def.shape, tags: [...def.tags],
+      resist: { ...(def.resist || {}) },
+      bossIndex, bossTotal,
+      slow: 1, slowT: 0, burn: 0, burnT: 0, chillT: 0, shred: 0, knockCd: 0, alive: true, hitFlash: 0,
     });
   }
 
@@ -799,6 +1030,7 @@
     state.towers.push({
       type, x, y, nx: x / state.w, ny: y / state.h,
       level: 1, cooldown: 0, elements: [], ...stats,
+      aim: -Math.PI / 2, recoil: 0,
     });
     burstPlace(x, y, stats.color);
     sfx.place();
@@ -850,6 +1082,9 @@
       if (has("fire") && armored) mul *= 0.85;
     }
 
+    // Per-enemy elemental resists / weaknesses (matchups).
+    mul *= elementResistMul(enemy, elsArr);
+
     if (enemy.shred > 0) mul *= 1 + Math.min(0.5, enemy.shred);
     if (key === "water+wind" && enemy.chillT > 0) mul *= 1.75;
     return mul;
@@ -860,26 +1095,45 @@
     const has = (e) => elsArr.includes(e);
     const key = comboKey(elsArr);
     const p = posOnPath(state.path, enemy.dist);
+    const r = enemyResist(enemy);
+    const resistFactor = (el) => {
+      const v = r[el] == null ? 1 : r[el];
+      // Map resist curve into status potency (resists weaken, weaknesses strengthen).
+      return Math.max(0.25, Math.min(1.6, v));
+    };
 
     if (has("fire") || tower.burn) {
-      const burn = (has("fire") ? 8 : 0) + (tower.burn || 0);
+      const rf = resistFactor("fire");
+      const burn = ((has("fire") ? 8 : 0) + (tower.burn || 0)) * rf;
       enemy.burn = Math.max(enemy.burn, burn);
-      enemy.burnT = Math.max(enemy.burnT, key === "fire+wind" ? 3.2 : 2.2);
+      enemy.burnT = Math.max(enemy.burnT, (key === "fire+wind" ? 3.2 : 2.2) * Math.min(1.25, rf));
     }
     if (has("water")) {
+      const rf = resistFactor("water");
       const heavy = key === "earth+water";
-      enemy.slow = Math.min(enemy.slow, heavy ? 0.35 : 0.55);
-      enemy.slowT = Math.max(enemy.slowT, heavy ? 2.2 : 1.5);
-      enemy.chillT = Math.max(enemy.chillT, heavy ? 2.2 : 1.5);
+      const baseSlow = heavy ? 0.35 : 0.55;
+      // Higher resist → slower effect closer to 1 (less slow).
+      const slowAmt = 1 - (1 - baseSlow) * rf;
+      enemy.slow = Math.min(enemy.slow, Math.min(0.92, Math.max(0.25, slowAmt)));
+      enemy.slowT = Math.max(enemy.slowT, (heavy ? 2.2 : 1.5) * Math.min(1.25, rf));
+      enemy.chillT = Math.max(enemy.chillT, (heavy ? 2.2 : 1.5) * Math.min(1.25, rf));
     } else if (tower.slow) {
       enemy.slow = Math.min(enemy.slow, tower.slow);
       enemy.slowT = Math.max(enemy.slowT, tower.slowDur || 1.2);
     }
     if (has("earth") && key !== "earth+wind") {
-      enemy.shred = Math.min(0.5, (enemy.shred || 0) + 0.12);
+      const rf = resistFactor("earth");
+      enemy.shred = Math.min(0.5, (enemy.shred || 0) + 0.12 * rf);
     }
     if (has("wind")) {
-      enemy.dist = Math.max(0, enemy.dist - (key === "earth+wind" ? 18 : 10));
+      // Soft knockback with per-enemy ICD so multi-hit towers can't stunlock.
+      const kbCd = enemy.knockCd || 0;
+      const rf = resistFactor("wind");
+      if (kbCd <= 0 && rf > 0.35) {
+        const push = (key === "earth+wind" ? 7 : 4) * rf;
+        enemy.dist = Math.max(0, enemy.dist - push);
+        enemy.knockCd = key === "earth+wind" ? 0.85 : 1.1;
+      }
     }
 
     if (key === "fire+water") {
@@ -893,7 +1147,7 @@
           if (e.hp <= 0) killEnemy(e);
         }
       }
-      state.fx.push({ kind: "blast", x: p.x, y: p.y, t: 0.3, r: 42, color: "#9ad0e8" });
+      pushCombatFx({ kind: "blast", x: p.x, y: p.y, t: 0.3, r: 42, color: "#9ad0e8" });
       spawnParticles(p.x, p.y, "#9ad0e8", 8, 70);
     }
     if (key === "fire+wind" && enemy.burnT > 0) {
@@ -914,10 +1168,10 @@
     const p = posOnPath(state.path, e.dist);
     state.scrap += e.reward;
     state.score += e.reward * 2 + Math.floor(state.wave);
-    state.fx.push({ kind: "pop", x: p.x, y: p.y, t: 0.4, color: e.color });
+    pushCombatFx({ kind: "pop", x: p.x, y: p.y, t: 0.4, color: e.color });
     spawnParticles(p.x, p.y, e.color, e.type === "boss" ? 28 : 12, e.type === "boss" ? 140 : 90);
-    if (e.type === "boss") addShake(4);
-    else addShake(0.8);
+    if (e.type === "boss") addShake(1.15);
+    else addShake(0.22);
     sfx.kill();
 
     if (opts.magma) {
@@ -931,7 +1185,7 @@
           if (o.hp <= 0) killEnemy(o);
         }
       }
-      state.fx.push({ kind: "blast", x: p.x, y: p.y, t: 0.4, r: 50, color: "#e85d4c" });
+      pushCombatFx({ kind: "blast", x: p.x, y: p.y, t: 0.4, r: 50, color: "#e85d4c" });
       spawnParticles(p.x, p.y, "#e85d4c", 16, 100);
     }
   }
@@ -943,17 +1197,17 @@
       dmg *= 2;
       const p = posOnPath(state.path, e.dist);
       state.fx.push({ kind: "text", x: p.x, y: p.y - 14, t: 0.5, text: "CRIT", color: "#ffb34a" });
-      addShake(1.5);
+      addShake(0.4);
     }
     if (comboKey(tower.elements || []) === "water+wind" && e.chillT > 0) {
       const p = posOnPath(state.path, e.dist);
       state.fx.push({ kind: "text", x: p.x, y: p.y - 18, t: 0.45, text: "SHATTER", color: "#4db8c4" });
     }
     e.hp -= dmg;
-    e.hitFlash = 0.12;
+    if (settings.hitFlash !== false) e.hitFlash = 0.12;
     applyOnHitEffects(tower, e, dmg);
     const p = posOnPath(state.path, e.dist);
-    state.fx.push({ kind: "spark", x: p.x, y: p.y, t: 0.28, color: opts.color || tower.color });
+    pushCombatFx({ kind: "spark", x: p.x, y: p.y, t: 0.28, color: opts.color || tower.color });
     spawnParticles(p.x, p.y, opts.color || tower.color, 4, 55);
     sfx.hit();
     if (e.hp <= 0) {
@@ -967,6 +1221,8 @@
     const p = posOnPath(state.path, target.dist);
     const elsArr = tower.elements || [];
     const tint = elsArr.length ? ELEMENTS[elsArr[0]].color : tower.color;
+    tower.aim = Math.atan2(p.y - tower.y, p.x - tower.x);
+    tower.recoil = 1;
 
     if (tower.type === "mortar") {
       state.projectiles.push({
@@ -1021,19 +1277,26 @@
       const plan = wavePlan(state.seed, Math.max(1, state.wave), state.difficulty);
       if (state.spawnTimer <= 0) {
         const next = state.spawnQueue.shift();
-        spawnEnemy(next.type, next.difficulty, next.speedMul || 1, next.rewardMul || 1);
-        state.spawnTimer = plan.interval * (next.type === "swarm" ? 0.35 : 1);
+        spawnEnemy(next.type, next.difficulty, next.speedMul || 1, next.rewardMul || 1, next);
+        if (next.type === "boss") {
+          // Space bosses along the path so packs don't stack into one blob.
+          state.spawnTimer = plan.interval * (3.2 + (next.bossIndex || 0) * 0.75);
+        } else {
+          state.spawnTimer = plan.interval * (next.type === "swarm" ? 0.35 : 1);
+        }
       }
-    } else if (state.betweenWaves <= 0 && state.enemies.every((e) => !e.alive) && state.wave > 0) {
-      state.enemies = [];
-      state.betweenWaves = 2.2;
-      state.scrap += 15 + state.wave * 2;
+    } else if (state.betweenWaves <= 0 && canAdvanceWave() && state.wave > 0) {
+      // Keep living bosses when overlapping; drop only corpses.
+      state.enemies = state.enemies.filter((e) => e.alive);
+      state.betweenWaves = livingBossCount() > 0 ? 1.4 : 2.2;
+      state.scrap += 28 + state.wave * 4;
       saveRun();
     }
 
     for (const e of state.enemies) {
       if (!e.alive) continue;
       if (e.hitFlash > 0) e.hitFlash -= step;
+      if (e.knockCd > 0) e.knockCd -= step;
       if (e.slowT > 0) { e.slowT -= step; if (e.slowT <= 0) e.slow = 1; }
       if (e.chillT > 0) e.chillT -= step;
       if (e.burnT > 0) {
@@ -1049,15 +1312,25 @@
       if (e.dist >= state.path.total) {
         e.alive = false;
         state.hp -= e.type === "boss" ? 5 : 1;
-        state.fx.push({ kind: "leak", t: 0.5 });
-        state.flash = 0.25;
-        addShake(3.5);
+        pushCombatFx({ kind: "leak", t: 0.5 });
+        triggerScreenFlash(0.18);
+        addShake(0.95);
         sfx.leak();
         if (state.hp <= 0) { state.hp = 0; updateHUD(); endRun(false); return; }
       }
     }
 
     for (const tower of state.towers) {
+      if (tower.recoil > 0) tower.recoil = Math.max(0, tower.recoil - step * 4.5);
+      const track = findTarget(tower, state.enemies);
+      if (track) {
+        const tp = posOnPath(state.path, track.dist);
+        const want = Math.atan2(tp.y - tower.y, tp.x - tower.x);
+        let dAim = want - (tower.aim || 0);
+        while (dAim > Math.PI) dAim -= Math.PI * 2;
+        while (dAim < -Math.PI) dAim += Math.PI * 2;
+        tower.aim = (tower.aim || 0) + dAim * Math.min(1, step * 10);
+      }
       tower.cooldown -= step;
       if (tower.cooldown > 0) continue;
       const target = findTarget(tower, state.enemies);
@@ -1083,9 +1356,9 @@
               damageEnemy(e, p.damage, p.tower, { color: p.color });
             }
           }
-          state.fx.push({ kind: "blast", x: p.tx, y: p.ty, t: 0.35, r: p.splash, color: p.color });
+          pushCombatFx({ kind: "blast", x: p.tx, y: p.ty, t: 0.35, r: p.splash, color: p.color });
           spawnParticles(p.tx, p.ty, p.color, 18, 120);
-          addShake(2);
+          addShake(0.5);
           p.dead = true;
         }
       }
@@ -1240,79 +1513,232 @@
     ctx.globalAlpha = 1;
   }
 
+  function pulseSafe(e) {
+    return Math.sin(state.time * 3 + (e.dist || 0) * 0.05) * 2;
+  }
+
   function drawTower(t, selected) {
     ctx.save();
     ctx.translate(t.x, t.y);
+    const aim = typeof t.aim === "number" ? t.aim : -Math.PI / 2;
+    const recoil = t.recoil || 0;
+    const pulse = 0.5 + 0.5 * Math.sin(state.time * 4 + t.x * 0.05);
+
     if (selected) {
-      ctx.strokeStyle = "rgba(255,179,74,0.85)";
+      ctx.strokeStyle = "rgba(255,179,74,0.9)";
       ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
       ctx.beginPath();
-      ctx.arc(0, 0, 20, 0, Math.PI * 2);
+      ctx.arc(0, 0, 22 + Math.sin(state.time * 5) * 1.5, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.setLineDash([]);
     }
 
-    // ground pad
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    // ground pad shadow + basalt ring
+    ctx.fillStyle = "rgba(0,0,0,0.4)";
     ctx.beginPath();
-    ctx.ellipse(0, 10, 14, 5, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 12, 16, 5.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const pad = ctx.createRadialGradient(0, 4, 2, 0, 6, 16);
+    pad.addColorStop(0, "#3a2e24");
+    pad.addColorStop(0.7, "#1c1612");
+    pad.addColorStop(1, "rgba(14,12,10,0)");
+    ctx.fillStyle = pad;
+    ctx.beginPath();
+    ctx.ellipse(0, 8, 15, 6, 0, 0, Math.PI * 2);
     ctx.fill();
 
     if (t.type === "turret") {
-      ctx.fillStyle = "#3a2a1c";
-      roundRect(-11, -8, 22, 18, 4); ctx.fill();
-      ctx.fillStyle = "#8a4a22";
-      roundRect(-8, -10, 16, 12, 3); ctx.fill();
-      ctx.fillStyle = "#e8883a";
-      roundRect(2, -4, 16, 7, 2); ctx.fill();
-      ctx.fillStyle = "#ffb34a";
-      ctx.fillRect(16, -2.5, 5, 4);
-      ctx.fillStyle = "#1a1008";
-      ctx.beginPath(); ctx.arc(-2, -2, 3, 0, Math.PI * 2); ctx.fill();
-    } else if (t.type === "mortar") {
-      ctx.fillStyle = "#2a3a28";
-      ctx.beginPath(); ctx.arc(0, 4, 12, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "#4a6a48";
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(-10, 8); ctx.lineTo(-14, 14); ctx.moveTo(10, 8); ctx.lineTo(14, 14); ctx.stroke();
+      const body = ctx.createLinearGradient(-12, -10, 12, 12);
+      body.addColorStop(0, "#5a3a22");
+      body.addColorStop(0.45, "#2a1a12");
+      body.addColorStop(1, "#8a4a22");
+      ctx.fillStyle = body;
+      roundRect(-12, -6, 24, 16, 5); ctx.fill();
+      ctx.strokeStyle = "rgba(255,179,74,0.25)";
+      ctx.lineWidth = 1;
+      roundRect(-12, -6, 24, 16, 5); ctx.stroke();
+
+      ctx.fillStyle = "#c4a35a";
+      [[-9, 2], [9, 2], [-9, 8], [9, 8]].forEach(([rx, ry]) => {
+        ctx.beginPath(); ctx.arc(rx, ry, 1.4, 0, Math.PI * 2); ctx.fill();
+      });
+
       ctx.save();
-      ctx.rotate(-0.55);
-      ctx.fillStyle = "#6fbf8a";
-      roundRect(-4, -16, 8, 22, 3); ctx.fill();
-      ctx.fillStyle = "#1a2418";
-      ctx.beginPath(); ctx.arc(0, -16, 3.5, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-    } else {
-      ctx.fillStyle = "#1a3038";
-      ctx.beginPath();
-      ctx.moveTo(0, -13); ctx.lineTo(13, 0); ctx.lineTo(0, 13); ctx.lineTo(-13, 0);
-      ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = "#4db8c4";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      for (let i = 0; i < 3; i++) {
-        const r = 4 + i * 3;
-        ctx.strokeStyle = `rgba(77,184,196,${0.7 - i * 0.18})`;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.rotate(aim);
+      ctx.translate(-recoil * 3.5, 0);
+
+      const house = ctx.createLinearGradient(0, -8, 0, 8);
+      house.addColorStop(0, "#e8a050");
+      house.addColorStop(0.5, "#a85828");
+      house.addColorStop(1, "#4a2410");
+      ctx.fillStyle = house;
+      roundRect(-8, -7, 14, 14, 3); ctx.fill();
+
+      const lens = ctx.createRadialGradient(-2, -1, 0.5, -2, 0, 4);
+      lens.addColorStop(0, "#fff2c8");
+      lens.addColorStop(0.4, "#ffb34a");
+      lens.addColorStop(1, "#5a2010");
+      ctx.fillStyle = lens;
+      ctx.beginPath(); ctx.arc(-2, 0, 3.2, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(26,16,8,0.55)";
+      ctx.lineWidth = 1; ctx.stroke();
+
+      const barrel = ctx.createLinearGradient(4, -5, 22, 5);
+      barrel.addColorStop(0, "#ffb34a");
+      barrel.addColorStop(0.5, "#e8883a");
+      barrel.addColorStop(1, "#6a3010");
+      ctx.fillStyle = barrel;
+      roundRect(4, -5.5, 16, 4, 1.5); ctx.fill();
+      roundRect(4, 1.5, 16, 4, 1.5); ctx.fill();
+      ctx.fillStyle = "#1a1008";
+      ctx.fillRect(19, -4.5, 2.5, 2);
+      ctx.fillRect(19, 2.5, 2.5, 2);
+      if (recoil > 0.15) {
+        ctx.globalAlpha = recoil;
+        ctx.fillStyle = "#ffe08a";
+        ctx.beginPath(); ctx.arc(22, 0, 3 + recoil * 2, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
       }
-      ctx.fillStyle = "#a8eef5";
-      ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+
+      ctx.strokeStyle = `rgba(232,93,76,${0.25 + pulse * 0.35})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(-6, 10); ctx.lineTo(-6, 14);
+      ctx.moveTo(0, 10); ctx.lineTo(0, 15);
+      ctx.moveTo(6, 10); ctx.lineTo(6, 14);
+      ctx.stroke();
+
+    } else if (t.type === "mortar") {
+      ctx.strokeStyle = "#3a4a38";
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = "round";
+      [[-12, 14], [12, 14], [0, 16]].forEach(([lx, ly], i) => {
+        ctx.beginPath();
+        ctx.moveTo(i === 2 ? 0 : (i ? 6 : -6), 6);
+        ctx.lineTo(lx, ly);
+        ctx.stroke();
+        ctx.fillStyle = "#6fbf8a";
+        ctx.beginPath(); ctx.arc(lx, ly, 2.2, 0, Math.PI * 2); ctx.fill();
+      });
+
+      const plate = ctx.createRadialGradient(-2, 2, 1, 0, 4, 13);
+      plate.addColorStop(0, "#5a7a58");
+      plate.addColorStop(0.55, "#2a3a28");
+      plate.addColorStop(1, "#141c14");
+      ctx.fillStyle = plate;
+      ctx.beginPath(); ctx.arc(0, 4, 12, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(111,191,138,0.45)";
+      ctx.lineWidth = 1.5; ctx.stroke();
+
+      const bob = Math.sin(state.time * 2.2) * 0.04;
+      ctx.save();
+      ctx.rotate(aim * 0.15 - 0.65 + bob - recoil * 0.2);
+      const tube = ctx.createLinearGradient(-6, 0, 6, 0);
+      tube.addColorStop(0, "#1a2418");
+      tube.addColorStop(0.35, "#6fbf8a");
+      tube.addColorStop(0.55, "#c8f0d0");
+      tube.addColorStop(1, "#2a4a30");
+      ctx.fillStyle = tube;
+      roundRect(-5, -20, 10, 26, 4); ctx.fill();
+      ctx.fillStyle = "rgba(26,16,8,0.45)";
+      ctx.fillRect(-5, -12, 10, 2);
+      ctx.fillRect(-5, -2, 10, 2);
+      const muzzle = ctx.createRadialGradient(0, -20, 0, 0, -20, 5);
+      muzzle.addColorStop(0, "#0a120a");
+      muzzle.addColorStop(0.6, "#2a3a28");
+      muzzle.addColorStop(1, "#6fbf8a");
+      ctx.fillStyle = muzzle;
+      ctx.beginPath(); ctx.arc(0, -20, 4.5, 0, Math.PI * 2); ctx.fill();
+      if (recoil > 0.2) {
+        ctx.globalAlpha = recoil * 0.8;
+        ctx.fillStyle = "#b8f5c8";
+        ctx.beginPath(); ctx.arc(0, -24, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+
+      ctx.fillStyle = "#243024";
+      roundRect(-4, 6, 8, 7, 2); ctx.fill();
+      ctx.fillStyle = `rgba(111,191,138,${0.4 + pulse * 0.4})`;
+      ctx.fillRect(-2, 8, 4, 3);
+
+    } else {
+      const spin = state.time * 2.8;
+      ctx.save();
+      const chassis = ctx.createLinearGradient(-14, -14, 14, 14);
+      chassis.addColorStop(0, "#2a4850");
+      chassis.addColorStop(0.5, "#0e1c22");
+      chassis.addColorStop(1, "#4db8c4");
+      ctx.fillStyle = chassis;
+      ctx.beginPath();
+      ctx.moveTo(0, -15); ctx.lineTo(14, 0); ctx.lineTo(0, 15); ctx.lineTo(-14, 0);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = "rgba(168,238,245,0.55)";
+      ctx.lineWidth = 1.5; ctx.stroke();
+
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.beginPath();
+      ctx.moveTo(0, -9); ctx.lineTo(9, 0); ctx.lineTo(0, 9); ctx.lineTo(-9, 0);
+      ctx.closePath(); ctx.fill();
+
+      for (let i = 0; i < 3; i++) {
+        const r = 5 + i * 3.2;
+        ctx.save();
+        ctx.rotate(spin * (i % 2 ? 1 : -1) + i);
+        ctx.strokeStyle = `rgba(77,184,196,${0.75 - i * 0.18})`;
+        ctx.lineWidth = 1.6 - i * 0.3;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, r, r * 0.45, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      const core = ctx.createRadialGradient(-1, -1, 0, 0, 0, 5);
+      core.addColorStop(0, "#ffffff");
+      core.addColorStop(0.35, "#a8eef5");
+      core.addColorStop(1, "#1a6080");
+      ctx.fillStyle = core;
+      ctx.beginPath(); ctx.arc(0, 0, 3.5 + pulse * 0.8, 0, Math.PI * 2); ctx.fill();
+
+      ctx.save();
+      ctx.rotate(aim);
+      ctx.fillStyle = "rgba(168,238,245,0.85)";
+      ctx.beginPath();
+      ctx.moveTo(8, -2.5); ctx.lineTo(16 - recoil * 2, 0); ctx.lineTo(8, 2.5);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.restore();
     }
 
     const elsArr = t.elements || [];
     elsArr.forEach((el, i) => {
-      const ex = -8 + i * 16;
-      ctx.fillStyle = ELEMENTS[el].color;
-      ctx.beginPath(); ctx.arc(ex, -18, 4.5, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(0,0,0,0.35)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
+      const ex = -9 + i * 18;
+      const ey = -20;
+      const eg = ctx.createRadialGradient(ex - 1, ey - 1, 0.5, ex, ey, 5.5);
+      eg.addColorStop(0, "#fff8e8");
+      eg.addColorStop(0.35, ELEMENTS[el].color);
+      eg.addColorStop(1, "#1a1008");
+      ctx.fillStyle = eg;
+      ctx.beginPath();
+      ctx.moveTo(ex, ey - 5);
+      ctx.lineTo(ex + 4.5, ey);
+      ctx.lineTo(ex, ey + 5);
+      ctx.lineTo(ex - 4.5, ey);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.35)";
+      ctx.lineWidth = 1; ctx.stroke();
     });
     if (t.level > 1) {
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      roundRect(-7, 18, 14, 11, 3); ctx.fill();
       ctx.fillStyle = "#f3ebe2";
       ctx.font = "bold 9px Avenir Next, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(String(t.level), 0, 22);
+      ctx.textBaseline = "middle";
+      ctx.fillText("L" + t.level, 0, 23.5);
+      ctx.textBaseline = "alphabetic";
     }
     ctx.restore();
   }
@@ -1321,100 +1747,302 @@
     ctx.save();
     ctx.translate(x, y);
     const flash = e.hitFlash > 0;
+    const bob = Math.sin(state.time * (e.tags.includes("flying") ? 7 : 5) + e.dist * 0.08);
+    const crawl = e.dist * 0.35;
+
+    ctx.fillStyle = "rgba(0,0,0,0.28)";
+    ctx.beginPath();
+    ctx.ellipse(0, e.r * 0.85, e.r * 0.9, e.r * 0.28, 0, 0, Math.PI * 2);
+    ctx.fill();
 
     if (e.tags.includes("flying")) {
-      ctx.strokeStyle = "rgba(126,201,160,0.45)";
+      ctx.strokeStyle = "rgba(126,201,160,0.4)";
       ctx.setLineDash([3, 3]);
-      ctx.beginPath(); ctx.arc(0, 0, e.r + 7, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineDashOffset = -state.time * 20;
+      ctx.beginPath(); ctx.arc(0, 0, e.r + 8, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
-      // wing blips
-      ctx.globalAlpha = 0.5;
-      ctx.fillStyle = e.color;
-      ctx.beginPath(); ctx.ellipse(-e.r - 2, 0, 5, 2.5, -0.3, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(e.r + 2, 0, 5, 2.5, 0.3, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
     }
     if (e.slow < 1 || e.chillT > 0) {
-      ctx.strokeStyle = "rgba(77,184,196,0.55)";
-      ctx.beginPath(); ctx.arc(0, 0, e.r + 5, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = "rgba(77,184,196,0.6)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(0, 0, e.r + 5.5, 0, Math.PI * 2); ctx.stroke();
+      for (let i = 0; i < 3; i++) {
+        const a = state.time * 3 + i * 2.1;
+        ctx.fillStyle = "rgba(168,238,245,0.55)";
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * (e.r + 4), Math.sin(a) * (e.r + 4), 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     if (e.burnT > 0) {
-      ctx.fillStyle = "rgba(232,93,76,0.3)";
-      ctx.beginPath(); ctx.arc(0, 0, e.r + 4, 0, Math.PI * 2); ctx.fill();
+      const bg = ctx.createRadialGradient(0, 0, e.r * 0.2, 0, 0, e.r + 6);
+      bg.addColorStop(0, "rgba(255,179,74,0.35)");
+      bg.addColorStop(1, "rgba(232,93,76,0)");
+      ctx.fillStyle = bg;
+      ctx.beginPath(); ctx.arc(0, 0, e.r + 6, 0, Math.PI * 2); ctx.fill();
     }
 
-    ctx.fillStyle = flash ? "#ffffff" : e.color;
     if (e.shape === "tri") {
-      // drone: arrowhead + cockpit
+      const flap = Math.sin(state.time * 14 + e.dist) * 0.35;
+      ctx.save();
+      ctx.translate(0, bob * 1.5);
+      [-1, 1].forEach((side) => {
+        ctx.save();
+        ctx.translate(side * (e.r * 0.2), 2);
+        ctx.rotate(side * (0.35 + flap));
+        const wing = ctx.createLinearGradient(0, 0, side * 14, 0);
+        wing.addColorStop(0, flash ? "#ffffff" : "#2a6070");
+        wing.addColorStop(1, flash ? "#ffffff" : e.color);
+        ctx.fillStyle = wing;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(side * 10, -6, side * 14, -1);
+        ctx.quadraticCurveTo(side * 8, 4, 0, 3);
+        ctx.closePath(); ctx.fill();
+        ctx.restore();
+      });
+      const body = ctx.createLinearGradient(0, -e.r, 0, e.r);
+      body.addColorStop(0, flash ? "#ffffff" : "#d8f6fa");
+      body.addColorStop(0.4, flash ? "#ffffff" : e.color);
+      body.addColorStop(1, flash ? "#ffffff" : "#1a3840");
+      ctx.fillStyle = body;
       ctx.beginPath();
       ctx.moveTo(0, -e.r);
-      ctx.lineTo(e.r * 0.95, e.r * 0.7);
-      ctx.lineTo(0, e.r * 0.25);
-      ctx.lineTo(-e.r * 0.95, e.r * 0.7);
-      ctx.closePath();
-      ctx.fill();
-      if (!flash) {
-        ctx.fillStyle = "#1a1008";
-        ctx.beginPath(); ctx.arc(0, -2, 2.5, 0, Math.PI * 2); ctx.fill();
-      }
-    } else if (e.shape === "sq") {
-      // crawler beetle
-      roundRect(-e.r, -e.r * 0.75, e.r * 2, e.r * 1.5, 4); ctx.fill();
-      if (!flash) {
-        ctx.fillStyle = "rgba(0,0,0,0.25)";
-        ctx.fillRect(-e.r * 0.3, -e.r * 0.5, e.r * 0.6, e.r);
-        ctx.strokeStyle = "rgba(0,0,0,0.35)";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(-e.r - 2, 2); ctx.lineTo(-e.r - 6, 6);
-        ctx.moveTo(e.r + 2, 2); ctx.lineTo(e.r + 6, 6);
-        ctx.stroke();
-      }
-    } else if (e.shape === "hex") {
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
-        const px = Math.cos(a) * e.r, py = Math.sin(a) * e.r;
-        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
-      }
+      ctx.lineTo(e.r * 0.85, e.r * 0.55);
+      ctx.quadraticCurveTo(0, e.r * 0.95, -e.r * 0.85, e.r * 0.55);
       ctx.closePath(); ctx.fill();
       if (!flash) {
-        ctx.strokeStyle = "rgba(0,0,0,0.35)";
-        ctx.lineWidth = 2; ctx.stroke();
-        ctx.fillStyle = "rgba(255,255,255,0.15)";
-        ctx.beginPath(); ctx.arc(-3, -3, 3, 0, Math.PI * 2); ctx.fill();
+        const canopy = ctx.createRadialGradient(-1, -3, 0.5, 0, -2, 4);
+        canopy.addColorStop(0, "#fff8c8");
+        canopy.addColorStop(0.5, "#4db8c4");
+        canopy.addColorStop(1, "#0a1820");
+        ctx.fillStyle = canopy;
+        ctx.beginPath(); ctx.ellipse(0, -2.5, 3.5, 2.8, 0, 0, Math.PI * 2); ctx.fill();
       }
-    } else if (e.shape === "boss") {
-      roundRect(-e.r, -e.r * 0.65, e.r * 2, e.r * 1.3, 6); ctx.fill();
+      ctx.fillStyle = `rgba(255,179,74,${0.45 + 0.35 * Math.sin(state.time * 12)})`;
+      ctx.beginPath(); ctx.ellipse(0, e.r * 0.7, 3, 1.8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+
+    } else if (e.shape === "sq") {
+      ctx.save();
+      ctx.translate(0, Math.abs(bob) * 0.6);
+      ctx.strokeStyle = flash ? "#ffffff" : "#5a3018";
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      for (let i = 0; i < 3; i++) {
+        const phase = crawl + i * 1.1;
+        const swing = Math.sin(phase) * 4;
+        const ly = -4 + i * 5;
+        ctx.beginPath();
+        ctx.moveTo(-e.r * 0.7, ly);
+        ctx.lineTo(-e.r - 5, ly + 4 + swing);
+        ctx.moveTo(e.r * 0.7, ly);
+        ctx.lineTo(e.r + 5, ly + 4 - swing);
+        ctx.stroke();
+      }
+      const car = ctx.createLinearGradient(-e.r, -e.r, e.r, e.r);
+      car.addColorStop(0, flash ? "#ffffff" : "#ffb34a");
+      car.addColorStop(0.45, flash ? "#ffffff" : e.color);
+      car.addColorStop(1, flash ? "#ffffff" : "#3a1808");
+      ctx.fillStyle = car;
+      roundRect(-e.r, -e.r * 0.7, e.r * 2, e.r * 1.45, 5); ctx.fill();
       if (!flash) {
+        ctx.fillStyle = "rgba(26,16,8,0.35)";
+        roundRect(-e.r * 0.25, -e.r * 0.55, e.r * 0.5, e.r * 1.15, 2); ctx.fill();
+        ctx.strokeStyle = "rgba(255,179,74,0.4)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-e.r * 0.6, -2); ctx.lineTo(e.r * 0.6, -2);
+        ctx.moveTo(-e.r * 0.5, 4); ctx.lineTo(e.r * 0.5, 4);
+        ctx.stroke();
         ctx.fillStyle = "#1a1008";
-        ctx.fillRect(-e.r * 0.45, -5, e.r * 0.9, 10);
-        ctx.fillStyle = e.color;
-        ctx.beginPath();
-        ctx.moveTo(-e.r * 0.7, -e.r * 0.65);
-        ctx.lineTo(-e.r * 0.35, -e.r - 4);
-        ctx.lineTo(-e.r * 0.1, -e.r * 0.65);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(e.r * 0.7, -e.r * 0.65);
-        ctx.lineTo(e.r * 0.35, -e.r - 4);
-        ctx.lineTo(e.r * 0.1, -e.r * 0.65);
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(-3.5, -e.r * 0.35, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(3.5, -e.r * 0.35, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#ffb34a";
+        ctx.beginPath(); ctx.arc(-3.5, -e.r * 0.35, 0.8, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(3.5, -e.r * 0.35, 0.8, 0, Math.PI * 2); ctx.fill();
       }
+      ctx.strokeStyle = flash ? "#ffffff" : "#8a4020";
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(-4, -e.r * 0.7); ctx.quadraticCurveTo(-8, -e.r - 2, -2, -e.r - 1);
+      ctx.moveTo(4, -e.r * 0.7); ctx.quadraticCurveTo(8, -e.r - 2, 2, -e.r - 1);
+      ctx.stroke();
+      ctx.restore();
+
+    } else if (e.shape === "hex") {
+      ctx.save();
+      ctx.translate(0, bob * 0.4);
+      const drawHex = (r, fill) => {
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+          const px = Math.cos(a) * r, py = Math.sin(a) * r;
+          i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fillStyle = fill;
+        ctx.fill();
+      };
+      drawHex(e.r + 1.5, flash ? "#ffffff" : "#5a5248");
+      const plate = ctx.createLinearGradient(-e.r, -e.r, e.r, e.r);
+      plate.addColorStop(0, flash ? "#ffffff" : "#d8d0c4");
+      plate.addColorStop(0.5, flash ? "#ffffff" : e.color);
+      plate.addColorStop(1, flash ? "#ffffff" : "#3a3830");
+      drawHex(e.r, plate);
+      if (!flash) {
+        drawHex(e.r * 0.55, "#2a2824");
+        const gem = ctx.createRadialGradient(-1, -1, 0, 0, 0, e.r * 0.35);
+        gem.addColorStop(0, "#fff0c0");
+        gem.addColorStop(0.4, "#e8883a");
+        gem.addColorStop(1, "#3a1808");
+        drawHex(e.r * 0.35, gem);
+        ctx.strokeStyle = "rgba(0,0,0,0.4)";
+        ctx.lineWidth = 1.2;
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(Math.cos(a) * e.r, Math.sin(a) * e.r);
+          ctx.stroke();
+        }
+        ctx.fillStyle = "#c4a35a";
+        [-1, 1].forEach((s) => {
+          ctx.beginPath();
+          ctx.moveTo(s * e.r * 0.7, -e.r * 0.2);
+          ctx.lineTo(s * (e.r + 5), -e.r * 0.55);
+          ctx.lineTo(s * e.r * 0.55, e.r * 0.1);
+          ctx.closePath(); ctx.fill();
+        });
+      }
+      ctx.restore();
+
+    } else if (e.shape === "boss") {
+      ctx.save();
+      ctx.translate(0, bob * 0.5);
+      const aura = ctx.createRadialGradient(0, 0, e.r * 0.3, 0, 0, e.r + 10);
+      aura.addColorStop(0, "rgba(232,93,76,0.35)");
+      aura.addColorStop(1, "rgba(232,93,76,0)");
+      ctx.fillStyle = aura;
+      ctx.beginPath(); ctx.arc(0, 0, e.r + 10 + pulseSafe(e), 0, Math.PI * 2); ctx.fill();
+
+      if (!flash) {
+        ctx.fillStyle = "#3a1008";
+        [-1, 1].forEach((s) => {
+          ctx.beginPath();
+          ctx.moveTo(s * e.r * 0.55, -e.r * 0.5);
+          ctx.lineTo(s * e.r * 0.9, -e.r - 8);
+          ctx.lineTo(s * e.r * 0.25, -e.r * 0.55);
+          ctx.closePath(); ctx.fill();
+          ctx.fillStyle = "#e85d4c";
+          ctx.beginPath();
+          ctx.moveTo(s * e.r * 0.7, -e.r * 0.7);
+          ctx.lineTo(s * e.r * 0.85, -e.r - 6);
+          ctx.lineTo(s * e.r * 0.45, -e.r * 0.75);
+          ctx.closePath(); ctx.fill();
+          ctx.fillStyle = "#3a1008";
+        });
+      }
+
+      const hide = ctx.createLinearGradient(-e.r, -e.r, e.r, e.r);
+      hide.addColorStop(0, flash ? "#ffffff" : "#ff8a70");
+      hide.addColorStop(0.4, flash ? "#ffffff" : e.color);
+      hide.addColorStop(1, flash ? "#ffffff" : "#2a0808");
+      ctx.fillStyle = hide;
+      roundRect(-e.r, -e.r * 0.6, e.r * 2, e.r * 1.35, 8); ctx.fill();
+
+      if (!flash) {
+        ctx.fillStyle = "rgba(26,8,8,0.45)";
+        ctx.fillRect(-e.r + 2, -e.r * 0.15, e.r * 2 - 4, 5);
+        ctx.fillRect(-e.r + 4, e.r * 0.25, e.r * 2 - 8, 4);
+        const maw = ctx.createRadialGradient(0, 2, 1, 0, 2, e.r * 0.45);
+        maw.addColorStop(0, "#ffe08a");
+        maw.addColorStop(0.4, "#e85d4c");
+        maw.addColorStop(1, "#1a0808");
+        ctx.fillStyle = maw;
+        roundRect(-e.r * 0.4, -4, e.r * 0.8, 12, 3); ctx.fill();
+        ctx.fillStyle = "#ffb34a";
+        ctx.fillRect(-e.r * 0.55, -e.r * 0.35, 6, 2.5);
+        ctx.fillRect(e.r * 0.55 - 6, -e.r * 0.35, 6, 2.5);
+        ctx.fillStyle = "#8a3020";
+        roundRect(-e.r - 2, -e.r * 0.35, 8, 14, 2); ctx.fill();
+        roundRect(e.r - 6, -e.r * 0.35, 8, 14, 2); ctx.fill();
+      }
+      ctx.restore();
+
     } else {
-      // swarm mote cluster
-      ctx.beginPath(); ctx.arc(0, 0, e.r, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 0.7;
-      ctx.beginPath(); ctx.arc(-4, -3, e.r * 0.45, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(4, 2, e.r * 0.4, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
+      ctx.save();
+      const n = 4;
+      for (let i = 0; i < n; i++) {
+        const a = state.time * 5 + i * (Math.PI * 2 / n) + e.dist * 0.1;
+        const rr = e.r * (0.55 + 0.2 * Math.sin(state.time * 3 + i));
+        const mx = Math.cos(a) * rr;
+        const my = Math.sin(a) * rr * 0.7 + bob;
+        const mg = ctx.createRadialGradient(mx - 1, my - 1, 0, mx, my, e.r * 0.55);
+        mg.addColorStop(0, flash ? "#ffffff" : "#e8ffe8");
+        mg.addColorStop(0.5, flash ? "#ffffff" : e.color);
+        mg.addColorStop(1, flash ? "#ffffff" : "rgba(20,40,20,0.2)");
+        ctx.fillStyle = mg;
+        ctx.beginPath(); ctx.arc(mx, my, e.r * 0.55, 0, Math.PI * 2); ctx.fill();
+      }
+      const nuc = ctx.createRadialGradient(-1, -1, 0, 0, 0, e.r * 0.7);
+      nuc.addColorStop(0, flash ? "#ffffff" : "#ffffff");
+      nuc.addColorStop(0.4, flash ? "#ffffff" : e.color);
+      nuc.addColorStop(1, flash ? "#ffffff" : "#1a2a18");
+      ctx.fillStyle = nuc;
+      ctx.beginPath(); ctx.arc(0, bob * 0.3, e.r * 0.55, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
     }
 
     const pct = Math.max(0, e.hp / e.maxHp);
-    ctx.fillStyle = "rgba(0,0,0,0.5)";
-    ctx.fillRect(-11, -e.r - 9, 22, 3.5);
-    ctx.fillStyle = pct < 0.3 ? "#e85d4c" : "#6fbf8a";
-    ctx.fillRect(-11, -e.r - 9, 22 * pct, 3.5);
+    const barW = Math.max(18, e.r * 1.6);
+    const barY = -e.r - 11;
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    roundRect(-barW / 2, barY, barW, 4, 1.5); ctx.fill();
+    const hg = ctx.createLinearGradient(-barW / 2, 0, barW / 2, 0);
+    hg.addColorStop(0, pct < 0.3 ? "#e85d4c" : "#4a9a60");
+    hg.addColorStop(1, pct < 0.3 ? "#ffb4ab" : "#6fbf8a");
+    ctx.fillStyle = hg;
+    roundRect(-barW / 2, barY, barW * pct, 4, 1.5); ctx.fill();
+
+    // Element resist pips (filled = resists, hollow-ish bright = weak)
+    const resist = enemyResist(e);
+    const pipEls = ["fire", "water", "earth", "wind"].filter((el) => {
+      const v = resist[el];
+      return v != null && (v <= 0.85 || v >= 1.15);
+    });
+    if (pipEls.length) {
+      const pipW = pipEls.length * 7;
+      pipEls.forEach((el, i) => {
+        const px = -pipW / 2 + i * 7 + 3;
+        const py = barY - 6;
+        const v = resist[el];
+        ctx.fillStyle = ELEMENTS[el].color;
+        ctx.globalAlpha = v <= 0.85 ? 0.95 : 0.55;
+        ctx.beginPath();
+        if (v <= 0.85) {
+          ctx.rect(px - 2.2, py - 2.2, 4.4, 4.4);
+        } else {
+          ctx.moveTo(px, py - 3);
+          ctx.lineTo(px + 2.6, py + 2.2);
+          ctx.lineTo(px - 2.6, py + 2.2);
+          ctx.closePath();
+        }
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      });
+    }
+
+    if (e.type === "boss" && (e.bossTotal || 1) > 1) {
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      roundRect(-8, e.r + 2, 16, 10, 3); ctx.fill();
+      ctx.fillStyle = "#ffb34a";
+      ctx.font = "bold 8px Avenir Next, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(`${(e.bossIndex || 0) + 1}/${e.bossTotal}`, 0, e.r + 7);
+      ctx.textBaseline = "alphabetic";
+    }
     ctx.restore();
   }
 
@@ -1518,8 +2146,8 @@
       }
     }
 
-    if (state.flash > 0) {
-      ctx.globalAlpha = Math.min(0.35, state.flash);
+    if (state.flash > 0 && settings.screenFlash !== false) {
+      ctx.globalAlpha = Math.min(0.22, state.flash);
       ctx.fillStyle = "#e85d4c";
       ctx.fillRect(-ox, -oy, w + 20, h + 20);
       ctx.globalAlpha = 1;
@@ -1628,10 +2256,10 @@
     if (state.scrap < cost) { toast("Need more scrap"); return; }
     state.scrap -= cost; t.level += 1;
     const base = towerStats(t.type);
-    t.damage = base.damage * (1 + (t.level - 1) * 0.25);
-    t.range = base.range * (1 + (t.level - 1) * 0.08);
-    t.fireRate = base.fireRate * Math.max(0.55, 1 - (t.level - 1) * 0.04);
-    if (base.splash) t.splash = base.splash * (1 + (t.level - 1) * 0.1);
+    t.damage = base.damage * (1 + (t.level - 1) * 0.35);
+    t.range = base.range * (1 + (t.level - 1) * 0.1);
+    t.fireRate = base.fireRate * Math.max(0.5, 1 - (t.level - 1) * 0.05);
+    if (base.splash) t.splash = base.splash * (1 + (t.level - 1) * 0.12);
     Object.assign(t, {
       hitsAir: base.hitsAir, hitsGround: base.hitsGround,
       airBonus: base.airBonus, armorPenalty: base.armorPenalty,
@@ -1670,6 +2298,9 @@
   $("btn-continue").addEventListener("click", continueRun);
   $("btn-upgrades").addEventListener("click", () => { showScreen("upgrades"); renderUpgrades(); });
   $("btn-upgrades-back").addEventListener("click", () => { showScreen("hub"); refreshHub(); });
+  if ($("btn-settings")) $("btn-settings").addEventListener("click", () => openSettings("hub"));
+  if ($("btn-pause-settings")) $("btn-pause-settings").addEventListener("click", () => openSettings("pause"));
+  if ($("btn-settings-back")) $("btn-settings-back").addEventListener("click", () => closeSettings());
   $("btn-to-hub").addEventListener("click", () => { saveRun(); state.mode = "hub"; showScreen("hub"); refreshHub(); hideCoach(false); });
   $("btn-abandon").addEventListener("click", () => endRun(true));
   $("btn-again").addEventListener("click", () => { clearRun(); resize(); startNewRun(); });
@@ -1679,6 +2310,7 @@
     showScreen("codex");
   });
   $("btn-codex-back").addEventListener("click", () => {
+    if (els.settings && !els.settings.classList.contains("hidden")) return closeSettings();
     if (state.seed && hasSavedRun() && state.mode === "paused") showScreen("pause");
     else if (state.mode === "hub" || !state.seed) { state.mode = "hub"; showScreen("hub"); }
     else showScreen("pause");
