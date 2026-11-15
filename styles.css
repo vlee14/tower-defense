@@ -366,7 +366,7 @@ html, body {
   background: rgba(18, 14, 11, 0.96);
   border: 1px solid var(--stroke-strong);
   border-radius: 14px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -374,11 +374,33 @@ html, body {
   animation: coach-in 0.35s cubic-bezier(.2,.8,.2,1);
 }
 .coach.hidden { display: none; }
+.coach-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.coach-steps span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(244, 236, 227, 0.2);
+  border: 1px solid rgba(244, 236, 227, 0.25);
+}
+.coach-steps span.active {
+  background: var(--ember);
+  border-color: var(--ember-hot);
+  box-shadow: 0 0 0 2px rgba(232, 136, 58, 0.25);
+}
+.coach-steps span.done {
+  background: rgba(232, 136, 58, 0.55);
+  border-color: transparent;
+}
 .coach p {
   margin: 0;
   flex: 1;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.35;
   color: var(--cream);
   font-weight: 600;
 }
@@ -386,6 +408,64 @@ html, body {
 @keyframes coach-in {
   from { opacity: 0; transform: translateY(-8px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+.place-cancel {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: var(--z-float);
+  min-height: var(--tap);
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--stroke-strong);
+  background: rgba(18, 14, 11, 0.92);
+  color: var(--cream);
+  font-family: var(--font);
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.place-cancel.hidden { display: none; }
+.place-cancel:active { transform: scale(0.97); }
+
+.hub-tip {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--stroke);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.volume-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 42px;
+  gap: 10px;
+  align-items: center;
+  min-height: var(--tap);
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--stroke);
+  color: var(--cream);
+  font-size: 14px;
+  font-weight: 700;
+}
+.volume-row input[type="range"] {
+  width: 100%;
+  accent-color: var(--ember);
+}
+.volume-val {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
 }
 
 /* Bottom chrome: inspect stacks ABOVE dock in normal flow — no absolute overlap */
@@ -735,8 +815,10 @@ html, body {
 .settings-scroll {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: 4px;
+  padding: 0 4px 4px 0;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
 }
 .setting-block { margin-bottom: 16px; }
 .setting-label {

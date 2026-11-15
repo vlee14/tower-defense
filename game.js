@@ -218,10 +218,13 @@
     bestByDifficulty: { normal: { wave: 0, score: 0 }, hard: { wave: 0, score: 0 }, nightmare: { wave: 0, score: 0 } },
   });
   const defaultSettings = () => ({
-    muted: false, gameSpeed: 1, tutorialDone: false, coachStep: 0,
+    muted: false, volume: 0.7, music: false, haptics: true,
+    gameSpeed: 1, tutorialDone: false, coachStep: 0,
     shake: "low", particles: true, hitFlash: true, screenFlash: true, combatFx: true,
   });
   const defaultBest = () => ({ wave: 0, score: 0 });
+  const prefersReducedMotion = () =>
+    typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   let meta = loadJSON(STORAGE.meta, defaultMeta());
   if (!meta.unlockedDifficulties) meta.unlockedDifficulties = { normal: true };
@@ -235,7 +238,20 @@
   if (typeof settings.hitFlash !== "boolean") settings.hitFlash = true;
   if (typeof settings.screenFlash !== "boolean") settings.screenFlash = true;
   if (typeof settings.combatFx !== "boolean") settings.combatFx = true;
+  if (typeof settings.volume !== "number" || settings.volume < 0 || settings.volume > 1) settings.volume = 0.7;
+  if (typeof settings.music !== "boolean") settings.music = false;
+  if (typeof settings.haptics !== "boolean") settings.haptics = true;
+  if (prefersReducedMotion() && settings.shake !== "off") {
+    /* honor OS reduce-motion without overwriting saved prefs permanently */
+  }
   let best = loadJSON(STORAGE.best, defaultBest());
+
+  function juiceOff() {
+    return settings.shake === "off" && settings.particles === false;
+  }
+  function motionAllowed() {
+    return !prefersReducedMotion() && !juiceOff();
+  }
 
   function isDifficultyUnlocked(id) {
     if (id === "normal") return true;
@@ -282,40 +298,122 @@
     coach: $("coach"), coachText: $("coach-text"),
   };
 
-  /* ---- audio-ready hooks (silent when muted) ---- */
+  /* ---- audio + haptics (mute / volume / reduce-motion aware) ---- */
   let audioCtx = null;
+  let masterGain = null;
+  let musicNodes = null;
   function ensureAudio() {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = settings.muted ? 0 : settings.volume;
+      masterGain.connect(audioCtx.destination);
+    }
     if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+    syncMasterGain();
     return audioCtx;
   }
+  function syncMasterGain() {
+    if (!masterGain || !audioCtx) return;
+    const v = settings.muted ? 0 : Math.max(0, Math.min(1, settings.volume));
+    masterGain.gain.setTargetAtTime(v, audioCtx.currentTime, 0.04);
+  }
   function beep(freq, dur, type = "square", gain = 0.03) {
-    if (settings.muted) return;
+    if (settings.muted || settings.volume <= 0.001) return;
     try {
       const ac = ensureAudio();
       const o = ac.createOscillator();
       const g = ac.createGain();
-      o.type = type; o.frequency.value = freq; g.gain.value = gain;
-      o.connect(g); g.connect(ac.destination);
-      o.start();
+      const filt = ac.createBiquadFilter();
+      filt.type = "lowpass";
+      filt.frequency.value = Math.min(4200, freq * 4);
+      o.type = type;
+      o.frequency.setValueAtTime(freq, ac.currentTime);
+      g.gain.setValueAtTime(Math.max(0.0001, gain), ac.currentTime);
       g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
-      o.stop(ac.currentTime + dur);
+      o.connect(filt); filt.connect(g); g.connect(masterGain || ac.destination);
+      o.start();
+      o.stop(ac.currentTime + dur + 0.02);
     } catch { /* ignore */ }
   }
+  function toneSlide(f0, f1, dur, type = "sine", gain = 0.03) {
+    if (settings.muted || settings.volume <= 0.001) return;
+    try {
+      const ac = ensureAudio();
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(f0, ac.currentTime);
+      o.frequency.exponentialRampToValueAtTime(Math.max(40, f1), ac.currentTime + dur);
+      g.gain.setValueAtTime(gain, ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+      o.connect(g); g.connect(masterGain || ac.destination);
+      o.start(); o.stop(ac.currentTime + dur + 0.02);
+    } catch { /* ignore */ }
+  }
+  function stopMusic() {
+    if (!musicNodes) return;
+    try {
+      musicNodes.gain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.2);
+      const nodes = musicNodes;
+      setTimeout(() => {
+        try { nodes.osc1.stop(); nodes.osc2.stop(); nodes.lfo.stop(); } catch { /* */ }
+      }, 500);
+    } catch { /* */ }
+    musicNodes = null;
+  }
+  function startMusic() {
+    if (settings.muted || !settings.music || prefersReducedMotion()) { stopMusic(); return; }
+    if (musicNodes) return;
+    try {
+      const ac = ensureAudio();
+      const osc1 = ac.createOscillator();
+      const osc2 = ac.createOscillator();
+      const lfo = ac.createOscillator();
+      const lfoGain = ac.createGain();
+      const g = ac.createGain();
+      const filt = ac.createBiquadFilter();
+      osc1.type = "sine"; osc1.frequency.value = 110;
+      osc2.type = "triangle"; osc2.frequency.value = 164.8;
+      lfo.type = "sine"; lfo.frequency.value = 0.07;
+      lfoGain.gain.value = 12;
+      filt.type = "lowpass"; filt.frequency.value = 480;
+      g.gain.value = 0.0001;
+      lfo.connect(lfoGain); lfoGain.connect(osc1.frequency);
+      osc1.connect(filt); osc2.connect(filt); filt.connect(g); g.connect(masterGain || ac.destination);
+      osc1.start(); osc2.start(); lfo.start();
+      g.gain.setTargetAtTime(0.028, ac.currentTime, 1.2);
+      musicNodes = { osc1, osc2, lfo, gain: g };
+    } catch { musicNodes = null; }
+  }
+  function syncMusic() {
+    if (settings.music && !settings.muted) startMusic();
+    else stopMusic();
+  }
+  function haptic(pattern) {
+    if (!settings.haptics || settings.muted) return;
+    if (!motionAllowed()) return;
+    try {
+      if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+        navigator.vibrate(pattern);
+      }
+    } catch { /* unsupported */ }
+  }
   const sfx = {
-    place: () => beep(700, 0.07, "triangle", 0.045),
-    upgrade: () => { beep(520, 0.05, "triangle", 0.03); setTimeout(() => beep(780, 0.08, "triangle", 0.04), 40); },
-    socket: () => beep(640, 0.06, "sine", 0.035),
-    shoot: (kind) => beep(kind === "mortar" ? 140 : kind === "coil" ? 980 : 880, 0.028, "square", 0.018),
-    hit: () => beep(260 + Math.random() * 60, 0.025, "square", 0.015),
-    kill: () => beep(320 + Math.random() * 80, 0.045, "square", 0.025),
-    leak: () => beep(110, 0.16, "sawtooth", 0.05),
-    wave: () => beep(520, 0.1, "square", 0.035),
-    start: () => beep(440, 0.08, "triangle", 0.04),
-    over: () => beep(180, 0.2, "sawtooth", 0.04),
-    buy: () => beep(660, 0.07, "triangle", 0.04),
+    place: () => { toneSlide(520, 780, 0.09, "triangle", 0.05); haptic(12); },
+    upgrade: () => { beep(520, 0.05, "triangle", 0.03); setTimeout(() => toneSlide(780, 980, 0.09, "triangle", 0.04), 40); haptic([8, 30, 16]); },
+    socket: () => { beep(640, 0.06, "sine", 0.035); beep(960, 0.04, "sine", 0.02); haptic(10); },
+    shoot: (kind) => beep(kind === "mortar" ? 140 : kind === "coil" ? 980 : 880, 0.028, "square", 0.016),
+    hit: () => beep(260 + Math.random() * 60, 0.025, "square", 0.014),
+    kill: () => { toneSlide(420, 180, 0.08, "square", 0.028); haptic(8); },
+    leak: () => { beep(110, 0.18, "sawtooth", 0.05); haptic([30, 40, 30]); },
+    wave: () => { toneSlide(400, 620, 0.12, "triangle", 0.035); haptic(14); },
+    start: () => { toneSlide(330, 520, 0.14, "triangle", 0.04); haptic(18); },
+    over: () => { toneSlide(220, 90, 0.28, "sawtooth", 0.04); haptic([40, 60, 40]); },
+    buy: () => { beep(660, 0.07, "triangle", 0.04); haptic(10); },
     ui: () => beep(400, 0.03, "triangle", 0.02),
     speed: () => beep(500 + settings.gameSpeed * 120, 0.05, "triangle", 0.03),
+    cancel: () => beep(220, 0.04, "triangle", 0.02),
   };
 
   function towerStats(type) {
@@ -556,6 +654,7 @@
 
   /* ---- juice helpers ---- */
   function shakeMul() {
+    if (!motionAllowed()) return 0;
     return SHAKE_MUL[settings.shake] ?? SHAKE_MUL.low;
   }
   function addShake(amount) {
@@ -603,12 +702,23 @@
   }
 
   const COACH_STEPS = [
-    "Tap Turret below, then tap stone beside the glowing rift.",
-    "Great — tap your tower, then socket an element (Fire / Water / Earth / Wind).",
-    "Use the speed button (1×→1.5×→2×→3×→5×) when waves feel slow. Survive!",
+    "Pick Turret, then place on stone beside the rift.",
+    "Tap your tower → socket Fire / Water / Earth / Wind.",
+    "Speed up with 1×…5× when waves feel slow.",
   ];
+  let coachTimer = null;
+  function syncCoachDots(step) {
+    const wrap = $("coach-steps");
+    if (!wrap) return;
+    wrap.querySelectorAll("span").forEach((el) => {
+      const i = Number(el.dataset.step);
+      el.classList.toggle("active", i === step);
+      el.classList.toggle("done", i < step);
+    });
+  }
   function showCoach(step) {
     if (settings.tutorialDone || !els.coach) return;
+    if (coachTimer) { clearTimeout(coachTimer); coachTimer = null; }
     if (step >= COACH_STEPS.length) {
       hideCoach(true);
       return;
@@ -616,10 +726,16 @@
     settings.coachStep = step;
     saveJSON(STORAGE.settings, settings);
     els.coachText.textContent = COACH_STEPS[step];
+    syncCoachDots(step);
     els.coach.classList.remove("hidden");
+    // Final tip auto-clears so the first run stays under ~30s of coaching.
+    if (step === COACH_STEPS.length - 1) {
+      coachTimer = setTimeout(() => hideCoach(true), 4500);
+    }
   }
   function hideCoach(done) {
     if (!els.coach) return;
+    if (coachTimer) { clearTimeout(coachTimer); coachTimer = null; }
     els.coach.classList.add("hidden");
     if (done) {
       settings.tutorialDone = true;
@@ -630,6 +746,23 @@
   function advanceCoach(fromStep) {
     if (settings.tutorialDone) return;
     if (settings.coachStep === fromStep) showCoach(fromStep + 1);
+  }
+
+  let placePtr = null; // drag-to-place pointer session
+  function syncPlaceCancel() {
+    const btn = $("btn-place-cancel");
+    if (!btn) return;
+    const show = state.mode === "playing" && !!state.selectedTower;
+    btn.classList.toggle("hidden", !show);
+  }
+  function cancelPlacement(silent) {
+    if (!state.selectedTower && !state.ghost) return;
+    state.selectedTower = null;
+    state.ghost = null;
+    placePtr = null;
+    updateHUD();
+    syncPlaceCancel();
+    if (!silent) { sfx.cancel(); toast("Placement canceled"); }
   }
 
   function resize() {
@@ -748,12 +881,15 @@
     state.score = 0; state.wave = 0;
     state.towers = []; state.enemies = []; state.projectiles = []; state.fx = []; state.particles = [];
     state.spawnQueue = []; state.spawnTimer = 0; state.betweenWaves = 1.2;
-    state.selectedBuilt = null; state.selectedTower = null;
+    state.selectedBuilt = null; state.selectedTower = null; state.ghost = null;
+    placePtr = null;
     state.shake = 0; state.flash = 0;
     state.mode = "playing";
     showScreen(null);
     showBanner(diff.name.toUpperCase() + " RUN");
+    ensureAudio();
     sfx.start();
+    syncMusic();
     saveJSON(STORAGE.meta, meta);
     saveRun(); updateHUD();
     if (!settings.tutorialDone) showCoach(0);
@@ -805,11 +941,14 @@
     if (app) {
       const ui = name == null ? "play" : (name === "hub" ? "hub" : "sheet");
       app.setAttribute("data-ui", ui);
-      app.setAttribute("aria-hidden", ui === "play" ? "false" : "false");
       const chromeHidden = ui !== "play";
       if (els.inspect && chromeHidden) els.inspect.classList.add("hidden");
-      if (chromeHidden) hideCoach(false);
+      if (chromeHidden) {
+        hideCoach(false);
+        cancelPlacement(true);
+      }
     }
+    syncPlaceCancel();
   }
 
   function refreshHub() {
@@ -886,6 +1025,40 @@
     bindToggle("opt-hitflash", "hitFlash");
     bindToggle("opt-screenflash", "screenFlash");
     bindToggle("opt-combatfx", "combatFx");
+    bindToggle("opt-haptics", "haptics");
+    const musicEl = $("opt-music");
+    if (musicEl) {
+      musicEl.checked = !!settings.music;
+      musicEl.onchange = () => {
+        settings.music = !!musicEl.checked;
+        saveSettings();
+        ensureAudio();
+        syncMusic();
+        sfx.ui();
+      };
+    }
+    const vol = $("opt-volume");
+    const volVal = $("opt-volume-val");
+    if (vol) {
+      vol.value = String(Math.round(settings.volume * 100));
+      if (volVal) volVal.textContent = vol.value + "%";
+      vol.oninput = () => {
+        settings.volume = Math.max(0, Math.min(1, Number(vol.value) / 100));
+        if (volVal) volVal.textContent = Math.round(settings.volume * 100) + "%";
+        ensureAudio();
+        syncMasterGain();
+      };
+      vol.onchange = () => {
+        saveSettings();
+        if (settings.volume > 0 && settings.muted) {
+          settings.muted = false;
+          syncMuteUI();
+          saveSettings();
+        }
+        syncMasterGain();
+        sfx.ui();
+      };
+    }
   }
 
   let settingsReturnScreen = "hub";
@@ -967,6 +1140,7 @@
     }
     refreshTowerButtons();
     updateInspect();
+    syncPlaceCancel();
   }
   function refreshTowerButtons() {
     document.querySelectorAll(".tower-btn").forEach((btn) => {
@@ -1601,8 +1775,8 @@
     ctx.fillStyle = vig;
     ctx.fillRect(0, 0, w, h);
 
-    // Heat shimmer (subtle)
-    if (settings.particles !== false) {
+    // Heat shimmer + ambient embers (gated by juice / reduce-motion)
+    if (settings.particles !== false && motionAllowed()) {
       ctx.globalAlpha = 0.045;
       ctx.fillStyle = "#e85a2a";
       for (let i = 0; i < 5; i++) {
@@ -1610,10 +1784,6 @@
         ctx.fillRect(0, y, w, 1.2);
       }
       ctx.globalAlpha = 1;
-    }
-
-    // Ambient ember motes
-    if (settings.particles !== false) {
       for (let i = 0; i < 12; i++) {
         const px = ((i * 73 + state.time * (8 + i % 3) * 3) % (w + 20)) - 10;
         const py = h - ((i * 41 + state.time * (12 + (i % 4))) % (h * 0.85));
@@ -2566,6 +2736,8 @@
     return {
       x: ((t.clientX - rect.left) / rect.width) * state.w,
       y: ((t.clientY - rect.top) / rect.height) * state.h,
+      clientX: t.clientX,
+      clientY: t.clientY,
     };
   }
   function placementOk(x, y) {
@@ -2577,44 +2749,110 @@
     }
     return true;
   }
-  function onCanvasTap(evt) {
+
+  const TOWER_HIT_R = 28;
+
+  function onCanvasPointerDown(evt) {
     if (state.mode !== "playing") return;
     evt.preventDefault();
     ensureAudio();
-    const { x, y } = canvasPos(evt);
+    syncMusic();
+    const { x, y, clientX, clientY } = canvasPos(evt);
+
     for (let i = state.towers.length - 1; i >= 0; i--) {
       const t = state.towers[i];
-      if (Math.hypot(t.x - x, t.y - y) < 22) {
-        state.selectedBuilt = i; state.selectedTower = null; state.ghost = null;
+      if (Math.hypot(t.x - x, t.y - y) < TOWER_HIT_R) {
+        state.selectedBuilt = i;
+        state.selectedTower = null;
+        state.ghost = null;
+        placePtr = null;
+        haptic(8);
         updateHUD();
-        if (!settings.tutorialDone && settings.coachStep === 1) {
-          /* waiting for socket */
-        }
         return;
       }
     }
-    if (state.selectedTower) { placeTower(x, y); state.ghost = null; return; }
-    state.selectedBuilt = null; updateHUD();
+
+    if (state.selectedTower) {
+      placePtr = {
+        id: evt.pointerId,
+        x0: clientX, y0: clientY,
+        x, y,
+        dragged: false,
+      };
+      state.ghost = { x, y, ok: placementOk(x, y) };
+      state.selectedBuilt = null;
+      try { canvas.setPointerCapture(evt.pointerId); } catch { /* */ }
+      updateHUD();
+      return;
+    }
+
+    state.selectedBuilt = null;
+    updateHUD();
   }
-  function onCanvasMove(evt) {
-    if (state.mode !== "playing" || !state.selectedTower) { state.ghost = null; return; }
-    const { x, y } = canvasPos(evt);
-    state.ghost = { x, y, ok: placementOk(x, y) };
+
+  function onCanvasPointerMove(evt) {
+    if (state.mode !== "playing") return;
+    if (placePtr && placePtr.id === evt.pointerId && state.selectedTower) {
+      const { x, y, clientX, clientY } = canvasPos(evt);
+      if (Math.hypot(clientX - placePtr.x0, clientY - placePtr.y0) > 10) placePtr.dragged = true;
+      placePtr.x = x; placePtr.y = y;
+      state.ghost = { x, y, ok: placementOk(x, y) };
+      return;
+    }
+    if (!state.selectedTower) { state.ghost = null; return; }
+    // Hover preview (mouse)
+    if (evt.pointerType === "mouse") {
+      const { x, y } = canvasPos(evt);
+      state.ghost = { x, y, ok: placementOk(x, y) };
+    }
   }
-  canvas.addEventListener("pointerdown", onCanvasTap, { passive: false });
-  canvas.addEventListener("pointermove", onCanvasMove, { passive: true });
+
+  function finishPlacePointer(evt, canceled) {
+    if (!placePtr || placePtr.id !== evt.pointerId) return;
+    const { x, y } = state.ghost || placePtr;
+    const ok = !canceled && state.selectedTower && placementOk(x, y);
+    placePtr = null;
+    try { canvas.releasePointerCapture(evt.pointerId); } catch { /* */ }
+    if (ok) {
+      placeTower(x, y);
+      state.ghost = null;
+    } else if (state.selectedTower) {
+      state.ghost = null;
+      if (!canceled) toast("Invalid spot — drag beside the rift");
+      syncPlaceCancel();
+    }
+    updateHUD();
+  }
+
+  canvas.addEventListener("pointerdown", onCanvasPointerDown, { passive: false });
+  canvas.addEventListener("pointermove", onCanvasPointerMove, { passive: true });
+  canvas.addEventListener("pointerup", (evt) => finishPlacePointer(evt, false), { passive: true });
+  canvas.addEventListener("pointercancel", (evt) => finishPlacePointer(evt, true), { passive: true });
 
   document.querySelectorAll(".tower-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (state.mode !== "playing") return;
       ensureAudio();
       const type = btn.dataset.tower;
-      state.selectedTower = state.selectedTower === type ? null : type;
+      if (state.selectedTower === type) {
+        cancelPlacement(false);
+        return;
+      }
+      state.selectedTower = type;
       state.selectedBuilt = null;
-      if (!state.selectedTower) state.ghost = null;
+      state.ghost = null;
+      placePtr = null;
       updateHUD();
+      haptic(6);
       sfx.ui();
     });
+  });
+
+  if ($("btn-place-cancel")) {
+    $("btn-place-cancel").addEventListener("click", () => cancelPlacement(false));
+  }
+  document.addEventListener("keydown", (evt) => {
+    if (evt.key === "Escape") cancelPlacement(false);
   });
 
   document.querySelectorAll(".el-btn").forEach((btn) => {
@@ -2677,8 +2915,11 @@
     state.mode = "playing"; showScreen(null); saveRun();
   });
   els.btnMute.addEventListener("click", () => {
-    settings.muted = !settings.muted; saveJSON(STORAGE.settings, settings);
+    settings.muted = !settings.muted;
+    saveJSON(STORAGE.settings, settings);
     syncMuteUI();
+    syncMasterGain();
+    syncMusic();
     if (!settings.muted) sfx.ui();
   });
   if (els.btnSpeed) {
