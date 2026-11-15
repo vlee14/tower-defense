@@ -7,7 +7,7 @@ Endless mobile-first tower defense along a molten rift. Static PWA — works off
 - Tap a tower (Turret / Mortar / Coil), then tap stone beside the rift.
 - Select a placed tower to socket **Fire / Water / Earth / Wind** (max 2) for singles + combos.
 - Use the **speed** control (1× → 1.5× → 2× → 3× → 5×) to pace runs; preference saves locally.
-- **Settings** (hub or pause): volume + optional ambient music, screen shake Off/Low/Med/High (default Low), juice toggles, and haptics. Mute and reduce-motion quiet feedback.
+- **Settings** (hub or pause): volume + optional ambient music, screen shake Off/Low/Med/High (default Low), juice toggles, haptics, **Battery saver**, and **Large tap targets**. Mute and reduce-motion quiet feedback.
 - **Place towers** by tapping or dragging on stone beside the rift; tap the selected shop item or **Cancel** / Esc to abort placement.
 - Open **Codex** in-run for tower/enemy/element tradeoffs and resists (square pip = resist, triangle = weak).
 - Waves advance on a short timer after spawning finishes — clearing the field is not required; overlaps are normal.
@@ -20,9 +20,18 @@ Endless mobile-first tower defense along a molten rift. Static PWA — works off
 
 ## Offline & versioning
 
-Service worker caches the shell and assets on first visit. No CDN/API calls at runtime. Install via browser “Add to Home Screen” for a standalone app.
+Service worker caches the shell and assets on first visit. No CDN/API calls at runtime. Chrome/Edge show an in-app **Install** banner when installable; iOS uses Share → Add to Home Screen. Updates toast `Updated to vX` after a SW reload.
 
-**Bump on every deploy:** edit `APP_VERSION` in `version.js` and keep the matching `?v=` query params in `index.html`. The service worker names its cache `emberwell-<version>`, deletes older caches on activate, and uses network-first for navigations so updates install cleanly.
+**Bump on every deploy:** `./bump-version.sh x.y.z` (or edit `APP_VERSION` in `version.js` and matching `?v=` queries). The service worker names its cache `emberwell-<version>`, deletes older caches on activate, and uses network-first for navigations so updates install cleanly.
+
+## Soft launch checklist
+
+- [ ] Fresh load on phone: hub → New Run → place → socket → speed → pause → hub resume
+- [ ] Offline: load once online, toggle airplane mode, reload still plays
+- [ ] Install: Add to Home Screen / Install banner; opens standalone with icon
+- [ ] Settings: Battery saver + Large taps persist; reduce-motion quiets shake/haptics
+- [ ] Daily Rift seed stable for the UTC day; milestones claim chips
+- [ ] Version badge shows current `APP_VERSION` on hub + Settings
 
 ## Procedural runs
 

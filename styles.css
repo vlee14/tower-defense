@@ -67,7 +67,7 @@
   --ember-hot: #ffb34a;
   --ash: #8a7a6a;
   --cream: #f4ece3;
-  --muted: #9a8c7c;
+  --muted: #b0a090;
   --teal: #4db8c4;
   --moss: #6fbf8a;
   --fire: #e85d4c;
@@ -85,6 +85,7 @@
   --hud-h: 64px;
   --radius: 16px;
   --tap: 44px;
+  --focus-ring: 0 0 0 2px var(--basalt-0), 0 0 0 4px var(--ember-hot);
   --font: "Nunito", "Avenir Next", "Segoe UI", sans-serif;
   --display: "Bricolage Grotesque", "Avenir Next", "Century Gothic", sans-serif;
   --z-stage: 1;
@@ -109,6 +110,35 @@ html, body {
   overflow-x: clip;
   touch-action: none;
   user-select: none;
+}
+:focus { outline: none; }
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 10px;
+}
+html[data-large-tap],
+#app[data-large-tap] {
+  --tap: 52px;
+  --hud-h: 72px;
+}
+html[data-large-tap] .primary,
+html[data-large-tap] .secondary,
+html[data-large-tap] .danger,
+#app[data-large-tap] .primary,
+#app[data-large-tap] .secondary,
+#app[data-large-tap] .danger {
+  min-height: 56px;
+  font-size: 16px;
+}
+html[data-large-tap] .tower-btn,
+#app[data-large-tap] .tower-btn {
+  min-height: 92px;
+}
+html[data-large-tap] .icon-btn,
+#app[data-large-tap] .icon-btn {
+  width: 48px;
+  height: 48px;
 }
 
 #app {
@@ -759,11 +789,73 @@ html, body {
 .app-version {
   margin: 12px 0 0;
   text-align: center;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.14em;
+  color: var(--ember-hot);
+  opacity: 0.85;
+  font-weight: 800;
+}
+.settings-version-line {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 12px;
   color: var(--muted);
-  opacity: 0.65;
   font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.install-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(20, 16, 14, 0.96);
+  border: 1px solid var(--stroke-strong);
+}
+.install-banner.hidden { display: none; }
+#app[data-ui]:not([data-ui="hub"]) .install-banner { display: none; }
+.install-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.install-copy strong {
+  color: var(--cream);
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 800;
+}
+.install-btn {
+  flex-shrink: 0;
+  min-height: var(--tap);
+  padding: 0 14px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ff9a3c, var(--rift));
+  color: #1a1008;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+}
+.install-dismiss {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
 }
 
 .hub-stats {
@@ -1104,6 +1196,17 @@ html, body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hub-bg, .hub-panel, .panel, .coach, .inspect { animation: none; }
+  .hub-bg, .hub-panel, .panel, .coach, .inspect, .install-banner { animation: none; }
   .icon-btn, .tower-btn, .primary, .secondary, .danger { transition: none; }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --cream: #fff8f0;
+    --muted: #d2c4b4;
+    --stroke: rgba(244, 236, 227, 0.28);
+  }
+  .primary, .secondary, .danger, .icon-btn, .tower-btn {
+    border-width: 2px;
+  }
 }

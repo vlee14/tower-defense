@@ -12,6 +12,9 @@
   const SHAKE_LEVELS = ["off", "low", "med", "high"];
   const SHAKE_MUL = { off: 0, low: 0.28, med: 0.6, high: 1 };
   const MAX_PARTICLES = 180;
+  const MAX_PARTICLES_SAVER = 64;
+  const MAX_FX = 48;
+  const MAX_FX_SAVER = 20;
 
   const DIFFICULTIES = {
     normal: { id: "normal", name: "Normal", hpMul: 1, speedMul: 1, countMul: 1, intervalMul: 1, rewardMul: 1, chipMul: 1, unlock: null },
@@ -230,7 +233,7 @@
     muted: false, volume: 0.7, music: false, haptics: true,
     gameSpeed: 1, tutorialDone: false, coachStep: 0,
     shake: "low", particles: true, hitFlash: true, screenFlash: true, combatFx: true,
-    dmgNumbers: true,
+    dmgNumbers: true, batterySaver: false, largeTap: false,
   });
   const defaultBest = () => ({ wave: 0, score: 0 });
 
@@ -262,6 +265,8 @@
   if (typeof settings.music !== "boolean") settings.music = false;
   if (typeof settings.haptics !== "boolean") settings.haptics = true;
   if (typeof settings.dmgNumbers !== "boolean") settings.dmgNumbers = true;
+  if (typeof settings.batterySaver !== "boolean") settings.batterySaver = false;
+  if (typeof settings.largeTap !== "boolean") settings.largeTap = false;
   if (!meta.milestones) meta.milestones = {};
   if (typeof meta.dailiesCompleted !== "number") meta.dailiesCompleted = 0;
   if (prefersReducedMotion() && settings.shake !== "off") {
@@ -679,8 +684,19 @@
   }
 
   /* ---- juice helpers ---- */
+  function particleCap() {
+    return settings.batterySaver ? MAX_PARTICLES_SAVER : MAX_PARTICLES;
+  }
+  function fxCap() {
+    return settings.batterySaver ? MAX_FX_SAVER : MAX_FX;
+  }
+  function trimFx() {
+    const cap = fxCap();
+    if (state.fx.length > cap) state.fx.splice(0, state.fx.length - cap);
+  }
   function shakeMul() {
     if (!motionAllowed()) return 0;
+    if (settings.batterySaver) return Math.min(SHAKE_MUL[settings.shake] ?? 0, SHAKE_MUL.low);
     return SHAKE_MUL[settings.shake] ?? SHAKE_MUL.low;
   }
   function addShake(amount) {
@@ -690,8 +706,9 @@
   }
   function spawnParticles(x, y, color, n, speed = 60) {
     if (settings.particles === false) return;
-    const budget = MAX_PARTICLES - state.particles.length;
-    const count = Math.min(n, Math.max(0, budget));
+    const budget = particleCap() - state.particles.length;
+    let count = Math.min(n, Math.max(0, budget));
+    if (settings.batterySaver) count = Math.ceil(count * 0.45);
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2;
       const sp = speed * (0.35 + Math.random() * 0.9);
@@ -709,6 +726,17 @@
   function pushCombatFx(fx) {
     if (settings.combatFx === false) return;
     state.fx.push(fx);
+    trimFx();
+  }
+  function syncLargeTap() {
+    const on = !!settings.largeTap;
+    document.documentElement.toggleAttribute("data-large-tap", on);
+    const app = $("app");
+    if (app) app.toggleAttribute("data-large-tap", on);
+  }
+  function syncPerfFlags() {
+    const app = $("app");
+    if (app) app.toggleAttribute("data-battery-saver", !!settings.batterySaver);
   }
   function triggerScreenFlash(amount) {
     if (settings.screenFlash === false) return;
@@ -794,7 +822,8 @@
   function resize() {
     const wrap = $("stage-wrap");
     const rect = wrap.getBoundingClientRect();
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dprCap = settings.batterySaver ? 1.25 : 2;
+    const dpr = Math.min(dprCap, window.devicePixelRatio || 1);
     const cssW = Math.max(260, Math.floor(rect.width));
     const cssH = Math.max(320, Math.floor(rect.height));
     canvas.style.width = cssW + "px";
@@ -1129,6 +1158,30 @@
     bindToggle("opt-combatfx", "combatFx");
     bindToggle("opt-haptics", "haptics");
     bindToggle("opt-dmgnumbers", "dmgNumbers");
+    const bindPref = (id, key, after) => {
+      const el = $(id);
+      if (!el) return;
+      el.checked = !!settings[key];
+      el.onchange = () => {
+        settings[key] = !!el.checked;
+        saveSettings();
+        if (after) after();
+        sfx.ui();
+      };
+    };
+    bindPref("opt-batterysaver", "batterySaver", () => {
+      if (settings.batterySaver) {
+        if (state.particles.length > particleCap()) state.particles.length = particleCap();
+        trimFx();
+      }
+      syncPerfFlags();
+      resize();
+      toast(settings.batterySaver ? "Battery saver on" : "Battery saver off");
+    });
+    bindPref("opt-largetap", "largeTap", () => {
+      syncLargeTap();
+      toast(settings.largeTap ? "Large taps on" : "Large taps off");
+    });
     const musicEl = $("opt-music");
     if (musicEl) {
       musicEl.checked = !!settings.music;
@@ -1891,16 +1944,18 @@
     ctx.fillStyle = vig;
     ctx.fillRect(0, 0, w, h);
 
-    // Heat shimmer + ambient embers (gated by juice / reduce-motion)
+    // Heat shimmer + ambient embers (gated by juice / reduce-motion / battery saver)
     if (settings.particles !== false && motionAllowed()) {
-      ctx.globalAlpha = 0.045;
+      const bands = settings.batterySaver ? 2 : 5;
+      const embers = settings.batterySaver ? 5 : 12;
+      ctx.globalAlpha = settings.batterySaver ? 0.03 : 0.045;
       ctx.fillStyle = "#e85a2a";
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < bands; i++) {
         const y = ((i * 97 + state.time * 16) % (h + 40)) - 20;
         ctx.fillRect(0, y, w, 1.2);
       }
       ctx.globalAlpha = 1;
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < embers; i++) {
         const px = ((i * 73 + state.time * (8 + i % 3) * 3) % (w + 20)) - 10;
         const py = h - ((i * 41 + state.time * (12 + (i % 4))) % (h * 0.85));
         const a = 0.12 + 0.1 * Math.sin(state.time * 3 + i);
@@ -3103,6 +3158,7 @@
     if (document.hidden && state.mode === "playing") {
       state.mode = "paused"; saveRun(); showScreen("pause");
     }
+    if (!document.hidden) kickFrame();
   });
   window.addEventListener("resize", () => {
     resize();
@@ -3112,13 +3168,20 @@
   let last = performance.now();
   let acc = 0;
   const FIXED = 1 / 60;
+  let rafId = 0;
   function frame(now) {
+    rafId = 0;
+    if (document.hidden) {
+      // Battery: skip sim/draw while backgrounded (visibilitychange already pauses runs).
+      return;
+    }
     let frameDt = Math.min(0.05, (now - last) / 1000);
     last = now;
     acc += frameDt;
     // fixed step for buttery sim; draw every raf
+    const stepLimit = settings.batterySaver ? 3 : 4;
     let steps = 0;
-    while (acc >= FIXED && steps < 4) {
+    while (acc >= FIXED && steps < stepLimit) {
       update(FIXED);
       acc -= FIXED;
       steps++;
@@ -3127,8 +3190,56 @@
       // still decay shake when paused via tiny update
       if (state.mode !== "playing") update(frameDt);
     }
+    trimFx();
     draw();
-    requestAnimationFrame(frame);
+    rafId = requestAnimationFrame(frame);
+  }
+  function kickFrame() {
+    if (!rafId && !document.hidden) {
+      last = performance.now();
+      rafId = requestAnimationFrame(frame);
+    }
+  }
+
+  /* ---- PWA install + update toast ---- */
+  let deferredInstall = null;
+  function syncInstallBanner() {
+    const banner = $("install-banner");
+    if (!banner) return;
+    const standalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true;
+    const canInstall = !!deferredInstall && !standalone;
+    banner.classList.toggle("hidden", !canInstall);
+    banner.setAttribute("aria-hidden", canInstall ? "false" : "true");
+  }
+  window.addEventListener("beforeinstallprompt", (ev) => {
+    ev.preventDefault();
+    deferredInstall = ev;
+    syncInstallBanner();
+  });
+  window.addEventListener("appinstalled", () => {
+    deferredInstall = null;
+    syncInstallBanner();
+    toast("Emberwell installed");
+  });
+  const btnInstall = $("btn-install");
+  if (btnInstall) {
+    btnInstall.addEventListener("click", async () => {
+      if (!deferredInstall) return;
+      deferredInstall.prompt();
+      try { await deferredInstall.userChoice; } catch { /* ignore */ }
+      deferredInstall = null;
+      syncInstallBanner();
+    });
+  }
+  const btnInstallDismiss = $("btn-install-dismiss");
+  if (btnInstallDismiss) {
+    btnInstallDismiss.addEventListener("click", () => {
+      deferredInstall = null;
+      const banner = $("install-banner");
+      if (banner) banner.classList.add("hidden");
+    });
   }
 
   resize();
@@ -3136,6 +3247,13 @@
   showScreen("hub");
   syncMuteUI();
   syncSpeedUI();
-  requestAnimationFrame(frame);
+  syncLargeTap();
+  syncPerfFlags();
+  syncInstallBanner();
+  if (sessionStorage.getItem("ew_just_updated") === ((typeof APP_VERSION !== "undefined" && APP_VERSION) || "")) {
+    sessionStorage.removeItem("ew_just_updated");
+    setTimeout(() => toast("Updated to v" + APP_VERSION), 400);
+  }
+  kickFrame();
   window.__RD = { state, startNewRun, saveRun, loadRun, generatePath, wavePlan, ELEMENTS, settings, sfx };
 })();
