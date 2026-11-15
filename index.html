@@ -4,15 +4,20 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
   <meta name="theme-color" content="#0b0908" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Emberwell" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="application-name" content="Emberwell" />
   <meta name="description" content="Endless molten-rift tower defense. Play offline anywhere." />
-  <link rel="manifest" href="manifest.webmanifest?v=1.6.0" />
+  <link rel="manifest" href="manifest.webmanifest?v=1.7.0" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
-  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="icons/icon-512.png" sizes="512x512" />
   <title>Emberwell</title>
-  <script src="version.js?v=1.6.0"></script>
-  <link rel="stylesheet" href="styles.css?v=1.6.0" />
+  <script src="version.js?v=1.7.0"></script>
+  <link rel="stylesheet" href="styles.css?v=1.7.0" />
 </head>
 <body>
   <div id="app" data-ui="hub">
@@ -104,6 +109,14 @@
     <section id="screen-hub" class="screen">
       <div class="hub-bg" aria-hidden="true"></div>
       <div class="hub-panel">
+        <div id="install-banner" class="install-banner hidden" role="status" aria-hidden="true">
+          <div class="install-copy">
+            <strong>Install Emberwell</strong>
+            <span>Offline home-screen app</span>
+          </div>
+          <button type="button" id="btn-install" class="install-btn">Install</button>
+          <button type="button" id="btn-install-dismiss" class="install-dismiss" aria-label="Dismiss install">×</button>
+        </div>
         <p class="eyebrow">Molten rift · Offline PWA</p>
         <h1>Emberwell</h1>
         <p class="tagline">Hold the glowing fissure. Socket elements. Survive endless waves — offline ready.</p>
@@ -200,12 +213,12 @@
     </section>
 
     <!-- Settings -->
-    <section id="screen-settings" class="screen overlay hidden">
+    <section id="screen-settings" class="screen overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <div class="panel settings-panel">
         <header class="panel-head">
           <button type="button" id="btn-settings-back" class="text-btn">← Back</button>
-          <h2>Settings</h2>
-          <span class="chips-pill">Local</span>
+          <h2 id="settings-title">Settings</h2>
+          <span class="chips-pill" id="settings-version">Local</span>
         </header>
         <div class="settings-scroll">
           <div class="setting-block">
@@ -231,16 +244,19 @@
             <label class="setting-toggle"><input type="checkbox" id="opt-combatfx" /> Combat FX rings</label>
             <label class="setting-toggle"><input type="checkbox" id="opt-dmgnumbers" /> Damage numbers</label>
             <label class="setting-toggle"><input type="checkbox" id="opt-haptics" /> Haptics</label>
+            <label class="setting-toggle"><input type="checkbox" id="opt-batterysaver" /> Battery saver</label>
+            <label class="setting-toggle"><input type="checkbox" id="opt-largetap" /> Large tap targets</label>
           </div>
-          <p class="setting-hint">Choices save on this device. Reduce-motion / juice Off also quiet haptics and shake.</p>
+          <p class="setting-hint">Choices save on this device. Battery saver caps particles, FX, and canvas DPR. Reduce-motion / juice Off also quiet haptics and shake.</p>
+          <p class="settings-version-line" id="settings-version-line" aria-live="polite"></p>
         </div>
       </div>
     </section>
 
     <!-- Pause overlay -->
-    <section id="screen-pause" class="screen overlay hidden">
+    <section id="screen-pause" class="screen overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pause-title">
       <div class="panel pause-panel">
-        <h2>Paused</h2>
+        <h2 id="pause-title">Paused</h2>
         <p>Progress is saved. You can close the tab and resume later.</p>
         <div class="hub-actions">
           <button type="button" id="btn-resume" class="primary">Resume</button>
@@ -252,9 +268,9 @@
     </section>
 
     <!-- Game over -->
-    <section id="screen-over" class="screen overlay hidden">
+    <section id="screen-over" class="screen overlay hidden" role="dialog" aria-modal="true" aria-labelledby="over-title">
       <div class="panel over-panel">
-        <h2>Wellheart Breached</h2>
+        <h2 id="over-title">Wellheart Breached</h2>
         <p id="over-summary">Wave 1 · Score 0</p>
         <p id="over-chips" class="chips-earned">+0 chips</p>
         <div class="hub-actions">
@@ -264,12 +280,16 @@
       </div>
     </section>
   </div>
-  <script src="game.js?v=1.6.0" defer></script>
+  <script src="game.js?v=1.7.0" defer></script>
   <script>
     (function () {
-      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "1.6.0";
+      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "1.7.0";
       var el = document.getElementById("app-version");
       if (el) el.textContent = "v" + ver;
+      var sv = document.getElementById("settings-version");
+      if (sv) sv.textContent = "v" + ver;
+      var svl = document.getElementById("settings-version-line");
+      if (svl) svl.textContent = "Emberwell v" + ver + " · offline PWA";
 
       if (!("serviceWorker" in navigator)) return;
       window.addEventListener("load", function () {
@@ -290,10 +310,12 @@
         navigator.serviceWorker.addEventListener("controllerchange", function () {
           if (sessionStorage.getItem("ew_sw_reloaded") === ver) return;
           sessionStorage.setItem("ew_sw_reloaded", ver);
+          sessionStorage.setItem("ew_just_updated", ver);
           location.reload();
         });
         navigator.serviceWorker.addEventListener("message", function (ev) {
           if (ev.data && ev.data.type === "SW_ACTIVATED" && ev.data.version && ev.data.version !== ver) {
+            sessionStorage.setItem("ew_just_updated", ev.data.version);
             location.reload();
           }
         });
