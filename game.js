@@ -99,12 +99,60 @@
       tags: ["ground", "swarm"], label: "Swarm",
       resist: { fire: 1.55, water: 0.65, earth: 0.9, wind: 0.85 },
     },
-    boss: {
+    // Boss roster — distinct silhouettes, resists, and abilities.
+    behemoth: {
       hp: 920, speed: 20, reward: 120, r: 24, color: "#e85d4c", shape: "boss",
-      tags: ["ground", "armored", "boss"], label: "Boss",
+      tags: ["ground", "armored", "boss"], label: "Behemoth", ability: "bulk",
       resist: { fire: 0.65, water: 0.7, earth: 1.25, wind: 0.55 },
     },
+    emberwyrm: {
+      hp: 760, speed: 34, reward: 130, r: 22, color: "#ff8a4a", shape: "wyrm",
+      tags: ["flying", "armored", "boss"], label: "Emberwyrm", ability: "ashregen",
+      resist: { fire: 0.35, water: 1.45, earth: 0.75, wind: 1.05 },
+    },
+    shellwarden: {
+      hp: 1100, speed: 16, reward: 140, r: 26, color: "#a89a8c", shape: "warden",
+      tags: ["ground", "armored", "boss"], label: "Shellwarden", ability: "carapace",
+      resist: { fire: 0.5, water: 0.55, earth: 1.55, wind: 0.45 },
+    },
+    broodmother: {
+      hp: 840, speed: 22, reward: 135, r: 23, color: "#6fbf8a", shape: "brood",
+      tags: ["ground", "armored", "boss", "swarm"], label: "Broodmother", ability: "brood",
+      resist: { fire: 1.35, water: 0.5, earth: 0.85, wind: 0.8 },
+    },
+    galeheart: {
+      hp: 780, speed: 30, reward: 125, r: 22, color: "#4db8c4", shape: "gale",
+      tags: ["ground", "armored", "boss", "fast"], label: "Galeheart", ability: "tempest",
+      resist: { fire: 1.15, water: 0.85, earth: 1.2, wind: 0.3 },
+    },
   };
+  // Save/compat alias
+  ENEMY.boss = ENEMY.behemoth;
+
+  const BOSS_ROSTER = ["behemoth", "emberwyrm", "shellwarden", "broodmother", "galeheart"];
+  function isBossType(type) {
+    return !!(ENEMY[type] && ENEMY[type].tags && ENEMY[type].tags.includes("boss"));
+  }
+  function isBossEnemy(e) {
+    return !!(e && e.tags && e.tags.includes("boss"));
+  }
+  function bossPoolForWave(wave) {
+    const pool = ["behemoth"];
+    if (wave >= 10) pool.push("emberwyrm");
+    if (wave >= 20) pool.push("shellwarden");
+    if (wave >= 30) pool.push("broodmother");
+    if (wave >= 40) pool.push("galeheart");
+    return pool;
+  }
+  function pickBossType(wave, index, rng, used) {
+    const pool = bossPoolForWave(wave);
+    // Prefer unused types in a multi-boss pack for readability.
+    const fresh = pool.filter((t) => !used.has(t));
+    const pickFrom = fresh.length ? fresh : pool;
+    const t = pickFrom[Math.floor(rng() * pickFrom.length)];
+    used.add(t);
+    return t;
+  }
 
   function enemyResist(enemy) {
     if (enemy && enemy.resist) return enemy.resist;
@@ -406,11 +454,15 @@
     const mix = [];
     // Shared HP budget across multi-boss packs keeps them fair and readable.
     const bossHpShare = bossN <= 1 ? 1 : (0.7 + 0.3 / bossN);
+    const usedBosses = new Set();
+    const bossPacks = [];
     for (let i = 0; i < bossN; i++) {
-      mix.push({
-        type: "boss", n: 1, bossIndex: i, bossTotal: bossN, bossHpShare,
+      bossPacks.push({
+        type: pickBossType(wave, i, rng, usedBosses),
+        n: 1, bossIndex: i, bossTotal: bossN, bossHpShare,
       });
     }
+    for (const b of bossPacks) mix.push(b);
     const weights = {
       drone: 0.4 + rng() * 0.15,
       crawler: 0.28,
@@ -440,9 +492,7 @@
       const split = Math.ceil(fodder.length * 0.45);
       mix.length = 0;
       for (let i = 0; i < split; i++) mix.push(fodder[i]);
-      for (let i = 0; i < bossN; i++) {
-        mix.push({ type: "boss", n: 1, bossIndex: i, bossTotal: bossN, bossHpShare });
-      }
+      for (const b of bossPacks) mix.push(b);
       for (let i = split; i < fodder.length; i++) mix.push(fodder[i]);
     } else {
       for (const f of fodder) mix.push(f);
@@ -460,7 +510,7 @@
   }
   function livingBossCount() {
     let n = 0;
-    for (const e of state.enemies) if (e.alive && e.type === "boss") n++;
+    for (const e of state.enemies) if (e.alive && isBossEnemy(e)) n++;
     return n;
   }
   /** Gap after a wave's spawn queue empties before the next wave — overlaps are intentional. */
@@ -616,6 +666,8 @@
         slow: e.slow, slowT: e.slowT, burn: e.burn, burnT: e.burnT,
         chillT: e.chillT, shred: e.shred, knockCd: e.knockCd || 0, reward: e.reward, tags: e.tags,
         resist: e.resist, bossIndex: e.bossIndex, bossTotal: e.bossTotal, color: e.color, r: e.r,
+        ability: e.ability, shield: e.shield, shieldMax: e.shieldMax, shieldCd: e.shieldCd,
+        abilityT: e.abilityT, enraged: e.enraged, baseSpeed: e.baseSpeed, label: e.label,
       })),
       paused: state.mode === "paused", savedAt: Date.now(),
     };
@@ -669,6 +721,10 @@
           color: e.color || def.color, r: e.r || def.r,
           resist: e.resist || { ...(def.resist || {}) },
           bossIndex: e.bossIndex || 0, bossTotal: e.bossTotal || 1,
+          ability: e.ability || def.ability || null,
+          label: e.label || def.label,
+          shield: e.shield || 0, shieldMax: e.shieldMax || 0, shieldCd: e.shieldCd || 0,
+          abilityT: e.abilityT || 0, enraged: !!e.enraged, baseSpeed: e.baseSpeed || e.speed,
           slow: e.slow || 1, slowT: e.slowT || 0, burn: e.burn || 0, burnT: e.burnT || 0,
           chillT: e.chillT || 0, shred: e.shred || 0, knockCd: e.knockCd || 0, reward: e.reward, alive: true, hitFlash: 0,
         };
@@ -987,33 +1043,46 @@
     state.spawnTimer = 0.35; state.betweenWaves = 0;
     const diffName = (DIFFICULTIES[state.difficulty] || DIFFICULTIES.normal).name;
     let banner = `${diffName.toUpperCase()} ${state.wave}`;
-    if (plan.bossN > 1) banner = `BOSSES ×${plan.bossN} · ${state.wave}`;
-    else if (plan.isBoss) banner = `BOSS ${state.wave}`;
+    if (plan.bossN > 1) {
+      const names = [...new Set(plan.mix.filter((p) => isBossType(p.type)).map((p) => (ENEMY[p.type] || {}).label || p.type))];
+      banner = names.length <= 2
+        ? `${names.join(" + ")} · ${state.wave}`
+        : `BOSSES ×${plan.bossN} · ${state.wave}`;
+    } else if (plan.isBoss) {
+      const b = plan.mix.find((p) => isBossType(p.type));
+      banner = `${((b && ENEMY[b.type]) || {}).label || "BOSS"} · ${state.wave}`;
+    }
     if (livingBossCount() > 0 && plan.isBoss) banner = `OVERLAP · ${banner}`;
     showBanner(banner);
     sfx.wave();
     saveRun();
   }
-  const BOSS_TINTS = ["#e85d4c", "#e8883a", "#c44a2a", "#ffb34a", "#a84838"];
   function spawnEnemy(type, difficulty, speedMul = 1, rewardMul = 1, meta = {}) {
     const def = ENEMY[type] || ENEMY.drone;
+    const boss = isBossType(type);
     const bossTotal = meta.bossTotal || 1;
     const bossIndex = meta.bossIndex || 0;
-    const hpShare = type === "boss" ? (meta.bossHpShare || (bossTotal <= 1 ? 1 : 0.7 + 0.3 / bossTotal)) : 1;
-    const bossScale = type === "boss" ? (1 + state.wave * 0.04) * hpShare : 1;
+    const hpShare = boss ? (meta.bossHpShare || (bossTotal <= 1 ? 1 : 0.7 + 0.3 / bossTotal)) : 1;
+    const bossScale = boss ? (1 + state.wave * 0.04) * hpShare : 1;
     const hp = Math.floor(def.hp * difficulty * bossScale);
     const jitter = 0.95 + (hashSeed(state.seed + type + state.enemies.length) % 100) / 500;
     // Multi-boss packs move a touch slower so they stay readable on the rift.
-    const packSlow = type === "boss" && bossTotal > 1 ? Math.max(0.78, 1 - (bossTotal - 1) * 0.07) : 1;
-    const color = type === "boss" ? BOSS_TINTS[bossIndex % BOSS_TINTS.length] : def.color;
-    const r = type === "boss" && bossTotal > 1 ? def.r * (0.9 + (bossIndex % 3) * 0.04) : def.r;
+    const packSlow = boss && bossTotal > 1 ? Math.max(0.78, 1 - (bossTotal - 1) * 0.07) : 1;
+    const r = boss && bossTotal > 1 ? def.r * (0.9 + (bossIndex % 3) * 0.04) : def.r;
+    const ability = def.ability || null;
+    const shieldMax = ability === "carapace" ? Math.floor(hp * 0.28) : 0;
     state.enemies.push({
       type, dist: 0, hp, maxHp: hp,
       speed: def.speed * jitter * speedMul * packSlow,
-      reward: Math.floor(def.reward * (0.9 + difficulty * 0.05) * rewardMul * (type === "boss" && bossTotal > 1 ? 0.85 : 1)),
-      r, color, shape: def.shape, tags: [...def.tags],
+      baseSpeed: def.speed * jitter * speedMul * packSlow,
+      reward: Math.floor(def.reward * (0.9 + difficulty * 0.05) * rewardMul * (boss && bossTotal > 1 ? 0.85 : 1)),
+      r, color: def.color, shape: def.shape, tags: [...def.tags],
       resist: { ...(def.resist || {}) },
-      bossIndex, bossTotal,
+      label: def.label || type,
+      ability, bossIndex, bossTotal,
+      shield: shieldMax, shieldMax, shieldCd: 0,
+      abilityT: 1.5 + Math.random() * 1.5,
+      enraged: false,
       slow: 1, slowT: 0, burn: 0, burnT: 0, chillT: 0, shred: 0, knockCd: 0, alive: true, hitFlash: 0,
     });
   }
@@ -1171,8 +1240,8 @@
     state.scrap += e.reward;
     state.score += e.reward * 2 + Math.floor(state.wave);
     pushCombatFx({ kind: "pop", x: p.x, y: p.y, t: 0.4, color: e.color });
-    spawnParticles(p.x, p.y, e.color, e.type === "boss" ? 28 : 12, e.type === "boss" ? 140 : 90);
-    if (e.type === "boss") addShake(1.15);
+    spawnParticles(p.x, p.y, e.color, isBossEnemy(e) ? 28 : 12, isBossEnemy(e) ? 140 : 90);
+    if (isBossEnemy(e)) addShake(1.15);
     else addShake(0.22);
     sfx.kill();
 
@@ -1204,6 +1273,18 @@
     if (comboKey(tower.elements || []) === "water+wind" && e.chillT > 0) {
       const p = posOnPath(state.path, e.dist);
       state.fx.push({ kind: "text", x: p.x, y: p.y - 18, t: 0.45, text: "SHATTER", color: "#4db8c4" });
+    }
+    if (e.shield > 0) {
+      const absorbed = Math.min(e.shield, dmg);
+      e.shield -= absorbed;
+      dmg -= absorbed;
+      e.shieldCd = 4.5;
+      if (dmg <= 0) {
+        if (settings.hitFlash !== false) e.hitFlash = 0.08;
+        const sp = posOnPath(state.path, e.dist);
+        pushCombatFx({ kind: "spark", x: sp.x, y: sp.y, t: 0.2, color: "#d8d0c4" });
+        return absorbed;
+      }
     }
     e.hp -= dmg;
     if (settings.hitFlash !== false) e.hitFlash = 0.12;
@@ -1280,7 +1361,7 @@
       if (state.spawnTimer <= 0) {
         const next = state.spawnQueue.shift();
         spawnEnemy(next.type, next.difficulty, next.speedMul || 1, next.rewardMul || 1, next);
-        if (next.type === "boss") {
+        if (isBossType(next.type)) {
           // Space bosses along the path so packs don't stack into one blob.
           state.spawnTimer = plan.interval * (3.2 + (next.bossIndex || 0) * 0.75);
         } else {
@@ -1295,6 +1376,7 @@
       saveRun();
     }
 
+    const broodSpawns = [];
     for (const e of state.enemies) {
       if (!e.alive) continue;
       if (e.hitFlash > 0) e.hitFlash -= step;
@@ -1310,16 +1392,56 @@
         }
         if (e.hp <= 0) killEnemy(e);
       }
+      // Boss abilities
+      if (e.ability === "ashregen") {
+        if (e.chillT <= 0 && e.hp < e.maxHp) {
+          e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.012 * step);
+        }
+      } else if (e.ability === "carapace") {
+        if (e.shieldCd > 0) e.shieldCd -= step;
+        else if (e.shield < e.shieldMax) {
+          e.shield = Math.min(e.shieldMax, e.shield + e.shieldMax * 0.2 * step);
+        }
+      } else if (e.ability === "brood") {
+        e.abilityT -= step;
+        if (e.abilityT <= 0) {
+          e.abilityT = 4.8;
+          const adds = state.enemies.filter((o) => o.alive && o.type === "swarm").length;
+          if (adds < 14) {
+            const childDiff = Math.max(0.85, (e.maxHp / (ENEMY.broodmother.hp || 840)) * 0.55);
+            broodSpawns.push({ dist: e.dist, diff: childDiff, color: e.color });
+          }
+        }
+      } else if (e.ability === "tempest") {
+        if (!e.enraged && e.hp / e.maxHp <= 0.45) {
+          e.enraged = true;
+          e.speed = (e.baseSpeed || e.speed) * 1.4;
+          const p = posOnPath(state.path, e.dist);
+          state.fx.push({ kind: "text", x: p.x, y: p.y - 16, t: 0.6, text: "TEMPEST", color: "#4db8c4" });
+          spawnParticles(p.x, p.y, "#4db8c4", 14, 90);
+        }
+        if (e.enraged) e.knockCd = Math.max(e.knockCd, 0.3);
+      }
+
       e.dist += e.speed * e.slow * step;
       if (e.dist >= state.path.total) {
         e.alive = false;
-        state.hp -= e.type === "boss" ? 5 : 1;
+        state.hp -= isBossEnemy(e) ? 5 : 1;
         pushCombatFx({ kind: "leak", t: 0.5 });
         triggerScreenFlash(0.18);
         addShake(0.95);
         sfx.leak();
         if (state.hp <= 0) { state.hp = 0; updateHUD(); endRun(false); return; }
       }
+    }
+    for (const b of broodSpawns) {
+      for (let i = 0; i < 2; i++) {
+        spawnEnemy("swarm", b.diff, 1, 0.7);
+        const child = state.enemies[state.enemies.length - 1];
+        child.dist = Math.max(0, b.dist - 18 - i * 10);
+      }
+      const p = posOnPath(state.path, b.dist);
+      spawnParticles(p.x, p.y, b.color, 8, 60);
     }
 
     for (const tower of state.towers) {
@@ -1920,6 +2042,7 @@
       ctx.restore();
 
     } else if (e.shape === "boss") {
+      // Behemoth — horned furnace bulk
       ctx.save();
       ctx.translate(0, bob * 0.5);
       const aura = ctx.createRadialGradient(0, 0, e.r * 0.3, 0, 0, e.r + 10);
@@ -1927,7 +2050,6 @@
       aura.addColorStop(1, "rgba(232,93,76,0)");
       ctx.fillStyle = aura;
       ctx.beginPath(); ctx.arc(0, 0, e.r + 10 + pulseSafe(e), 0, Math.PI * 2); ctx.fill();
-
       if (!flash) {
         ctx.fillStyle = "#3a1008";
         [-1, 1].forEach((s) => {
@@ -1945,18 +2067,15 @@
           ctx.fillStyle = "#3a1008";
         });
       }
-
       const hide = ctx.createLinearGradient(-e.r, -e.r, e.r, e.r);
       hide.addColorStop(0, flash ? "#ffffff" : "#ff8a70");
       hide.addColorStop(0.4, flash ? "#ffffff" : e.color);
       hide.addColorStop(1, flash ? "#ffffff" : "#2a0808");
       ctx.fillStyle = hide;
       roundRect(-e.r, -e.r * 0.6, e.r * 2, e.r * 1.35, 8); ctx.fill();
-
       if (!flash) {
         ctx.fillStyle = "rgba(26,8,8,0.45)";
         ctx.fillRect(-e.r + 2, -e.r * 0.15, e.r * 2 - 4, 5);
-        ctx.fillRect(-e.r + 4, e.r * 0.25, e.r * 2 - 8, 4);
         const maw = ctx.createRadialGradient(0, 2, 1, 0, 2, e.r * 0.45);
         maw.addColorStop(0, "#ffe08a");
         maw.addColorStop(0.4, "#e85d4c");
@@ -1966,9 +2085,137 @@
         ctx.fillStyle = "#ffb34a";
         ctx.fillRect(-e.r * 0.55, -e.r * 0.35, 6, 2.5);
         ctx.fillRect(e.r * 0.55 - 6, -e.r * 0.35, 6, 2.5);
-        ctx.fillStyle = "#8a3020";
-        roundRect(-e.r - 2, -e.r * 0.35, 8, 14, 2); ctx.fill();
-        roundRect(e.r - 6, -e.r * 0.35, 8, 14, 2); ctx.fill();
+      }
+      ctx.restore();
+
+    } else if (e.shape === "wyrm") {
+      // Emberwyrm — flying serpentine
+      ctx.save();
+      ctx.translate(0, bob * 2);
+      ctx.strokeStyle = "rgba(255,138,74,0.35)";
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.arc(0, 0, e.r + 9, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      for (let i = 3; i >= 0; i--) {
+        const ox = -i * 5;
+        const oy = Math.sin(state.time * 6 + i) * 3;
+        const seg = ctx.createRadialGradient(ox - 2, oy - 2, 0, ox, oy, e.r * 0.55);
+        seg.addColorStop(0, flash ? "#ffffff" : "#ffe0a8");
+        seg.addColorStop(0.45, flash ? "#ffffff" : e.color);
+        seg.addColorStop(1, flash ? "#ffffff" : "#5a1808");
+        ctx.fillStyle = seg;
+        ctx.beginPath(); ctx.ellipse(ox, oy, e.r * (0.55 - i * 0.05), e.r * 0.38, 0.2, 0, Math.PI * 2); ctx.fill();
+      }
+      // head
+      const head = ctx.createLinearGradient(4, -8, 14, 8);
+      head.addColorStop(0, flash ? "#ffffff" : "#ffd080");
+      head.addColorStop(1, flash ? "#ffffff" : "#c44a2a");
+      ctx.fillStyle = head;
+      ctx.beginPath();
+      ctx.moveTo(e.r * 0.2, -e.r * 0.35);
+      ctx.lineTo(e.r + 4, 0);
+      ctx.lineTo(e.r * 0.2, e.r * 0.35);
+      ctx.closePath(); ctx.fill();
+      if (!flash) {
+        ctx.fillStyle = "#1a0808";
+        ctx.beginPath(); ctx.arc(e.r * 0.55, -2, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#ffb34a";
+        ctx.beginPath(); ctx.arc(e.r * 0.55, -2, 0.8, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+
+    } else if (e.shape === "warden") {
+      // Shellwarden — heavy dome + shield ring
+      ctx.save();
+      ctx.translate(0, bob * 0.3);
+      if (e.shield > 0) {
+        ctx.strokeStyle = `rgba(216,208,196,${0.35 + 0.35 * (e.shield / (e.shieldMax || 1))})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(0, 0, e.r + 6 + Math.sin(state.time * 3) * 1.2, 0, Math.PI * 2); ctx.stroke();
+      }
+      const dome = ctx.createRadialGradient(-4, -6, 2, 0, 0, e.r);
+      dome.addColorStop(0, flash ? "#ffffff" : "#e8e0d4");
+      dome.addColorStop(0.5, flash ? "#ffffff" : e.color);
+      dome.addColorStop(1, flash ? "#ffffff" : "#2a2824");
+      ctx.fillStyle = dome;
+      ctx.beginPath(); ctx.arc(0, 2, e.r, Math.PI, 0); ctx.lineTo(e.r, e.r * 0.55); ctx.lineTo(-e.r, e.r * 0.55); ctx.closePath(); ctx.fill();
+      if (!flash) {
+        ctx.strokeStyle = "rgba(0,0,0,0.35)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, -e.r + 4); ctx.lineTo(0, e.r * 0.4);
+        ctx.moveTo(-e.r * 0.55, -2); ctx.lineTo(e.r * 0.55, -2);
+        ctx.stroke();
+        ctx.fillStyle = "#c4a35a";
+        ctx.beginPath(); ctx.arc(0, -2, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#3a3028";
+        ctx.beginPath(); ctx.arc(0, -2, 2, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = flash ? "#ffffff" : "#4a4840";
+      roundRect(-e.r * 0.85, e.r * 0.35, e.r * 1.7, e.r * 0.45, 4); ctx.fill();
+      ctx.restore();
+
+    } else if (e.shape === "brood") {
+      // Broodmother — bulbous sac + spawn vents
+      ctx.save();
+      ctx.translate(0, bob * 0.5);
+      const sac = ctx.createRadialGradient(-3, -4, 2, 0, 0, e.r);
+      sac.addColorStop(0, flash ? "#ffffff" : "#c8f0d0");
+      sac.addColorStop(0.45, flash ? "#ffffff" : e.color);
+      sac.addColorStop(1, flash ? "#ffffff" : "#1a2a18");
+      ctx.fillStyle = sac;
+      ctx.beginPath(); ctx.ellipse(0, 2, e.r * 1.05, e.r * 0.85, 0, 0, Math.PI * 2); ctx.fill();
+      if (!flash) {
+        for (let i = 0; i < 5; i++) {
+          const a = -0.8 + i * 0.4;
+          const bx = Math.cos(a) * e.r * 0.55;
+          const by = Math.sin(a) * e.r * 0.4 - 2;
+          ctx.fillStyle = i % 2 ? "#2a4a30" : "#4a7a50";
+          ctx.beginPath(); ctx.arc(bx, by, 3.2, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.fillStyle = "#1a1008";
+        ctx.beginPath(); ctx.ellipse(0, -e.r * 0.35, 5, 3, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#ffb34a";
+        ctx.beginPath(); ctx.arc(-2, -e.r * 0.35, 1.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(2, -e.r * 0.35, 1.2, 0, Math.PI * 2); ctx.fill();
+        // mandible legs
+        ctx.strokeStyle = "#3a5a38";
+        ctx.lineWidth = 2;
+        for (const s of [-1, 1]) {
+          ctx.beginPath();
+          ctx.moveTo(s * e.r * 0.6, e.r * 0.2);
+          ctx.lineTo(s * (e.r + 4), e.r * 0.55);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+
+    } else if (e.shape === "gale") {
+      // Galeheart — swept crescent with storm core
+      ctx.save();
+      ctx.translate(0, bob * 1.2);
+      const spin = state.time * 4;
+      for (let i = 0; i < 3; i++) {
+        ctx.strokeStyle = `rgba(77,184,196,${0.55 - i * 0.12})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, e.r + 4 + i * 3, (e.r + 4 + i * 3) * 0.45, spin + i, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.fillStyle = flash ? "#ffffff" : e.color;
+      ctx.beginPath();
+      ctx.moveTo(-e.r, 0);
+      ctx.quadraticCurveTo(0, -e.r * 1.15, e.r * 0.9, -e.r * 0.25);
+      ctx.quadraticCurveTo(e.r * 0.2, 0, e.r * 0.9, e.r * 0.25);
+      ctx.quadraticCurveTo(0, e.r * 1.15, -e.r, 0);
+      ctx.closePath(); ctx.fill();
+      if (!flash) {
+        const core = ctx.createRadialGradient(-2, -2, 0, 0, 0, e.r * 0.45);
+        core.addColorStop(0, e.enraged ? "#ffffff" : "#e8ffff");
+        core.addColorStop(0.4, e.enraged ? "#ffb34a" : "#4db8c4");
+        core.addColorStop(1, "#0a2030");
+        ctx.fillStyle = core;
+        ctx.beginPath(); ctx.arc(0, 0, e.r * 0.4, 0, Math.PI * 2); ctx.fill();
       }
       ctx.restore();
 
@@ -2035,14 +2282,25 @@
       });
     }
 
-    if (e.type === "boss" && (e.bossTotal || 1) > 1) {
-      ctx.fillStyle = "rgba(0,0,0,0.5)";
-      roundRect(-8, e.r + 2, 16, 10, 3); ctx.fill();
+    if (e.shieldMax > 0 && e.shield > 0) {
+      const sp = Math.max(0, e.shield / e.shieldMax);
+      ctx.fillStyle = "rgba(0,0,0,0.4)";
+      roundRect(-barW / 2, barY - 5, barW, 2.5, 1); ctx.fill();
+      ctx.fillStyle = "#d8d0c4";
+      roundRect(-barW / 2, barY - 5, barW * sp, 2.5, 1); ctx.fill();
+    }
+
+    if (isBossEnemy(e)) {
+      const tag = (e.label || "Boss").slice(0, 10);
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      const tw = Math.max(28, tag.length * 5.2);
+      roundRect(-tw / 2, e.r + 2, tw, 11, 3); ctx.fill();
       ctx.fillStyle = "#ffb34a";
       ctx.font = "bold 8px Avenir Next, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(`${(e.bossIndex || 0) + 1}/${e.bossTotal}`, 0, e.r + 7);
+      const suffix = (e.bossTotal || 1) > 1 ? ` ${(e.bossIndex || 0) + 1}/${e.bossTotal}` : "";
+      ctx.fillText(tag + suffix, 0, e.r + 7.5);
       ctx.textBaseline = "alphabetic";
     }
     ctx.restore();

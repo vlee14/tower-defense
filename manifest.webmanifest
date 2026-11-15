@@ -2,13 +2,13 @@
   "name": "Emberwell",
   "short_name": "Emberwell",
   "description": "Endless molten-rift tower defense. Play offline anywhere.",
-  "start_url": "./index.html?v=1.3.1",
+  "start_url": "./index.html?v=1.3.2",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0c0a09",
   "theme_color": "#0c0a09",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "icons": [
     {
       "src": "icons/icon-192.png",
