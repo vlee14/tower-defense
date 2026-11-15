@@ -24,3 +24,13 @@ Each run gets a seed that drives path layout, spawn timing, and enemy mixes. The
 ## Stack
 
 Vanilla HTML / CSS / Canvas. Hosted on GitHub Pages from `main` (site root).
+
+## Versioning / offline updates
+
+Ship updates with:
+
+```bash
+./bump-version.sh 1.0.1
+```
+
+That updates `version.js`, the service-worker version marker, `manifest.webmanifest`, and `index.html` cache-bust queries together. The new cache name (`runway-defense-<version>`), precached `?v=` asset URLs, old-cache cleanup on activate, and a one-shot client reload make offline installs pick up the new shell after the next online visit.

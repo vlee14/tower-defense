@@ -7,11 +7,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="description" content="Endless runway tower defense. Play offline on a plane." />
-  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.0" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <meta name="app-version" content="1.0.0" />
   <title>Runway Defense</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=1.0.0" />
 </head>
 <body>
   <div id="app">
@@ -105,6 +106,7 @@
           <button type="button" id="btn-upgrades" class="secondary">Upgrade Trees</button>
         </div>
         <p class="hint">Place towers, socket Fire/Water/Earth/Wind (max 2), exploit combos. Survive endless waves.</p>
+        <p class="app-version" id="app-version" aria-label="App version">v1.0.0</p>
       </div>
     </section>
 
@@ -194,13 +196,50 @@
       </div>
     </section>
   </div>
-  <script src="game.js" defer></script>
+  <script src="version.js?v=1.0.0"></script>
+  <script src="game.js?v=1.0.0" defer></script>
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(() => {});
+    (function () {
+      var ver = (typeof APP_VERSION === "string" && APP_VERSION) || "1.0.0";
+      var label = document.getElementById("app-version");
+      if (label) label.textContent = "v" + ver;
+
+      if (!("serviceWorker" in navigator)) return;
+
+      var refreshing = false;
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
       });
-    }
+
+      navigator.serviceWorker.addEventListener("message", function (event) {
+        if (!event.data || event.data.type !== "SW_ACTIVATED") return;
+        // New worker claimed — controllerchange handles reload when ready.
+      });
+
+      window.addEventListener("load", function () {
+        navigator.serviceWorker
+          .register("./sw.js")
+          .then(function (reg) {
+            if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+            reg.addEventListener("updatefound", function () {
+              var worker = reg.installing;
+              if (!worker) return;
+              worker.addEventListener("statechange", function () {
+                if (worker.state === "installed" && navigator.serviceWorker.controller) {
+                  worker.postMessage({ type: "SKIP_WAITING" });
+                }
+              });
+            });
+            // Check for updates when the tab becomes visible again (e.g. after a deploy).
+            document.addEventListener("visibilitychange", function () {
+              if (document.visibilityState === "visible") reg.update().catch(function () {});
+            });
+          })
+          .catch(function () {});
+      });
+    })();
   </script>
 </body>
 </html>
