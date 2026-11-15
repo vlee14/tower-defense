@@ -8,7 +8,7 @@
     run: "rd_run_v1",
   };
 
-  const SPEED_STEPS = [1, 1.5, 2];
+  const SPEED_STEPS = [1, 1.5, 2, 3, 5];
   const MAX_PARTICLES = 180;
 
   const DIFFICULTIES = {
@@ -19,18 +19,18 @@
 
   const BASE_TOWER = {
     turret: {
-      name: "Turret", cost: 60, damage: 22, range: 78, fireRate: 0.48, sell: 30, color: "#e8883a",
+      name: "Turret", cost: 55, damage: 30, range: 82, fireRate: 0.40, sell: 28, color: "#e8883a",
       hitsAir: true, hitsGround: true, splash: 0,
       blurb: "High DPS · short range · hits air & ground",
     },
     mortar: {
-      name: "Mortar", cost: 90, damage: 34, range: 125, fireRate: 1.45, splash: 48, sell: 45, color: "#6fbf8a",
+      name: "Mortar", cost: 85, damage: 44, range: 128, fireRate: 1.28, splash: 52, sell: 42, color: "#6fbf8a",
       hitsAir: false, hitsGround: true,
       blurb: "AoE splash · slow · cannot hit flying",
     },
     coil: {
-      name: "Coil", cost: 75, damage: 9, range: 105, fireRate: 0.65, sell: 38, color: "#4db8c4",
-      hitsAir: true, hitsGround: true, airBonus: 1.55, armorPenalty: 0.55, slow: 0.6, slowDur: 1.3,
+      name: "Coil", cost: 70, damage: 15, range: 108, fireRate: 0.55, sell: 35, color: "#4db8c4",
+      hitsAir: true, hitsGround: true, airBonus: 1.55, armorPenalty: 0.55, slow: 0.55, slowDur: 1.45,
       blurb: "Slows · anti-air · weak vs armor",
     },
   };
@@ -46,41 +46,41 @@
 
   const UPGRADE_TREES = {
     turret: [
-      { id: "t_dmg1", name: "Hot Rounds I", desc: "+20% damage", cost: 40, req: null, effect: { damage: 1.2 } },
-      { id: "t_dmg2", name: "Hot Rounds II", desc: "+25% damage", cost: 70, req: "t_dmg1", effect: { damage: 1.25 } },
-      { id: "t_dmg3", name: "AP Core", desc: "+30% damage", cost: 110, req: "t_dmg2", effect: { damage: 1.3 } },
-      { id: "t_rng1", name: "Long Barrel", desc: "+15% range", cost: 50, req: null, effect: { range: 1.15 } },
-      { id: "t_rng2", name: "Spotter Link", desc: "+20% range", cost: 90, req: "t_rng1", effect: { range: 1.2 } },
-      { id: "t_spd1", name: "Servo Drive", desc: "+18% fire rate", cost: 55, req: null, effect: { fireRate: 0.85 } },
-      { id: "t_spd2", name: "Burst Mag", desc: "+22% fire rate", cost: 95, req: "t_spd1", effect: { fireRate: 0.82 } },
-      { id: "t_crit", name: "Crit Optics", desc: "18% chance ×2 damage", cost: 120, req: "t_dmg2", effect: { crit: 0.18 } },
+      { id: "t_dmg1", name: "Hot Rounds I", desc: "+28% damage", cost: 28, req: null, effect: { damage: 1.28 } },
+      { id: "t_dmg2", name: "Hot Rounds II", desc: "+30% damage", cost: 48, req: "t_dmg1", effect: { damage: 1.3 } },
+      { id: "t_dmg3", name: "AP Core", desc: "+35% damage", cost: 80, req: "t_dmg2", effect: { damage: 1.35 } },
+      { id: "t_rng1", name: "Long Barrel", desc: "+18% range", cost: 32, req: null, effect: { range: 1.18 } },
+      { id: "t_rng2", name: "Spotter Link", desc: "+22% range", cost: 65, req: "t_rng1", effect: { range: 1.22 } },
+      { id: "t_spd1", name: "Servo Drive", desc: "+22% fire rate", cost: 35, req: null, effect: { fireRate: 0.82 } },
+      { id: "t_spd2", name: "Burst Mag", desc: "+25% fire rate", cost: 70, req: "t_spd1", effect: { fireRate: 0.8 } },
+      { id: "t_crit", name: "Crit Optics", desc: "22% chance ×2 damage", cost: 90, req: "t_dmg2", effect: { crit: 0.22 } },
     ],
     mortar: [
-      { id: "m_dmg1", name: "HE Shells I", desc: "+20% damage", cost: 45, req: null, effect: { damage: 1.2 } },
-      { id: "m_dmg2", name: "HE Shells II", desc: "+25% damage", cost: 80, req: "m_dmg1", effect: { damage: 1.25 } },
-      { id: "m_splash1", name: "Wider Blast", desc: "+25% splash", cost: 60, req: null, effect: { splash: 1.25 } },
-      { id: "m_splash2", name: "Cluster Cap", desc: "+30% splash", cost: 100, req: "m_splash1", effect: { splash: 1.3 } },
-      { id: "m_rng1", name: "Arc Sight", desc: "+12% range", cost: 50, req: null, effect: { range: 1.12 } },
-      { id: "m_spd1", name: "Fast Loader", desc: "+15% fire rate", cost: 65, req: null, effect: { fireRate: 0.87 } },
-      { id: "m_burn", name: "Incendiary Base", desc: "Mild burn without Fire socket", cost: 130, req: "m_dmg1", effect: { burn: 4 } },
+      { id: "m_dmg1", name: "HE Shells I", desc: "+28% damage", cost: 30, req: null, effect: { damage: 1.28 } },
+      { id: "m_dmg2", name: "HE Shells II", desc: "+30% damage", cost: 55, req: "m_dmg1", effect: { damage: 1.3 } },
+      { id: "m_splash1", name: "Wider Blast", desc: "+28% splash", cost: 40, req: null, effect: { splash: 1.28 } },
+      { id: "m_splash2", name: "Cluster Cap", desc: "+35% splash", cost: 72, req: "m_splash1", effect: { splash: 1.35 } },
+      { id: "m_rng1", name: "Arc Sight", desc: "+15% range", cost: 34, req: null, effect: { range: 1.15 } },
+      { id: "m_spd1", name: "Fast Loader", desc: "+18% fire rate", cost: 42, req: null, effect: { fireRate: 0.85 } },
+      { id: "m_burn", name: "Incendiary Base", desc: "Mild burn without Fire socket", cost: 95, req: "m_dmg1", effect: { burn: 6 } },
     ],
     coil: [
-      { id: "c_dmg1", name: "Amp Coil I", desc: "+25% damage", cost: 40, req: null, effect: { damage: 1.25 } },
-      { id: "c_dmg2", name: "Amp Coil II", desc: "+30% damage", cost: 75, req: "c_dmg1", effect: { damage: 1.3 } },
-      { id: "c_slow1", name: "Deep Freeze", desc: "Stronger base slow", cost: 55, req: null, effect: { slow: 0.45 } },
-      { id: "c_slow2", name: "Cryo Hold", desc: "Longer slow", cost: 85, req: "c_slow1", effect: { slowDur: 1.35 } },
-      { id: "c_rng1", name: "Field Expand", desc: "+15% range", cost: 50, req: null, effect: { range: 1.15 } },
-      { id: "c_spd1", name: "Pulse Sync", desc: "+20% fire rate", cost: 60, req: null, effect: { fireRate: 0.83 } },
-      { id: "c_chain", name: "Arc Jump", desc: "Chain to 2nd target", cost: 120, req: "c_dmg1", effect: { chain: 1 } },
+      { id: "c_dmg1", name: "Amp Coil I", desc: "+30% damage", cost: 28, req: null, effect: { damage: 1.3 } },
+      { id: "c_dmg2", name: "Amp Coil II", desc: "+35% damage", cost: 52, req: "c_dmg1", effect: { damage: 1.35 } },
+      { id: "c_slow1", name: "Deep Freeze", desc: "Stronger base slow", cost: 36, req: null, effect: { slow: 0.4 } },
+      { id: "c_slow2", name: "Cryo Hold", desc: "Longer slow", cost: 60, req: "c_slow1", effect: { slowDur: 1.5 } },
+      { id: "c_rng1", name: "Field Expand", desc: "+18% range", cost: 34, req: null, effect: { range: 1.18 } },
+      { id: "c_spd1", name: "Pulse Sync", desc: "+24% fire rate", cost: 40, req: null, effect: { fireRate: 0.8 } },
+      { id: "c_chain", name: "Arc Jump", desc: "Chain to 2nd target", cost: 88, req: "c_dmg1", effect: { chain: 1 } },
     ],
   };
 
   const ENEMY = {
-    drone: { hp: 36, speed: 70, reward: 8, r: 10, color: "#4db8c4", shape: "tri", tags: ["flying", "fast"], label: "Drone" },
-    crawler: { hp: 95, speed: 40, reward: 14, r: 12, color: "#e8883a", shape: "sq", tags: ["ground"], label: "Crawler" },
-    armor: { hp: 240, speed: 26, reward: 30, r: 14, color: "#a89a8c", shape: "hex", tags: ["ground", "armored"], label: "Armor" },
-    swarm: { hp: 20, speed: 82, reward: 5, r: 7, color: "#6fbf8a", shape: "dot", tags: ["ground", "swarm"], label: "Swarm" },
-    boss: { hp: 980, speed: 20, reward: 90, r: 22, color: "#e85d4c", shape: "boss", tags: ["ground", "armored", "boss"], label: "Boss" },
+    drone: { hp: 34, speed: 70, reward: 11, r: 11, color: "#4db8c4", shape: "tri", tags: ["flying", "fast"], label: "Drone" },
+    crawler: { hp: 88, speed: 40, reward: 18, r: 13, color: "#e8883a", shape: "sq", tags: ["ground"], label: "Crawler" },
+    armor: { hp: 220, speed: 26, reward: 38, r: 15, color: "#a89a8c", shape: "hex", tags: ["ground", "armored"], label: "Armor" },
+    swarm: { hp: 18, speed: 84, reward: 7, r: 8, color: "#6fbf8a", shape: "dot", tags: ["ground", "swarm"], label: "Swarm" },
+    boss: { hp: 920, speed: 20, reward: 120, r: 24, color: "#e85d4c", shape: "boss", tags: ["ground", "armored", "boss"], label: "Boss" },
   };
 
   function hashSeed(str) {
@@ -319,9 +319,13 @@
   function wavePlan(seed, wave, diffId) {
     const diff = DIFFICULTIES[diffId] || DIFFICULTIES.normal;
     const rng = mulberry32(hashSeed(seed + ":wave:" + wave + ":" + diff.id));
-    const difficulty = (1 + (wave - 1) * 0.18) * diff.hpMul;
-    const count = Math.min(48, Math.floor((6 + Math.floor(wave * 1.4 + rng() * 3)) * diff.countMul));
-    const interval = Math.max(0.22, (0.95 - wave * 0.03 + (rng() - 0.5) * 0.12) * diff.intervalMul);
+    // Gentler early-mid HP curve; steeper after wave 20 so endless stays fair.
+    const early = Math.min(wave, 10);
+    const mid = Math.max(0, Math.min(wave, 20) - 10);
+    const late = Math.max(0, wave - 20);
+    const difficulty = (1 + (early - 1) * 0.11 + mid * 0.16 + late * 0.24) * diff.hpMul;
+    const count = Math.min(52, Math.floor((6 + Math.floor(wave * 1.35 + rng() * 3)) * diff.countMul));
+    const interval = Math.max(0.2, (0.92 - wave * 0.028 + (rng() - 0.5) * 0.12) * diff.intervalMul);
     const mix = [];
     const isBoss = wave % 10 === 0;
     if (isBoss) mix.push({ type: "boss", n: 1 + Math.floor(wave / 20) });
@@ -353,7 +357,7 @@
 
   const state = {
     mode: "hub", seed: null, difficulty: "normal", path: null,
-    w: 390, h: 620, hp: 20, scrap: 120, score: 0, wave: 0,
+    w: 390, h: 620, hp: 20, scrap: 155, score: 0, wave: 0,
     selectedTower: null, selectedBuilt: null,
     towers: [], enemies: [], projectiles: [], fx: [], particles: [],
     spawnQueue: [], spawnTimer: 0, betweenWaves: 0, time: 0, frame: 0,
@@ -421,7 +425,7 @@
   const COACH_STEPS = [
     "Tap Turret below, then tap stone beside the glowing rift.",
     "Great — tap your tower, then socket an element (Fire / Water / Earth / Wind).",
-    "Use the speed button (1×→1.5×→2×) when waves feel slow. Survive!",
+    "Use the speed button (1×→1.5×→2×→3×→5×) when waves feel slow. Survive!",
   ];
   function showCoach(step) {
     if (settings.tutorialDone || !els.coach) return;
@@ -480,7 +484,7 @@
       enemies: state.enemies.map((e) => ({
         type: e.type, dist: e.dist, hp: e.hp, maxHp: e.maxHp, speed: e.speed,
         slow: e.slow, slowT: e.slowT, burn: e.burn, burnT: e.burnT,
-        chillT: e.chillT, shred: e.shred, reward: e.reward, tags: e.tags,
+        chillT: e.chillT, shred: e.shred, knockCd: e.knockCd || 0, reward: e.reward, tags: e.tags,
       })),
       paused: state.mode === "paused", savedAt: Date.now(),
     };
@@ -505,10 +509,12 @@
       type: t.type, x: t.nx * state.w, y: t.ny * state.h, nx: t.nx, ny: t.ny,
       level, cooldown: t.cooldown || 0, elements: [...(t.elements || [])],
       ...stats,
-      damage: stats.damage * (1 + (level - 1) * 0.25),
-      range: stats.range * (1 + (level - 1) * 0.08),
-      fireRate: stats.fireRate * Math.max(0.55, 1 - (level - 1) * 0.04),
-      splash: stats.splash ? stats.splash * (1 + (level - 1) * 0.1) : 0,
+      damage: stats.damage * (1 + (level - 1) * 0.35),
+      range: stats.range * (1 + (level - 1) * 0.1),
+      fireRate: stats.fireRate * Math.max(0.5, 1 - (level - 1) * 0.05),
+      splash: stats.splash ? stats.splash * (1 + (level - 1) * 0.12) : 0,
+      aim: typeof t.aim === "number" ? t.aim : -Math.PI / 2,
+      recoil: 0,
     };
   }
   function loadRun() {
@@ -530,7 +536,7 @@
           ...def, type: e.type, dist: e.dist, hp: e.hp, maxHp: e.maxHp,
           speed: e.speed || def.speed, tags: e.tags || def.tags,
           slow: e.slow || 1, slowT: e.slowT || 0, burn: e.burn || 0, burnT: e.burnT || 0,
-          chillT: e.chillT || 0, shred: e.shred || 0, reward: e.reward, alive: true, hitFlash: 0,
+          chillT: e.chillT || 0, shred: e.shred || 0, knockCd: e.knockCd || 0, reward: e.reward, alive: true, hitFlash: 0,
         };
       });
       state.projectiles = []; state.fx = []; state.particles = [];
@@ -570,7 +576,7 @@
   function endRun(abandoned) {
     const wave = state.wave, score = state.score;
     const diff = DIFFICULTIES[state.difficulty] || DIFFICULTIES.normal;
-    const chips = Math.floor((abandoned ? wave * 2 + score / 80 : wave * 4 + score / 40) * diff.chipMul);
+    const chips = Math.floor((abandoned ? wave * 3 + score / 60 : wave * 6 + score / 28) * diff.chipMul);
     meta.chips += Math.max(0, chips);
     if (!meta.bestByDifficulty[diff.id]) meta.bestByDifficulty[diff.id] = { wave: 0, score: 0 };
     const rec = meta.bestByDifficulty[diff.id];
@@ -670,7 +676,7 @@
     });
   }
   function upgradeCost(t) {
-    return Math.floor(BASE_TOWER[t.type].cost * (0.7 + t.level * 0.55));
+    return Math.floor(BASE_TOWER[t.type].cost * (0.5 + t.level * 0.42));
   }
   function elementCost(t) {
     return (t.elements && t.elements.length) ? ELEMENT_SECOND_COST : ELEMENTS.fire.cost;
@@ -781,7 +787,7 @@
       speed: def.speed * jitter * speedMul,
       reward: Math.floor(def.reward * (0.9 + difficulty * 0.05) * rewardMul),
       r: def.r, color: def.color, shape: def.shape, tags: [...def.tags],
-      slow: 1, slowT: 0, burn: 0, burnT: 0, chillT: 0, shred: 0, alive: true, hitFlash: 0,
+      slow: 1, slowT: 0, burn: 0, burnT: 0, chillT: 0, shred: 0, knockCd: 0, alive: true, hitFlash: 0,
     });
   }
 
@@ -799,6 +805,7 @@
     state.towers.push({
       type, x, y, nx: x / state.w, ny: y / state.h,
       level: 1, cooldown: 0, elements: [], ...stats,
+      aim: -Math.PI / 2, recoil: 0,
     });
     burstPlace(x, y, stats.color);
     sfx.place();
@@ -879,7 +886,13 @@
       enemy.shred = Math.min(0.5, (enemy.shred || 0) + 0.12);
     }
     if (has("wind")) {
-      enemy.dist = Math.max(0, enemy.dist - (key === "earth+wind" ? 18 : 10));
+      // Soft knockback with per-enemy ICD so multi-hit towers can't stunlock.
+      const kbCd = enemy.knockCd || 0;
+      if (kbCd <= 0) {
+        const push = key === "earth+wind" ? 7 : 4;
+        enemy.dist = Math.max(0, enemy.dist - push);
+        enemy.knockCd = key === "earth+wind" ? 0.85 : 1.1;
+      }
     }
 
     if (key === "fire+water") {
@@ -967,6 +980,8 @@
     const p = posOnPath(state.path, target.dist);
     const elsArr = tower.elements || [];
     const tint = elsArr.length ? ELEMENTS[elsArr[0]].color : tower.color;
+    tower.aim = Math.atan2(p.y - tower.y, p.x - tower.x);
+    tower.recoil = 1;
 
     if (tower.type === "mortar") {
       state.projectiles.push({
@@ -1027,13 +1042,14 @@
     } else if (state.betweenWaves <= 0 && state.enemies.every((e) => !e.alive) && state.wave > 0) {
       state.enemies = [];
       state.betweenWaves = 2.2;
-      state.scrap += 15 + state.wave * 2;
+      state.scrap += 28 + state.wave * 4;
       saveRun();
     }
 
     for (const e of state.enemies) {
       if (!e.alive) continue;
       if (e.hitFlash > 0) e.hitFlash -= step;
+      if (e.knockCd > 0) e.knockCd -= step;
       if (e.slowT > 0) { e.slowT -= step; if (e.slowT <= 0) e.slow = 1; }
       if (e.chillT > 0) e.chillT -= step;
       if (e.burnT > 0) {
@@ -1058,6 +1074,16 @@
     }
 
     for (const tower of state.towers) {
+      if (tower.recoil > 0) tower.recoil = Math.max(0, tower.recoil - step * 4.5);
+      const track = findTarget(tower, state.enemies);
+      if (track) {
+        const tp = posOnPath(state.path, track.dist);
+        const want = Math.atan2(tp.y - tower.y, tp.x - tower.x);
+        let dAim = want - (tower.aim || 0);
+        while (dAim > Math.PI) dAim -= Math.PI * 2;
+        while (dAim < -Math.PI) dAim += Math.PI * 2;
+        tower.aim = (tower.aim || 0) + dAim * Math.min(1, step * 10);
+      }
       tower.cooldown -= step;
       if (tower.cooldown > 0) continue;
       const target = findTarget(tower, state.enemies);
@@ -1240,79 +1266,232 @@
     ctx.globalAlpha = 1;
   }
 
+  function pulseSafe(e) {
+    return Math.sin(state.time * 3 + (e.dist || 0) * 0.05) * 2;
+  }
+
   function drawTower(t, selected) {
     ctx.save();
     ctx.translate(t.x, t.y);
+    const aim = typeof t.aim === "number" ? t.aim : -Math.PI / 2;
+    const recoil = t.recoil || 0;
+    const pulse = 0.5 + 0.5 * Math.sin(state.time * 4 + t.x * 0.05);
+
     if (selected) {
-      ctx.strokeStyle = "rgba(255,179,74,0.85)";
+      ctx.strokeStyle = "rgba(255,179,74,0.9)";
       ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
       ctx.beginPath();
-      ctx.arc(0, 0, 20, 0, Math.PI * 2);
+      ctx.arc(0, 0, 22 + Math.sin(state.time * 5) * 1.5, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.setLineDash([]);
     }
 
-    // ground pad
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    // ground pad shadow + basalt ring
+    ctx.fillStyle = "rgba(0,0,0,0.4)";
     ctx.beginPath();
-    ctx.ellipse(0, 10, 14, 5, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 12, 16, 5.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const pad = ctx.createRadialGradient(0, 4, 2, 0, 6, 16);
+    pad.addColorStop(0, "#3a2e24");
+    pad.addColorStop(0.7, "#1c1612");
+    pad.addColorStop(1, "rgba(14,12,10,0)");
+    ctx.fillStyle = pad;
+    ctx.beginPath();
+    ctx.ellipse(0, 8, 15, 6, 0, 0, Math.PI * 2);
     ctx.fill();
 
     if (t.type === "turret") {
-      ctx.fillStyle = "#3a2a1c";
-      roundRect(-11, -8, 22, 18, 4); ctx.fill();
-      ctx.fillStyle = "#8a4a22";
-      roundRect(-8, -10, 16, 12, 3); ctx.fill();
-      ctx.fillStyle = "#e8883a";
-      roundRect(2, -4, 16, 7, 2); ctx.fill();
-      ctx.fillStyle = "#ffb34a";
-      ctx.fillRect(16, -2.5, 5, 4);
-      ctx.fillStyle = "#1a1008";
-      ctx.beginPath(); ctx.arc(-2, -2, 3, 0, Math.PI * 2); ctx.fill();
-    } else if (t.type === "mortar") {
-      ctx.fillStyle = "#2a3a28";
-      ctx.beginPath(); ctx.arc(0, 4, 12, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "#4a6a48";
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(-10, 8); ctx.lineTo(-14, 14); ctx.moveTo(10, 8); ctx.lineTo(14, 14); ctx.stroke();
+      const body = ctx.createLinearGradient(-12, -10, 12, 12);
+      body.addColorStop(0, "#5a3a22");
+      body.addColorStop(0.45, "#2a1a12");
+      body.addColorStop(1, "#8a4a22");
+      ctx.fillStyle = body;
+      roundRect(-12, -6, 24, 16, 5); ctx.fill();
+      ctx.strokeStyle = "rgba(255,179,74,0.25)";
+      ctx.lineWidth = 1;
+      roundRect(-12, -6, 24, 16, 5); ctx.stroke();
+
+      ctx.fillStyle = "#c4a35a";
+      [[-9, 2], [9, 2], [-9, 8], [9, 8]].forEach(([rx, ry]) => {
+        ctx.beginPath(); ctx.arc(rx, ry, 1.4, 0, Math.PI * 2); ctx.fill();
+      });
+
       ctx.save();
-      ctx.rotate(-0.55);
-      ctx.fillStyle = "#6fbf8a";
-      roundRect(-4, -16, 8, 22, 3); ctx.fill();
-      ctx.fillStyle = "#1a2418";
-      ctx.beginPath(); ctx.arc(0, -16, 3.5, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-    } else {
-      ctx.fillStyle = "#1a3038";
-      ctx.beginPath();
-      ctx.moveTo(0, -13); ctx.lineTo(13, 0); ctx.lineTo(0, 13); ctx.lineTo(-13, 0);
-      ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = "#4db8c4";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      for (let i = 0; i < 3; i++) {
-        const r = 4 + i * 3;
-        ctx.strokeStyle = `rgba(77,184,196,${0.7 - i * 0.18})`;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.rotate(aim);
+      ctx.translate(-recoil * 3.5, 0);
+
+      const house = ctx.createLinearGradient(0, -8, 0, 8);
+      house.addColorStop(0, "#e8a050");
+      house.addColorStop(0.5, "#a85828");
+      house.addColorStop(1, "#4a2410");
+      ctx.fillStyle = house;
+      roundRect(-8, -7, 14, 14, 3); ctx.fill();
+
+      const lens = ctx.createRadialGradient(-2, -1, 0.5, -2, 0, 4);
+      lens.addColorStop(0, "#fff2c8");
+      lens.addColorStop(0.4, "#ffb34a");
+      lens.addColorStop(1, "#5a2010");
+      ctx.fillStyle = lens;
+      ctx.beginPath(); ctx.arc(-2, 0, 3.2, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(26,16,8,0.55)";
+      ctx.lineWidth = 1; ctx.stroke();
+
+      const barrel = ctx.createLinearGradient(4, -5, 22, 5);
+      barrel.addColorStop(0, "#ffb34a");
+      barrel.addColorStop(0.5, "#e8883a");
+      barrel.addColorStop(1, "#6a3010");
+      ctx.fillStyle = barrel;
+      roundRect(4, -5.5, 16, 4, 1.5); ctx.fill();
+      roundRect(4, 1.5, 16, 4, 1.5); ctx.fill();
+      ctx.fillStyle = "#1a1008";
+      ctx.fillRect(19, -4.5, 2.5, 2);
+      ctx.fillRect(19, 2.5, 2.5, 2);
+      if (recoil > 0.15) {
+        ctx.globalAlpha = recoil;
+        ctx.fillStyle = "#ffe08a";
+        ctx.beginPath(); ctx.arc(22, 0, 3 + recoil * 2, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
       }
-      ctx.fillStyle = "#a8eef5";
-      ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+
+      ctx.strokeStyle = `rgba(232,93,76,${0.25 + pulse * 0.35})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(-6, 10); ctx.lineTo(-6, 14);
+      ctx.moveTo(0, 10); ctx.lineTo(0, 15);
+      ctx.moveTo(6, 10); ctx.lineTo(6, 14);
+      ctx.stroke();
+
+    } else if (t.type === "mortar") {
+      ctx.strokeStyle = "#3a4a38";
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = "round";
+      [[-12, 14], [12, 14], [0, 16]].forEach(([lx, ly], i) => {
+        ctx.beginPath();
+        ctx.moveTo(i === 2 ? 0 : (i ? 6 : -6), 6);
+        ctx.lineTo(lx, ly);
+        ctx.stroke();
+        ctx.fillStyle = "#6fbf8a";
+        ctx.beginPath(); ctx.arc(lx, ly, 2.2, 0, Math.PI * 2); ctx.fill();
+      });
+
+      const plate = ctx.createRadialGradient(-2, 2, 1, 0, 4, 13);
+      plate.addColorStop(0, "#5a7a58");
+      plate.addColorStop(0.55, "#2a3a28");
+      plate.addColorStop(1, "#141c14");
+      ctx.fillStyle = plate;
+      ctx.beginPath(); ctx.arc(0, 4, 12, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(111,191,138,0.45)";
+      ctx.lineWidth = 1.5; ctx.stroke();
+
+      const bob = Math.sin(state.time * 2.2) * 0.04;
+      ctx.save();
+      ctx.rotate(aim * 0.15 - 0.65 + bob - recoil * 0.2);
+      const tube = ctx.createLinearGradient(-6, 0, 6, 0);
+      tube.addColorStop(0, "#1a2418");
+      tube.addColorStop(0.35, "#6fbf8a");
+      tube.addColorStop(0.55, "#c8f0d0");
+      tube.addColorStop(1, "#2a4a30");
+      ctx.fillStyle = tube;
+      roundRect(-5, -20, 10, 26, 4); ctx.fill();
+      ctx.fillStyle = "rgba(26,16,8,0.45)";
+      ctx.fillRect(-5, -12, 10, 2);
+      ctx.fillRect(-5, -2, 10, 2);
+      const muzzle = ctx.createRadialGradient(0, -20, 0, 0, -20, 5);
+      muzzle.addColorStop(0, "#0a120a");
+      muzzle.addColorStop(0.6, "#2a3a28");
+      muzzle.addColorStop(1, "#6fbf8a");
+      ctx.fillStyle = muzzle;
+      ctx.beginPath(); ctx.arc(0, -20, 4.5, 0, Math.PI * 2); ctx.fill();
+      if (recoil > 0.2) {
+        ctx.globalAlpha = recoil * 0.8;
+        ctx.fillStyle = "#b8f5c8";
+        ctx.beginPath(); ctx.arc(0, -24, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+
+      ctx.fillStyle = "#243024";
+      roundRect(-4, 6, 8, 7, 2); ctx.fill();
+      ctx.fillStyle = `rgba(111,191,138,${0.4 + pulse * 0.4})`;
+      ctx.fillRect(-2, 8, 4, 3);
+
+    } else {
+      const spin = state.time * 2.8;
+      ctx.save();
+      const chassis = ctx.createLinearGradient(-14, -14, 14, 14);
+      chassis.addColorStop(0, "#2a4850");
+      chassis.addColorStop(0.5, "#0e1c22");
+      chassis.addColorStop(1, "#4db8c4");
+      ctx.fillStyle = chassis;
+      ctx.beginPath();
+      ctx.moveTo(0, -15); ctx.lineTo(14, 0); ctx.lineTo(0, 15); ctx.lineTo(-14, 0);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = "rgba(168,238,245,0.55)";
+      ctx.lineWidth = 1.5; ctx.stroke();
+
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.beginPath();
+      ctx.moveTo(0, -9); ctx.lineTo(9, 0); ctx.lineTo(0, 9); ctx.lineTo(-9, 0);
+      ctx.closePath(); ctx.fill();
+
+      for (let i = 0; i < 3; i++) {
+        const r = 5 + i * 3.2;
+        ctx.save();
+        ctx.rotate(spin * (i % 2 ? 1 : -1) + i);
+        ctx.strokeStyle = `rgba(77,184,196,${0.75 - i * 0.18})`;
+        ctx.lineWidth = 1.6 - i * 0.3;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, r, r * 0.45, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      const core = ctx.createRadialGradient(-1, -1, 0, 0, 0, 5);
+      core.addColorStop(0, "#ffffff");
+      core.addColorStop(0.35, "#a8eef5");
+      core.addColorStop(1, "#1a6080");
+      ctx.fillStyle = core;
+      ctx.beginPath(); ctx.arc(0, 0, 3.5 + pulse * 0.8, 0, Math.PI * 2); ctx.fill();
+
+      ctx.save();
+      ctx.rotate(aim);
+      ctx.fillStyle = "rgba(168,238,245,0.85)";
+      ctx.beginPath();
+      ctx.moveTo(8, -2.5); ctx.lineTo(16 - recoil * 2, 0); ctx.lineTo(8, 2.5);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.restore();
     }
 
     const elsArr = t.elements || [];
     elsArr.forEach((el, i) => {
-      const ex = -8 + i * 16;
-      ctx.fillStyle = ELEMENTS[el].color;
-      ctx.beginPath(); ctx.arc(ex, -18, 4.5, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(0,0,0,0.35)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
+      const ex = -9 + i * 18;
+      const ey = -20;
+      const eg = ctx.createRadialGradient(ex - 1, ey - 1, 0.5, ex, ey, 5.5);
+      eg.addColorStop(0, "#fff8e8");
+      eg.addColorStop(0.35, ELEMENTS[el].color);
+      eg.addColorStop(1, "#1a1008");
+      ctx.fillStyle = eg;
+      ctx.beginPath();
+      ctx.moveTo(ex, ey - 5);
+      ctx.lineTo(ex + 4.5, ey);
+      ctx.lineTo(ex, ey + 5);
+      ctx.lineTo(ex - 4.5, ey);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.35)";
+      ctx.lineWidth = 1; ctx.stroke();
     });
     if (t.level > 1) {
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      roundRect(-7, 18, 14, 11, 3); ctx.fill();
       ctx.fillStyle = "#f3ebe2";
       ctx.font = "bold 9px Avenir Next, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(String(t.level), 0, 22);
+      ctx.textBaseline = "middle";
+      ctx.fillText("L" + t.level, 0, 23.5);
+      ctx.textBaseline = "alphabetic";
     }
     ctx.restore();
   }
@@ -1321,100 +1500,262 @@
     ctx.save();
     ctx.translate(x, y);
     const flash = e.hitFlash > 0;
+    const bob = Math.sin(state.time * (e.tags.includes("flying") ? 7 : 5) + e.dist * 0.08);
+    const crawl = e.dist * 0.35;
+
+    ctx.fillStyle = "rgba(0,0,0,0.28)";
+    ctx.beginPath();
+    ctx.ellipse(0, e.r * 0.85, e.r * 0.9, e.r * 0.28, 0, 0, Math.PI * 2);
+    ctx.fill();
 
     if (e.tags.includes("flying")) {
-      ctx.strokeStyle = "rgba(126,201,160,0.45)";
+      ctx.strokeStyle = "rgba(126,201,160,0.4)";
       ctx.setLineDash([3, 3]);
-      ctx.beginPath(); ctx.arc(0, 0, e.r + 7, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineDashOffset = -state.time * 20;
+      ctx.beginPath(); ctx.arc(0, 0, e.r + 8, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
-      // wing blips
-      ctx.globalAlpha = 0.5;
-      ctx.fillStyle = e.color;
-      ctx.beginPath(); ctx.ellipse(-e.r - 2, 0, 5, 2.5, -0.3, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(e.r + 2, 0, 5, 2.5, 0.3, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
     }
     if (e.slow < 1 || e.chillT > 0) {
-      ctx.strokeStyle = "rgba(77,184,196,0.55)";
-      ctx.beginPath(); ctx.arc(0, 0, e.r + 5, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = "rgba(77,184,196,0.6)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(0, 0, e.r + 5.5, 0, Math.PI * 2); ctx.stroke();
+      for (let i = 0; i < 3; i++) {
+        const a = state.time * 3 + i * 2.1;
+        ctx.fillStyle = "rgba(168,238,245,0.55)";
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * (e.r + 4), Math.sin(a) * (e.r + 4), 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     if (e.burnT > 0) {
-      ctx.fillStyle = "rgba(232,93,76,0.3)";
-      ctx.beginPath(); ctx.arc(0, 0, e.r + 4, 0, Math.PI * 2); ctx.fill();
+      const bg = ctx.createRadialGradient(0, 0, e.r * 0.2, 0, 0, e.r + 6);
+      bg.addColorStop(0, "rgba(255,179,74,0.35)");
+      bg.addColorStop(1, "rgba(232,93,76,0)");
+      ctx.fillStyle = bg;
+      ctx.beginPath(); ctx.arc(0, 0, e.r + 6, 0, Math.PI * 2); ctx.fill();
     }
 
-    ctx.fillStyle = flash ? "#ffffff" : e.color;
     if (e.shape === "tri") {
-      // drone: arrowhead + cockpit
+      const flap = Math.sin(state.time * 14 + e.dist) * 0.35;
+      ctx.save();
+      ctx.translate(0, bob * 1.5);
+      [-1, 1].forEach((side) => {
+        ctx.save();
+        ctx.translate(side * (e.r * 0.2), 2);
+        ctx.rotate(side * (0.35 + flap));
+        const wing = ctx.createLinearGradient(0, 0, side * 14, 0);
+        wing.addColorStop(0, flash ? "#ffffff" : "#2a6070");
+        wing.addColorStop(1, flash ? "#ffffff" : e.color);
+        ctx.fillStyle = wing;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(side * 10, -6, side * 14, -1);
+        ctx.quadraticCurveTo(side * 8, 4, 0, 3);
+        ctx.closePath(); ctx.fill();
+        ctx.restore();
+      });
+      const body = ctx.createLinearGradient(0, -e.r, 0, e.r);
+      body.addColorStop(0, flash ? "#ffffff" : "#d8f6fa");
+      body.addColorStop(0.4, flash ? "#ffffff" : e.color);
+      body.addColorStop(1, flash ? "#ffffff" : "#1a3840");
+      ctx.fillStyle = body;
       ctx.beginPath();
       ctx.moveTo(0, -e.r);
-      ctx.lineTo(e.r * 0.95, e.r * 0.7);
-      ctx.lineTo(0, e.r * 0.25);
-      ctx.lineTo(-e.r * 0.95, e.r * 0.7);
-      ctx.closePath();
-      ctx.fill();
-      if (!flash) {
-        ctx.fillStyle = "#1a1008";
-        ctx.beginPath(); ctx.arc(0, -2, 2.5, 0, Math.PI * 2); ctx.fill();
-      }
-    } else if (e.shape === "sq") {
-      // crawler beetle
-      roundRect(-e.r, -e.r * 0.75, e.r * 2, e.r * 1.5, 4); ctx.fill();
-      if (!flash) {
-        ctx.fillStyle = "rgba(0,0,0,0.25)";
-        ctx.fillRect(-e.r * 0.3, -e.r * 0.5, e.r * 0.6, e.r);
-        ctx.strokeStyle = "rgba(0,0,0,0.35)";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(-e.r - 2, 2); ctx.lineTo(-e.r - 6, 6);
-        ctx.moveTo(e.r + 2, 2); ctx.lineTo(e.r + 6, 6);
-        ctx.stroke();
-      }
-    } else if (e.shape === "hex") {
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
-        const px = Math.cos(a) * e.r, py = Math.sin(a) * e.r;
-        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
-      }
+      ctx.lineTo(e.r * 0.85, e.r * 0.55);
+      ctx.quadraticCurveTo(0, e.r * 0.95, -e.r * 0.85, e.r * 0.55);
       ctx.closePath(); ctx.fill();
       if (!flash) {
-        ctx.strokeStyle = "rgba(0,0,0,0.35)";
-        ctx.lineWidth = 2; ctx.stroke();
-        ctx.fillStyle = "rgba(255,255,255,0.15)";
-        ctx.beginPath(); ctx.arc(-3, -3, 3, 0, Math.PI * 2); ctx.fill();
+        const canopy = ctx.createRadialGradient(-1, -3, 0.5, 0, -2, 4);
+        canopy.addColorStop(0, "#fff8c8");
+        canopy.addColorStop(0.5, "#4db8c4");
+        canopy.addColorStop(1, "#0a1820");
+        ctx.fillStyle = canopy;
+        ctx.beginPath(); ctx.ellipse(0, -2.5, 3.5, 2.8, 0, 0, Math.PI * 2); ctx.fill();
       }
-    } else if (e.shape === "boss") {
-      roundRect(-e.r, -e.r * 0.65, e.r * 2, e.r * 1.3, 6); ctx.fill();
+      ctx.fillStyle = `rgba(255,179,74,${0.45 + 0.35 * Math.sin(state.time * 12)})`;
+      ctx.beginPath(); ctx.ellipse(0, e.r * 0.7, 3, 1.8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+
+    } else if (e.shape === "sq") {
+      ctx.save();
+      ctx.translate(0, Math.abs(bob) * 0.6);
+      ctx.strokeStyle = flash ? "#ffffff" : "#5a3018";
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      for (let i = 0; i < 3; i++) {
+        const phase = crawl + i * 1.1;
+        const swing = Math.sin(phase) * 4;
+        const ly = -4 + i * 5;
+        ctx.beginPath();
+        ctx.moveTo(-e.r * 0.7, ly);
+        ctx.lineTo(-e.r - 5, ly + 4 + swing);
+        ctx.moveTo(e.r * 0.7, ly);
+        ctx.lineTo(e.r + 5, ly + 4 - swing);
+        ctx.stroke();
+      }
+      const car = ctx.createLinearGradient(-e.r, -e.r, e.r, e.r);
+      car.addColorStop(0, flash ? "#ffffff" : "#ffb34a");
+      car.addColorStop(0.45, flash ? "#ffffff" : e.color);
+      car.addColorStop(1, flash ? "#ffffff" : "#3a1808");
+      ctx.fillStyle = car;
+      roundRect(-e.r, -e.r * 0.7, e.r * 2, e.r * 1.45, 5); ctx.fill();
       if (!flash) {
+        ctx.fillStyle = "rgba(26,16,8,0.35)";
+        roundRect(-e.r * 0.25, -e.r * 0.55, e.r * 0.5, e.r * 1.15, 2); ctx.fill();
+        ctx.strokeStyle = "rgba(255,179,74,0.4)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-e.r * 0.6, -2); ctx.lineTo(e.r * 0.6, -2);
+        ctx.moveTo(-e.r * 0.5, 4); ctx.lineTo(e.r * 0.5, 4);
+        ctx.stroke();
         ctx.fillStyle = "#1a1008";
-        ctx.fillRect(-e.r * 0.45, -5, e.r * 0.9, 10);
-        ctx.fillStyle = e.color;
-        ctx.beginPath();
-        ctx.moveTo(-e.r * 0.7, -e.r * 0.65);
-        ctx.lineTo(-e.r * 0.35, -e.r - 4);
-        ctx.lineTo(-e.r * 0.1, -e.r * 0.65);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(e.r * 0.7, -e.r * 0.65);
-        ctx.lineTo(e.r * 0.35, -e.r - 4);
-        ctx.lineTo(e.r * 0.1, -e.r * 0.65);
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(-3.5, -e.r * 0.35, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(3.5, -e.r * 0.35, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#ffb34a";
+        ctx.beginPath(); ctx.arc(-3.5, -e.r * 0.35, 0.8, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(3.5, -e.r * 0.35, 0.8, 0, Math.PI * 2); ctx.fill();
       }
+      ctx.strokeStyle = flash ? "#ffffff" : "#8a4020";
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(-4, -e.r * 0.7); ctx.quadraticCurveTo(-8, -e.r - 2, -2, -e.r - 1);
+      ctx.moveTo(4, -e.r * 0.7); ctx.quadraticCurveTo(8, -e.r - 2, 2, -e.r - 1);
+      ctx.stroke();
+      ctx.restore();
+
+    } else if (e.shape === "hex") {
+      ctx.save();
+      ctx.translate(0, bob * 0.4);
+      const drawHex = (r, fill) => {
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+          const px = Math.cos(a) * r, py = Math.sin(a) * r;
+          i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fillStyle = fill;
+        ctx.fill();
+      };
+      drawHex(e.r + 1.5, flash ? "#ffffff" : "#5a5248");
+      const plate = ctx.createLinearGradient(-e.r, -e.r, e.r, e.r);
+      plate.addColorStop(0, flash ? "#ffffff" : "#d8d0c4");
+      plate.addColorStop(0.5, flash ? "#ffffff" : e.color);
+      plate.addColorStop(1, flash ? "#ffffff" : "#3a3830");
+      drawHex(e.r, plate);
+      if (!flash) {
+        drawHex(e.r * 0.55, "#2a2824");
+        const gem = ctx.createRadialGradient(-1, -1, 0, 0, 0, e.r * 0.35);
+        gem.addColorStop(0, "#fff0c0");
+        gem.addColorStop(0.4, "#e8883a");
+        gem.addColorStop(1, "#3a1808");
+        drawHex(e.r * 0.35, gem);
+        ctx.strokeStyle = "rgba(0,0,0,0.4)";
+        ctx.lineWidth = 1.2;
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(Math.cos(a) * e.r, Math.sin(a) * e.r);
+          ctx.stroke();
+        }
+        ctx.fillStyle = "#c4a35a";
+        [-1, 1].forEach((s) => {
+          ctx.beginPath();
+          ctx.moveTo(s * e.r * 0.7, -e.r * 0.2);
+          ctx.lineTo(s * (e.r + 5), -e.r * 0.55);
+          ctx.lineTo(s * e.r * 0.55, e.r * 0.1);
+          ctx.closePath(); ctx.fill();
+        });
+      }
+      ctx.restore();
+
+    } else if (e.shape === "boss") {
+      ctx.save();
+      ctx.translate(0, bob * 0.5);
+      const aura = ctx.createRadialGradient(0, 0, e.r * 0.3, 0, 0, e.r + 10);
+      aura.addColorStop(0, "rgba(232,93,76,0.35)");
+      aura.addColorStop(1, "rgba(232,93,76,0)");
+      ctx.fillStyle = aura;
+      ctx.beginPath(); ctx.arc(0, 0, e.r + 10 + pulseSafe(e), 0, Math.PI * 2); ctx.fill();
+
+      if (!flash) {
+        ctx.fillStyle = "#3a1008";
+        [-1, 1].forEach((s) => {
+          ctx.beginPath();
+          ctx.moveTo(s * e.r * 0.55, -e.r * 0.5);
+          ctx.lineTo(s * e.r * 0.9, -e.r - 8);
+          ctx.lineTo(s * e.r * 0.25, -e.r * 0.55);
+          ctx.closePath(); ctx.fill();
+          ctx.fillStyle = "#e85d4c";
+          ctx.beginPath();
+          ctx.moveTo(s * e.r * 0.7, -e.r * 0.7);
+          ctx.lineTo(s * e.r * 0.85, -e.r - 6);
+          ctx.lineTo(s * e.r * 0.45, -e.r * 0.75);
+          ctx.closePath(); ctx.fill();
+          ctx.fillStyle = "#3a1008";
+        });
+      }
+
+      const hide = ctx.createLinearGradient(-e.r, -e.r, e.r, e.r);
+      hide.addColorStop(0, flash ? "#ffffff" : "#ff8a70");
+      hide.addColorStop(0.4, flash ? "#ffffff" : e.color);
+      hide.addColorStop(1, flash ? "#ffffff" : "#2a0808");
+      ctx.fillStyle = hide;
+      roundRect(-e.r, -e.r * 0.6, e.r * 2, e.r * 1.35, 8); ctx.fill();
+
+      if (!flash) {
+        ctx.fillStyle = "rgba(26,8,8,0.45)";
+        ctx.fillRect(-e.r + 2, -e.r * 0.15, e.r * 2 - 4, 5);
+        ctx.fillRect(-e.r + 4, e.r * 0.25, e.r * 2 - 8, 4);
+        const maw = ctx.createRadialGradient(0, 2, 1, 0, 2, e.r * 0.45);
+        maw.addColorStop(0, "#ffe08a");
+        maw.addColorStop(0.4, "#e85d4c");
+        maw.addColorStop(1, "#1a0808");
+        ctx.fillStyle = maw;
+        roundRect(-e.r * 0.4, -4, e.r * 0.8, 12, 3); ctx.fill();
+        ctx.fillStyle = "#ffb34a";
+        ctx.fillRect(-e.r * 0.55, -e.r * 0.35, 6, 2.5);
+        ctx.fillRect(e.r * 0.55 - 6, -e.r * 0.35, 6, 2.5);
+        ctx.fillStyle = "#8a3020";
+        roundRect(-e.r - 2, -e.r * 0.35, 8, 14, 2); ctx.fill();
+        roundRect(e.r - 6, -e.r * 0.35, 8, 14, 2); ctx.fill();
+      }
+      ctx.restore();
+
     } else {
-      // swarm mote cluster
-      ctx.beginPath(); ctx.arc(0, 0, e.r, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 0.7;
-      ctx.beginPath(); ctx.arc(-4, -3, e.r * 0.45, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(4, 2, e.r * 0.4, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
+      ctx.save();
+      const n = 4;
+      for (let i = 0; i < n; i++) {
+        const a = state.time * 5 + i * (Math.PI * 2 / n) + e.dist * 0.1;
+        const rr = e.r * (0.55 + 0.2 * Math.sin(state.time * 3 + i));
+        const mx = Math.cos(a) * rr;
+        const my = Math.sin(a) * rr * 0.7 + bob;
+        const mg = ctx.createRadialGradient(mx - 1, my - 1, 0, mx, my, e.r * 0.55);
+        mg.addColorStop(0, flash ? "#ffffff" : "#e8ffe8");
+        mg.addColorStop(0.5, flash ? "#ffffff" : e.color);
+        mg.addColorStop(1, flash ? "#ffffff" : "rgba(20,40,20,0.2)");
+        ctx.fillStyle = mg;
+        ctx.beginPath(); ctx.arc(mx, my, e.r * 0.55, 0, Math.PI * 2); ctx.fill();
+      }
+      const nuc = ctx.createRadialGradient(-1, -1, 0, 0, 0, e.r * 0.7);
+      nuc.addColorStop(0, flash ? "#ffffff" : "#ffffff");
+      nuc.addColorStop(0.4, flash ? "#ffffff" : e.color);
+      nuc.addColorStop(1, flash ? "#ffffff" : "#1a2a18");
+      ctx.fillStyle = nuc;
+      ctx.beginPath(); ctx.arc(0, bob * 0.3, e.r * 0.55, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
     }
 
     const pct = Math.max(0, e.hp / e.maxHp);
-    ctx.fillStyle = "rgba(0,0,0,0.5)";
-    ctx.fillRect(-11, -e.r - 9, 22, 3.5);
-    ctx.fillStyle = pct < 0.3 ? "#e85d4c" : "#6fbf8a";
-    ctx.fillRect(-11, -e.r - 9, 22 * pct, 3.5);
+    const barW = Math.max(18, e.r * 1.6);
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    roundRect(-barW / 2, -e.r - 11, barW, 4, 1.5); ctx.fill();
+    const hg = ctx.createLinearGradient(-barW / 2, 0, barW / 2, 0);
+    hg.addColorStop(0, pct < 0.3 ? "#e85d4c" : "#4a9a60");
+    hg.addColorStop(1, pct < 0.3 ? "#ffb4ab" : "#6fbf8a");
+    ctx.fillStyle = hg;
+    roundRect(-barW / 2, -e.r - 11, barW * pct, 4, 1.5); ctx.fill();
     ctx.restore();
   }
 
@@ -1628,10 +1969,10 @@
     if (state.scrap < cost) { toast("Need more scrap"); return; }
     state.scrap -= cost; t.level += 1;
     const base = towerStats(t.type);
-    t.damage = base.damage * (1 + (t.level - 1) * 0.25);
-    t.range = base.range * (1 + (t.level - 1) * 0.08);
-    t.fireRate = base.fireRate * Math.max(0.55, 1 - (t.level - 1) * 0.04);
-    if (base.splash) t.splash = base.splash * (1 + (t.level - 1) * 0.1);
+    t.damage = base.damage * (1 + (t.level - 1) * 0.35);
+    t.range = base.range * (1 + (t.level - 1) * 0.1);
+    t.fireRate = base.fireRate * Math.max(0.5, 1 - (t.level - 1) * 0.05);
+    if (base.splash) t.splash = base.splash * (1 + (t.level - 1) * 0.12);
     Object.assign(t, {
       hitsAir: base.hitsAir, hitsGround: base.hitsGround,
       airBonus: base.airBonus, armorPenalty: base.armorPenalty,
