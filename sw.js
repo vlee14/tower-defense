@@ -1,8 +1,8 @@
 /* Emberwell service worker — versioned cache, replace on deploy */
-/* APP_VERSION marker: 1.3.2 — keep in sync with version.js (SW update check). */
+/* APP_VERSION marker: 1.4.1 — keep in sync with version.js (SW update check). */
 importScripts("./version.js");
 
-const VERSION = self.APP_VERSION || "1.3.2";
+const VERSION = self.APP_VERSION || "1.4.1";
 const CACHE = "emberwell-" + VERSION;
 const ASSETS = [
   "./",
@@ -14,6 +14,13 @@ const ASSETS = [
   "./icons/icon.svg",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
+  "./fonts/bricolage-600.woff2",
+  "./fonts/bricolage-700.woff2",
+  "./fonts/bricolage-800.woff2",
+  "./fonts/nunito-500.woff2",
+  "./fonts/nunito-600.woff2",
+  "./fonts/nunito-700.woff2",
+  "./fonts/nunito-800.woff2",
   "./styles.css",
   "./game.js",
   "./version.js",
