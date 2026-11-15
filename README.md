@@ -9,7 +9,8 @@ Endless mobile-first tower defense along a molten rift. Static PWA — works off
 - Use the **speed** control (1× → 1.5× → 2× → 3× → 5×) to pace runs; preference saves locally.
 - **Settings** (hub or pause): screen shake Off/Low/Med/High (default Low) plus toggles for particles, hit flash, damage flash, and combat FX rings.
 - Open **Codex** in-run for tower/enemy/element tradeoffs and resists (square pip = resist, triangle = weak).
-- Waves advance on a short timer after spawning finishes — clearing the field is not required; overlaps are normal. Decade waves can spawn multiple bosses (shared HP, spaced spawns).
+- Waves advance on a short timer after spawning finishes — clearing the field is not required; overlaps are normal.
+- Boss roster: **Behemoth**, **Emberwyrm**, **Shellwarden**, **Broodmother**, **Galeheart** (distinct silhouettes, resists, abilities). Decade packs can mix several.
 - Survive endless waves, earn scrap in-run and chips between runs.
 - Spend chips on per-tower upgrade trees in the hub.
 - Unlock **Hard** (wave 12 on Normal) and **Nightmare** (wave 15 on Hard).
