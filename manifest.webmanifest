@@ -1,14 +1,14 @@
 {
-  "name": "Runway Defense",
-  "short_name": "Runway",
-  "description": "Endless mobile tower defense. Play offline on a plane.",
-  "start_url": "./index.html?v=1.1.0",
+  "name": "Emberwell",
+  "short_name": "Emberwell",
+  "description": "Endless molten-rift tower defense. Play offline anywhere.",
+  "start_url": "./index.html?v=1.2.0",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0b1c24",
-  "theme_color": "#0b1c24",
-  "version": "1.1.0",
+  "background_color": "#0c0a09",
+  "theme_color": "#0c0a09",
+  "version": "1.2.0",
   "icons": [
     {
       "src": "icons/icon-192.png",

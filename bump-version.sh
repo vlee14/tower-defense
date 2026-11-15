@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Usage: ./bump-version.sh 1.0.1
-# Updates version.js, sw cache marker, manifest, and index.html cache-bust queries.
+# Usage: ./bump-version.sh 1.2.1
+# Updates version.js, sw cache marker, manifest, and index.html cache-bust queries (Emberwell PWA).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 NEW="${1:-}"

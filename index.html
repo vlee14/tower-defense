@@ -3,22 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
-  <meta name="theme-color" content="#0b1c24" />
+  <meta name="theme-color" content="#0c0a09" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="description" content="Endless runway tower defense. Play offline on a plane." />
-  <link rel="manifest" href="manifest.webmanifest?v=1.1.0" />
+  <meta name="description" content="Endless molten-rift tower defense. Play offline anywhere." />
+  <link rel="manifest" href="manifest.webmanifest?v=1.2.0" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <title>Runway Defense</title>
-  <script src="version.js?v=1.1.0"></script>
-  <link rel="stylesheet" href="styles.css?v=1.1.0" />
+  <title>Emberwell</title>
+  <script src="version.js?v=1.2.0"></script>
+  <link rel="stylesheet" href="styles.css?v=1.2.0" />
 </head>
 <body>
   <div id="app">
     <header id="hud" aria-label="Game status">
       <div class="hud-left">
-        <div class="stat" title="Base HP">
+        <div class="stat" title="Wellheart HP">
           <span class="label">HP</span>
           <span id="hp" class="value">20</span>
         </div>
@@ -28,7 +28,7 @@
         </div>
       </div>
       <div class="hud-center">
-        <div class="brand">RUNWAY</div>
+        <div class="brand">EMBERWELL</div>
         <div class="wave-line">
           <span id="wave">Wave 1</span>
           <span class="dot">·</span>
@@ -36,15 +36,26 @@
         </div>
       </div>
       <div class="hud-right">
-        <button type="button" id="btn-mute" class="icon-btn" aria-label="Mute">🔊</button>
-        <button type="button" id="btn-pause" class="icon-btn" aria-label="Pause">❚❚</button>
+        <button type="button" id="btn-mute" class="icon-btn" aria-label="Mute" title="Mute">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h3l4 3V7L7 10H4zm11.5 2a3.5 3.5 0 0 0-1.8-3.1v6.2A3.5 3.5 0 0 0 15.5 12zm0-7v2a6 6 0 0 1 0 10v2a8 8 0 0 0 0-14z"/></svg>
+        </button>
+        <button type="button" id="btn-speed" class="icon-btn speed-btn" aria-label="Game speed 1x" title="Cycle game speed">
+          <span id="speed-label" class="speed-label">1×</span>
+        </button>
+        <button type="button" id="btn-pause" class="icon-btn" aria-label="Pause" title="Pause">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3v14H7V5zm7 0h3v14h-3V5z"/></svg>
+        </button>
       </div>
     </header>
 
     <main id="stage-wrap">
-      <canvas id="game" width="390" height="620" aria-label="Runway defense battlefield"></canvas>
+      <canvas id="game" width="390" height="620" aria-label="Emberwell battlefield"></canvas>
       <div id="banner" class="hidden" aria-live="polite"></div>
       <div id="toast" class="hidden"></div>
+      <div id="coach" class="coach hidden" aria-live="polite">
+        <p id="coach-text"></p>
+        <button type="button" id="btn-coach-skip" class="text-btn">Got it</button>
+      </div>
     </main>
 
     <div id="inspect" class="inspect hidden" aria-live="polite">
@@ -85,11 +96,11 @@
 
     <!-- Title / Hub -->
     <section id="screen-hub" class="screen">
-      <div class="hub-bg"></div>
+      <div class="hub-bg" aria-hidden="true"></div>
       <div class="hub-panel">
-        <p class="eyebrow">Endless · Offline PWA</p>
-        <h1>Runway Defense</h1>
-        <p class="tagline">Endless waves. Spend chips between runs. Flyable offline.</p>
+        <p class="eyebrow">Molten rift · Offline PWA</p>
+        <h1>Emberwell</h1>
+        <p class="tagline">Hold the glowing fissure. Socket elements. Survive endless waves — offline ready.</p>
         <div class="hub-stats">
           <div><span class="k">Best wave</span><span id="best-wave" class="v">0</span></div>
           <div><span class="k">Best score</span><span id="best-score" class="v">0</span></div>
@@ -105,12 +116,16 @@
           <button type="button" id="btn-continue" class="secondary hidden">Continue</button>
           <button type="button" id="btn-upgrades" class="secondary">Upgrade Trees</button>
         </div>
-        <p class="hint">Place towers, socket Fire/Water/Earth/Wind (max 2), exploit combos. Survive endless waves.</p>
+        <ol class="how-to">
+          <li>Pick a tower, place it on stone <em>beside</em> the rift.</li>
+          <li>Tap a tower to socket Fire / Water / Earth / Wind (max 2).</li>
+          <li>Speed up with the HUD control when waves feel slow.</li>
+        </ol>
         <p class="app-version" id="app-version" aria-hidden="true"></p>
       </div>
     </section>
 
-    <!-- Codex: elements + tradeoffs -->
+    <!-- Codex -->
     <section id="screen-codex" class="screen overlay hidden">
       <div class="panel codex-panel">
         <header class="panel-head">
@@ -186,7 +201,7 @@
     <!-- Game over -->
     <section id="screen-over" class="screen overlay hidden">
       <div class="panel over-panel">
-        <h2>Runway Breached</h2>
+        <h2>Wellheart Breached</h2>
         <p id="over-summary">Wave 1 · Score 0</p>
         <p id="over-chips" class="chips-earned">+0 chips</p>
         <div class="hub-actions">
@@ -196,10 +211,10 @@
       </div>
     </section>
   </div>
-  <script src="game.js?v=1.1.0" defer></script>
+  <script src="game.js?v=1.2.0" defer></script>
   <script>
     (function () {
-      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "1.1.0";
+      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "1.2.0";
       var el = document.getElementById("app-version");
       if (el) el.textContent = "v" + ver;
 
@@ -220,9 +235,8 @@
           })
           .catch(function () {});
         navigator.serviceWorker.addEventListener("controllerchange", function () {
-          /* New SW claimed — soft reload once so clients get fresh assets */
-          if (sessionStorage.getItem("rd_sw_reloaded") === ver) return;
-          sessionStorage.setItem("rd_sw_reloaded", ver);
+          if (sessionStorage.getItem("ew_sw_reloaded") === ver) return;
+          sessionStorage.setItem("ew_sw_reloaded", ver);
           location.reload();
         });
         navigator.serviceWorker.addEventListener("message", function (ev) {

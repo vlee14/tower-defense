@@ -1,11 +1,12 @@
-# Runway Defense
+# Emberwell
 
-Endless mobile-first tower defense. Static PWA — works offline after first load (airplane-friendly).
+Endless mobile-first tower defense along a molten rift. Static PWA — works offline after first load.
 
 ## Play
 
-- Tap a tower (Turret / Mortar / Coil), then tap grass beside the runway.
+- Tap a tower (Turret / Mortar / Coil), then tap stone beside the rift.
 - Select a placed tower to socket **Fire / Water / Earth / Wind** (max 2) for singles + combos.
+- Use the **speed** control (1× → 1.5× → 2×) to pace runs; preference saves locally.
 - Open **Codex** in-run for tower/enemy/element tradeoffs.
 - Survive endless waves, earn scrap in-run and chips between runs.
 - Spend chips on per-tower upgrade trees in the hub.
@@ -16,7 +17,7 @@ Endless mobile-first tower defense. Static PWA — works offline after first loa
 
 Service worker caches the shell and assets on first visit. No CDN/API calls at runtime. Install via browser “Add to Home Screen” for a standalone app.
 
-**Bump on every deploy:** edit `APP_VERSION` in `version.js` and keep the matching `?v=` query params in `index.html`. The service worker names its cache `runway-defense-<version>`, deletes older caches on activate, and uses network-first for navigations so updates install cleanly.
+**Bump on every deploy:** edit `APP_VERSION` in `version.js` and keep the matching `?v=` query params in `index.html`. The service worker names its cache `emberwell-<version>`, deletes older caches on activate, and uses network-first for navigations so updates install cleanly.
 
 ## Procedural runs
 
