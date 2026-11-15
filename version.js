@@ -1,3 +1,10 @@
-/* Canonical app version. Prefer: ./bump-version.sh <semver> */
-var APP_VERSION = "1.0.0";
-if (typeof self !== "undefined") self.APP_VERSION = APP_VERSION;
+/* Runway Defense — bump APP_VERSION on every deploy.
+ * Keep index.html ?v= query params equal to this value.
+ * Service worker imports this file for cache naming.
+ */
+var APP_VERSION = "1.1.0";
+var APP_NAME = "Runway Defense";
+if (typeof self !== "undefined") {
+  self.APP_VERSION = APP_VERSION;
+  self.APP_NAME = APP_NAME;
+}

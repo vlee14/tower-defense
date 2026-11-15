@@ -292,12 +292,12 @@ html, body {
 .tagline, .panel p { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.45; }
 .hint { margin-top: 14px !important; font-size: 12px !important; }
 .app-version {
-  margin: 12px 0 0;
+  margin: 10px 0 0;
   text-align: center;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: color-mix(in srgb, var(--muted) 70%, transparent);
-  user-select: none;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  opacity: 0.65;
 }
 
 .hub-stats {

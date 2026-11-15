@@ -4,7 +4,6 @@ Endless mobile-first tower defense. Static PWA — works offline after first loa
 
 ## Play
 
-- **Live:** GitHub Pages from `main` (site root), once Pages is enabled on this repo.
 - Tap a tower (Turret / Mortar / Coil), then tap grass beside the runway.
 - Select a placed tower to socket **Fire / Water / Earth / Wind** (max 2) for singles + combos.
 - Open **Codex** in-run for tower/enemy/element tradeoffs.
@@ -13,9 +12,11 @@ Endless mobile-first tower defense. Static PWA — works offline after first loa
 - Unlock **Hard** (wave 12 on Normal) and **Nightmare** (wave 15 on Hard).
 - Pause anytime; mid-run progress, meta unlocks, and settings save locally.
 
-## Offline
+## Offline & versioning
 
 Service worker caches the shell and assets on first visit. No CDN/API calls at runtime. Install via browser “Add to Home Screen” for a standalone app.
+
+**Bump on every deploy:** edit `APP_VERSION` in `version.js` and keep the matching `?v=` query params in `index.html`. The service worker names its cache `runway-defense-<version>`, deletes older caches on activate, and uses network-first for navigations so updates install cleanly.
 
 ## Procedural runs
 
@@ -24,13 +25,3 @@ Each run gets a seed that drives path layout, spawn timing, and enemy mixes. The
 ## Stack
 
 Vanilla HTML / CSS / Canvas. Hosted on GitHub Pages from `main` (site root).
-
-## Versioning / offline updates
-
-Ship updates with:
-
-```bash
-./bump-version.sh 1.0.1
-```
-
-That updates `version.js`, the service-worker version marker, `manifest.webmanifest`, and `index.html` cache-bust queries together. The new cache name (`runway-defense-<version>`), precached `?v=` asset URLs, old-cache cleanup on activate, and a one-shot client reload make offline installs pick up the new shell after the next online visit.
