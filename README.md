@@ -1,10 +1,10 @@
 # Runway Defense
 
-Endless mobile-first tower defense for [Vincent Lee](https://github.com/vlee14). Static PWA — works offline after first load (airplane-friendly).
+Endless mobile-first tower defense. Static PWA — works offline after first load (airplane-friendly).
 
 ## Play
 
-- **Live:** https://vlee14.github.io/tower-defense/ (after Pages is enabled)
+- **Live:** GitHub Pages from `main` (site root), once Pages is enabled on this repo.
 - Tap a tower (Turret / Mortar / Coil), then tap grass beside the runway.
 - Select a placed tower to socket **Fire / Water / Earth / Wind** (max 2) for singles + combos.
 - Open **Codex** in-run for tower/enemy/element tradeoffs.
