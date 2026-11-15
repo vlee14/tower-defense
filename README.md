@@ -7,7 +7,9 @@ Endless mobile-first tower defense along a molten rift. Static PWA — works off
 - Tap a tower (Turret / Mortar / Coil), then tap stone beside the rift.
 - Select a placed tower to socket **Fire / Water / Earth / Wind** (max 2) for singles + combos.
 - Use the **speed** control (1× → 1.5× → 2× → 3× → 5×) to pace runs; preference saves locally.
-- Open **Codex** in-run for tower/enemy/element tradeoffs.
+- **Settings** (hub or pause): screen shake Off/Low/Med/High (default Low) plus toggles for particles, hit flash, damage flash, and combat FX rings.
+- Open **Codex** in-run for tower/enemy/element tradeoffs and resists (square pip = resist, triangle = weak).
+- Decade waves can spawn multiple bosses (shared HP, spaced spawns); after wave 25 a living boss may overlap the next wave.
 - Survive endless waves, earn scrap in-run and chips between runs.
 - Spend chips on per-tower upgrade trees in the hub.
 - Unlock **Hard** (wave 12 on Normal) and **Nightmare** (wave 15 on Hard).

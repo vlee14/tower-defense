@@ -9,6 +9,8 @@
   };
 
   const SPEED_STEPS = [1, 1.5, 2, 3, 5];
+  const SHAKE_LEVELS = ["off", "low", "med", "high"];
+  const SHAKE_MUL = { off: 0, low: 0.28, med: 0.6, high: 1 };
   const MAX_PARTICLES = 180;
 
   const DIFFICULTIES = {
@@ -75,13 +77,65 @@
     ],
   };
 
+  // resist: <1 resists that element, >1 is weak. Applied per socketed element on hit.
   const ENEMY = {
-    drone: { hp: 34, speed: 70, reward: 11, r: 11, color: "#4db8c4", shape: "tri", tags: ["flying", "fast"], label: "Drone" },
-    crawler: { hp: 88, speed: 40, reward: 18, r: 13, color: "#e8883a", shape: "sq", tags: ["ground"], label: "Crawler" },
-    armor: { hp: 220, speed: 26, reward: 38, r: 15, color: "#a89a8c", shape: "hex", tags: ["ground", "armored"], label: "Armor" },
-    swarm: { hp: 18, speed: 84, reward: 7, r: 8, color: "#6fbf8a", shape: "dot", tags: ["ground", "swarm"], label: "Swarm" },
-    boss: { hp: 920, speed: 20, reward: 120, r: 24, color: "#e85d4c", shape: "boss", tags: ["ground", "armored", "boss"], label: "Boss" },
+    drone: {
+      hp: 34, speed: 70, reward: 11, r: 11, color: "#4db8c4", shape: "tri",
+      tags: ["flying", "fast"], label: "Drone",
+      resist: { fire: 0.9, water: 1.2, earth: 0.5, wind: 1.45 },
+    },
+    crawler: {
+      hp: 88, speed: 40, reward: 18, r: 13, color: "#e8883a", shape: "sq",
+      tags: ["ground"], label: "Crawler",
+      resist: { fire: 1.2, water: 1.0, earth: 1.1, wind: 0.8 },
+    },
+    armor: {
+      hp: 220, speed: 26, reward: 38, r: 15, color: "#a89a8c", shape: "hex",
+      tags: ["ground", "armored"], label: "Armor",
+      resist: { fire: 0.55, water: 0.8, earth: 1.5, wind: 0.5 },
+    },
+    swarm: {
+      hp: 18, speed: 84, reward: 7, r: 8, color: "#6fbf8a", shape: "dot",
+      tags: ["ground", "swarm"], label: "Swarm",
+      resist: { fire: 1.55, water: 0.65, earth: 0.9, wind: 0.85 },
+    },
+    boss: {
+      hp: 920, speed: 20, reward: 120, r: 24, color: "#e85d4c", shape: "boss",
+      tags: ["ground", "armored", "boss"], label: "Boss",
+      resist: { fire: 0.65, water: 0.7, earth: 1.25, wind: 0.55 },
+    },
   };
+
+  function enemyResist(enemy) {
+    if (enemy && enemy.resist) return enemy.resist;
+    const def = ENEMY[enemy && enemy.type] || null;
+    return (def && def.resist) || {};
+  }
+  function elementResistMul(enemy, elsArr) {
+    if (!elsArr || !elsArr.length) return 1;
+    const r = enemyResist(enemy);
+    let m = 1;
+    for (const el of elsArr) {
+      if (r[el] != null) m *= r[el];
+    }
+    // Soften dual-socket extremes so mixed sockets stay readable.
+    if (elsArr.length > 1) m = Math.pow(m, 0.78);
+    return m;
+  }
+  function formatResistLine(resist) {
+    const weak = [], tank = [];
+    for (const el of ["fire", "water", "earth", "wind"]) {
+      const v = resist[el];
+      if (v == null) continue;
+      const name = ELEMENTS[el].name;
+      if (v >= 1.15) weak.push(name);
+      else if (v <= 0.85) tank.push(name);
+    }
+    const parts = [];
+    if (tank.length) parts.push(`Resists ${tank.join("/")}`);
+    if (weak.length) parts.push(`Weak to ${weak.join("/")}`);
+    return parts.join(" · ") || "No strong elemental bias";
+  }
 
   function hashSeed(str) {
     let h = 2166136261 >>> 0;
@@ -115,7 +169,10 @@
     chips: 0, owned: {}, unlockedDifficulties: { normal: true }, selectedDifficulty: "normal",
     bestByDifficulty: { normal: { wave: 0, score: 0 }, hard: { wave: 0, score: 0 }, nightmare: { wave: 0, score: 0 } },
   });
-  const defaultSettings = () => ({ muted: false, gameSpeed: 1, tutorialDone: false, coachStep: 0 });
+  const defaultSettings = () => ({
+    muted: false, gameSpeed: 1, tutorialDone: false, coachStep: 0,
+    shake: "low", particles: true, hitFlash: true, screenFlash: true, combatFx: true,
+  });
   const defaultBest = () => ({ wave: 0, score: 0 });
 
   let meta = loadJSON(STORAGE.meta, defaultMeta());
@@ -125,6 +182,11 @@
   let settings = loadJSON(STORAGE.settings, defaultSettings());
   if (!SPEED_STEPS.includes(settings.gameSpeed)) settings.gameSpeed = 1;
   if (settings.coachStep == null) settings.coachStep = 0;
+  if (!SHAKE_LEVELS.includes(settings.shake)) settings.shake = "low";
+  if (typeof settings.particles !== "boolean") settings.particles = true;
+  if (typeof settings.hitFlash !== "boolean") settings.hitFlash = true;
+  if (typeof settings.screenFlash !== "boolean") settings.screenFlash = true;
+  if (typeof settings.combatFx !== "boolean") settings.combatFx = true;
   let best = loadJSON(STORAGE.best, defaultBest());
 
   function isDifficultyUnlocked(id) {
@@ -161,7 +223,7 @@
     hp: $("hp"), scrap: $("scrap"), wave: $("wave"), score: $("score"),
     banner: $("banner"), toast: $("toast"),
     hub: $("screen-hub"), upgrades: $("screen-upgrades"), pause: $("screen-pause"),
-    over: $("screen-over"), codex: $("screen-codex"),
+    over: $("screen-over"), codex: $("screen-codex"), settings: $("screen-settings"),
     bestWave: $("best-wave"), bestScore: $("best-score"), chips: $("chips"), chipsUp: $("chips-up"),
     btnContinue: $("btn-continue"), upgradeList: $("upgrade-list"),
     overSummary: $("over-summary"), overChips: $("over-chips"),
@@ -316,6 +378,19 @@
     return bestD;
   }
 
+  function bossCountForWave(wave, rng) {
+    // Decade waves always bring bosses; count scales with endless depth (cap 5).
+    if (wave > 0 && wave % 10 === 0) {
+      let n = 1 + Math.floor((wave - 10) / 10); // 10→1, 20→2, 30→3…
+      if (wave >= 50) n += Math.floor((wave - 50) / 25);
+      return Math.min(5, Math.max(1, n));
+    }
+    // Late endless: occasional mid-cycle boss so packs can overlap across waves.
+    if (wave >= 28 && wave % 5 === 0 && rng() < 0.5) return 1;
+    if (wave >= 42 && rng() < 0.1) return 1;
+    return 0;
+  }
+
   function wavePlan(seed, wave, diffId) {
     const diff = DIFFICULTIES[diffId] || DIFFICULTIES.normal;
     const rng = mulberry32(hashSeed(seed + ":wave:" + wave + ":" + diff.id));
@@ -324,18 +399,26 @@
     const mid = Math.max(0, Math.min(wave, 20) - 10);
     const late = Math.max(0, wave - 20);
     const difficulty = (1 + (early - 1) * 0.11 + mid * 0.16 + late * 0.24) * diff.hpMul;
+    const bossN = bossCountForWave(wave, rng);
+    const isBoss = bossN > 0;
     const count = Math.min(52, Math.floor((6 + Math.floor(wave * 1.35 + rng() * 3)) * diff.countMul));
     const interval = Math.max(0.2, (0.92 - wave * 0.028 + (rng() - 0.5) * 0.12) * diff.intervalMul);
     const mix = [];
-    const isBoss = wave % 10 === 0;
-    if (isBoss) mix.push({ type: "boss", n: 1 + Math.floor(wave / 20) });
+    // Shared HP budget across multi-boss packs keeps them fair and readable.
+    const bossHpShare = bossN <= 1 ? 1 : (0.7 + 0.3 / bossN);
+    for (let i = 0; i < bossN; i++) {
+      mix.push({
+        type: "boss", n: 1, bossIndex: i, bossTotal: bossN, bossHpShare,
+      });
+    }
     const weights = {
       drone: 0.4 + rng() * 0.15,
       crawler: 0.28,
       armor: Math.min(0.4, 0.08 + wave * 0.02 + (diff.id === "nightmare" ? 0.08 : 0)),
       swarm: wave >= 3 ? 0.22 + rng() * 0.12 : 0,
     };
-    let left = count - (isBoss ? mix[0].n : 0);
+    let left = Math.max(0, count - bossN);
+    const fodder = [];
     while (left > 0) {
       const r = rng();
       let type = "drone";
@@ -345,14 +428,45 @@
       if (r > acc) { acc += weights.armor / sum; type = r <= acc ? "armor" : type; }
       if (r > acc) type = "swarm";
       const n = type === "swarm" ? Math.min(left, 3 + Math.floor(rng() * 4)) : Math.min(left, 1 + Math.floor(rng() * 3));
-      mix.push({ type, n });
+      fodder.push({ type, n });
       left -= n;
     }
-    for (let i = mix.length - 1; i > 0; i--) {
+    for (let i = fodder.length - 1; i > 0; i--) {
       const j = Math.floor(rng() * (i + 1));
-      [mix[i], mix[j]] = [mix[j], mix[i]];
+      [fodder[i], fodder[j]] = [fodder[j], fodder[i]];
     }
-    return { count, interval, mix, difficulty, isBoss, speedMul: diff.speedMul, rewardMul: diff.rewardMul };
+    // Keep bosses from stacking: fodder first half, then spaced bosses, then rest.
+    if (bossN > 0 && fodder.length) {
+      const split = Math.ceil(fodder.length * 0.45);
+      mix.length = 0;
+      for (let i = 0; i < split; i++) mix.push(fodder[i]);
+      for (let i = 0; i < bossN; i++) {
+        mix.push({ type: "boss", n: 1, bossIndex: i, bossTotal: bossN, bossHpShare });
+      }
+      for (let i = split; i < fodder.length; i++) mix.push(fodder[i]);
+    } else {
+      for (const f of fodder) mix.push(f);
+    }
+    return {
+      count, interval, mix, difficulty, isBoss, bossN,
+      speedMul: diff.speedMul, rewardMul: diff.rewardMul,
+    };
+  }
+
+  function livingBossCount() {
+    let n = 0;
+    for (const e of state.enemies) if (e.alive && e.type === "boss") n++;
+    return n;
+  }
+  function canAdvanceWave() {
+    const living = state.enemies.filter((e) => e.alive);
+    if (!living.length) return true;
+    // Late endless: allow the next wave while a boss is still on the rift (overlap).
+    if (state.wave < 25) return false;
+    if (living.some((e) => e.type !== "boss")) return false;
+    const bosses = living.length;
+    if (state.wave >= 40) return bosses <= 2;
+    return bosses <= 1;
   }
 
   const state = {
@@ -389,10 +503,16 @@
   }
 
   /* ---- juice helpers ---- */
+  function shakeMul() {
+    return SHAKE_MUL[settings.shake] ?? SHAKE_MUL.low;
+  }
   function addShake(amount) {
-    state.shake = Math.min(10, state.shake + amount);
+    const mul = shakeMul();
+    if (mul <= 0 || amount <= 0) return;
+    state.shake = Math.min(3.2, state.shake + amount * mul);
   }
   function spawnParticles(x, y, color, n, speed = 60) {
+    if (settings.particles === false) return;
     const budget = MAX_PARTICLES - state.particles.length;
     const count = Math.min(n, Math.max(0, budget));
     for (let i = 0; i < count; i++) {
@@ -409,17 +529,25 @@
       });
     }
   }
+  function pushCombatFx(fx) {
+    if (settings.combatFx === false) return;
+    state.fx.push(fx);
+  }
+  function triggerScreenFlash(amount) {
+    if (settings.screenFlash === false) return;
+    state.flash = Math.max(state.flash, amount);
+  }
   function burstPlace(x, y, color) {
-    state.fx.push({ kind: "place", x, y, t: 0.5, color });
-    state.fx.push({ kind: "ring", x, y, t: 0.4, r0: 8, r1: 42, color });
+    pushCombatFx({ kind: "place", x, y, t: 0.5, color });
+    pushCombatFx({ kind: "ring", x, y, t: 0.4, r0: 8, r1: 42, color });
     spawnParticles(x, y, color, 14, 90);
   }
   function burstUpgrade(x, y, color) {
-    state.fx.push({ kind: "place", x, y, t: 0.55, color });
-    state.fx.push({ kind: "ring", x, y, t: 0.5, r0: 10, r1: 56, color: "#ffb34a" });
+    pushCombatFx({ kind: "place", x, y, t: 0.55, color });
+    pushCombatFx({ kind: "ring", x, y, t: 0.5, r0: 10, r1: 56, color: "#ffb34a" });
     spawnParticles(x, y, color, 20, 110);
     spawnParticles(x, y, "#ffb34a", 10, 70);
-    addShake(2.2);
+    addShake(0.55);
   }
 
   const COACH_STEPS = [
@@ -485,6 +613,7 @@
         type: e.type, dist: e.dist, hp: e.hp, maxHp: e.maxHp, speed: e.speed,
         slow: e.slow, slowT: e.slowT, burn: e.burn, burnT: e.burnT,
         chillT: e.chillT, shred: e.shred, knockCd: e.knockCd || 0, reward: e.reward, tags: e.tags,
+        resist: e.resist, bossIndex: e.bossIndex, bossTotal: e.bossTotal, color: e.color, r: e.r,
       })),
       paused: state.mode === "paused", savedAt: Date.now(),
     };
@@ -535,6 +664,9 @@
         return {
           ...def, type: e.type, dist: e.dist, hp: e.hp, maxHp: e.maxHp,
           speed: e.speed || def.speed, tags: e.tags || def.tags,
+          color: e.color || def.color, r: e.r || def.r,
+          resist: e.resist || { ...(def.resist || {}) },
+          bossIndex: e.bossIndex || 0, bossTotal: e.bossTotal || 1,
           slow: e.slow || 1, slowT: e.slowT || 0, burn: e.burn || 0, burnT: e.burnT || 0,
           chillT: e.chillT || 0, shred: e.shred || 0, knockCd: e.knockCd || 0, reward: e.reward, alive: true, hitFlash: 0,
         };
@@ -600,7 +732,7 @@
     els.overChips.textContent = `+${Math.max(0, chips)} chips` + (newly.length ? ` · Unlocked ${newly.join(", ")}!` : "");
     showScreen("over"); refreshHub();
     sfx.over();
-    addShake(5);
+    addShake(1.1);
   }
 
   function showScreen(name) {
@@ -609,6 +741,7 @@
     els.pause.classList.toggle("hidden", name !== "pause");
     els.over.classList.toggle("hidden", name !== "over");
     els.codex.classList.toggle("hidden", name !== "codex");
+    if (els.settings) els.settings.classList.toggle("hidden", name !== "settings");
   }
 
   function refreshHub() {
@@ -632,6 +765,78 @@
     els.btnMute.setAttribute("aria-label", settings.muted ? "Unmute" : "Mute");
     els.btnMute.title = settings.muted ? "Unmute" : "Mute";
     els.btnMute.style.opacity = settings.muted ? "0.55" : "1";
+  }
+
+  function saveSettings() {
+    saveJSON(STORAGE.settings, settings);
+  }
+
+  function renderSettings() {
+    const wrap = $("shake-picks");
+    if (wrap) {
+      wrap.innerHTML = "";
+      const labels = { off: "Off", low: "Low", med: "Med", high: "High" };
+      for (const id of SHAKE_LEVELS) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "shake-btn" + (settings.shake === id ? " active" : "");
+        btn.textContent = labels[id];
+        btn.setAttribute("aria-pressed", settings.shake === id ? "true" : "false");
+        btn.addEventListener("click", () => {
+          settings.shake = id;
+          if (id === "off") state.shake = 0;
+          saveSettings();
+          renderSettings();
+          sfx.ui();
+          toast("Shake " + labels[id]);
+        });
+        wrap.appendChild(btn);
+      }
+    }
+    const bindToggle = (id, key) => {
+      const el = $(id);
+      if (!el) return;
+      el.checked = settings[key] !== false;
+      el.onchange = () => {
+        settings[key] = !!el.checked;
+        if (key === "particles" && !settings.particles) state.particles = [];
+        if (key === "combatFx" && !settings.combatFx) {
+          state.fx = state.fx.filter((f) => f.kind === "beam" || f.kind === "text");
+        }
+        if (key === "screenFlash" && !settings.screenFlash) state.flash = 0;
+        if (key === "hitFlash" && !settings.hitFlash) {
+          for (const e of state.enemies) e.hitFlash = 0;
+        }
+        saveSettings();
+        sfx.ui();
+      };
+    };
+    bindToggle("opt-particles", "particles");
+    bindToggle("opt-hitflash", "hitFlash");
+    bindToggle("opt-screenflash", "screenFlash");
+    bindToggle("opt-combatfx", "combatFx");
+  }
+
+  let settingsReturnScreen = "hub";
+  function openSettings(from) {
+    settingsReturnScreen = from || "hub";
+    if (state.mode === "playing") {
+      state.mode = "paused";
+      saveRun();
+      settingsReturnScreen = "pause";
+    }
+    renderSettings();
+    showScreen("settings");
+  }
+  function closeSettings() {
+    if (settingsReturnScreen === "pause" && state.seed) {
+      state.mode = "paused";
+      showScreen("pause");
+    } else {
+      state.mode = "hub";
+      showScreen("hub");
+      refreshHub();
+    }
   }
   function renderDifficultyPicks() {
     const wrap = $("diff-picks");
@@ -690,8 +895,12 @@
     }
     els.inspect.classList.remove("hidden");
     const elsList = sel.elements || [];
+    const matchTip = elsList.length
+      ? `<span class="match-tip">Sockets deal × resist on each foe — check Codex matchups.</span><br>`
+      : `<span class="match-tip">Socket elements: enemies resist / weaken specific ones.</span><br>`;
     els.inspectText.innerHTML =
       `<strong>${BASE_TOWER[sel.type].name}</strong> Lv${sel.level} · ${BASE_TOWER[sel.type].blurb}<br>` +
+      matchTip +
       `${describeCombo(elsList)} · socket ${elsList.length}/${MAX_ELEMENTS}` +
       (elsList.length < MAX_ELEMENTS ? ` · next ${elementCost(sel)} scrap` : "");
     els.btnSell.disabled = false;
@@ -769,24 +978,40 @@
         state.spawnQueue.push({
           type: pack.type, difficulty: plan.difficulty,
           speedMul: plan.speedMul, rewardMul: plan.rewardMul,
+          bossIndex: pack.bossIndex, bossTotal: pack.bossTotal, bossHpShare: pack.bossHpShare,
         });
       }
     }
     state.spawnTimer = 0.35; state.betweenWaves = 0;
     const diffName = (DIFFICULTIES[state.difficulty] || DIFFICULTIES.normal).name;
-    showBanner(plan.isBoss ? `BOSS ${state.wave}` : `${diffName.toUpperCase()} ${state.wave}`);
+    let banner = `${diffName.toUpperCase()} ${state.wave}`;
+    if (plan.bossN > 1) banner = `BOSSES ×${plan.bossN} · ${state.wave}`;
+    else if (plan.isBoss) banner = `BOSS ${state.wave}`;
+    if (livingBossCount() > 0 && plan.isBoss) banner = `OVERLAP · ${banner}`;
+    showBanner(banner);
     sfx.wave();
     saveRun();
   }
-  function spawnEnemy(type, difficulty, speedMul = 1, rewardMul = 1) {
+  const BOSS_TINTS = ["#e85d4c", "#e8883a", "#c44a2a", "#ffb34a", "#a84838"];
+  function spawnEnemy(type, difficulty, speedMul = 1, rewardMul = 1, meta = {}) {
     const def = ENEMY[type] || ENEMY.drone;
-    const hp = Math.floor(def.hp * difficulty * (type === "boss" ? 1 + state.wave * 0.05 : 1));
+    const bossTotal = meta.bossTotal || 1;
+    const bossIndex = meta.bossIndex || 0;
+    const hpShare = type === "boss" ? (meta.bossHpShare || (bossTotal <= 1 ? 1 : 0.7 + 0.3 / bossTotal)) : 1;
+    const bossScale = type === "boss" ? (1 + state.wave * 0.04) * hpShare : 1;
+    const hp = Math.floor(def.hp * difficulty * bossScale);
     const jitter = 0.95 + (hashSeed(state.seed + type + state.enemies.length) % 100) / 500;
+    // Multi-boss packs move a touch slower so they stay readable on the rift.
+    const packSlow = type === "boss" && bossTotal > 1 ? Math.max(0.78, 1 - (bossTotal - 1) * 0.07) : 1;
+    const color = type === "boss" ? BOSS_TINTS[bossIndex % BOSS_TINTS.length] : def.color;
+    const r = type === "boss" && bossTotal > 1 ? def.r * (0.9 + (bossIndex % 3) * 0.04) : def.r;
     state.enemies.push({
       type, dist: 0, hp, maxHp: hp,
-      speed: def.speed * jitter * speedMul,
-      reward: Math.floor(def.reward * (0.9 + difficulty * 0.05) * rewardMul),
-      r: def.r, color: def.color, shape: def.shape, tags: [...def.tags],
+      speed: def.speed * jitter * speedMul * packSlow,
+      reward: Math.floor(def.reward * (0.9 + difficulty * 0.05) * rewardMul * (type === "boss" && bossTotal > 1 ? 0.85 : 1)),
+      r, color, shape: def.shape, tags: [...def.tags],
+      resist: { ...(def.resist || {}) },
+      bossIndex, bossTotal,
       slow: 1, slowT: 0, burn: 0, burnT: 0, chillT: 0, shred: 0, knockCd: 0, alive: true, hitFlash: 0,
     });
   }
@@ -857,6 +1082,9 @@
       if (has("fire") && armored) mul *= 0.85;
     }
 
+    // Per-enemy elemental resists / weaknesses (matchups).
+    mul *= elementResistMul(enemy, elsArr);
+
     if (enemy.shred > 0) mul *= 1 + Math.min(0.5, enemy.shred);
     if (key === "water+wind" && enemy.chillT > 0) mul *= 1.75;
     return mul;
@@ -867,29 +1095,42 @@
     const has = (e) => elsArr.includes(e);
     const key = comboKey(elsArr);
     const p = posOnPath(state.path, enemy.dist);
+    const r = enemyResist(enemy);
+    const resistFactor = (el) => {
+      const v = r[el] == null ? 1 : r[el];
+      // Map resist curve into status potency (resists weaken, weaknesses strengthen).
+      return Math.max(0.25, Math.min(1.6, v));
+    };
 
     if (has("fire") || tower.burn) {
-      const burn = (has("fire") ? 8 : 0) + (tower.burn || 0);
+      const rf = resistFactor("fire");
+      const burn = ((has("fire") ? 8 : 0) + (tower.burn || 0)) * rf;
       enemy.burn = Math.max(enemy.burn, burn);
-      enemy.burnT = Math.max(enemy.burnT, key === "fire+wind" ? 3.2 : 2.2);
+      enemy.burnT = Math.max(enemy.burnT, (key === "fire+wind" ? 3.2 : 2.2) * Math.min(1.25, rf));
     }
     if (has("water")) {
+      const rf = resistFactor("water");
       const heavy = key === "earth+water";
-      enemy.slow = Math.min(enemy.slow, heavy ? 0.35 : 0.55);
-      enemy.slowT = Math.max(enemy.slowT, heavy ? 2.2 : 1.5);
-      enemy.chillT = Math.max(enemy.chillT, heavy ? 2.2 : 1.5);
+      const baseSlow = heavy ? 0.35 : 0.55;
+      // Higher resist → slower effect closer to 1 (less slow).
+      const slowAmt = 1 - (1 - baseSlow) * rf;
+      enemy.slow = Math.min(enemy.slow, Math.min(0.92, Math.max(0.25, slowAmt)));
+      enemy.slowT = Math.max(enemy.slowT, (heavy ? 2.2 : 1.5) * Math.min(1.25, rf));
+      enemy.chillT = Math.max(enemy.chillT, (heavy ? 2.2 : 1.5) * Math.min(1.25, rf));
     } else if (tower.slow) {
       enemy.slow = Math.min(enemy.slow, tower.slow);
       enemy.slowT = Math.max(enemy.slowT, tower.slowDur || 1.2);
     }
     if (has("earth") && key !== "earth+wind") {
-      enemy.shred = Math.min(0.5, (enemy.shred || 0) + 0.12);
+      const rf = resistFactor("earth");
+      enemy.shred = Math.min(0.5, (enemy.shred || 0) + 0.12 * rf);
     }
     if (has("wind")) {
       // Soft knockback with per-enemy ICD so multi-hit towers can't stunlock.
       const kbCd = enemy.knockCd || 0;
-      if (kbCd <= 0) {
-        const push = key === "earth+wind" ? 7 : 4;
+      const rf = resistFactor("wind");
+      if (kbCd <= 0 && rf > 0.35) {
+        const push = (key === "earth+wind" ? 7 : 4) * rf;
         enemy.dist = Math.max(0, enemy.dist - push);
         enemy.knockCd = key === "earth+wind" ? 0.85 : 1.1;
       }
@@ -906,7 +1147,7 @@
           if (e.hp <= 0) killEnemy(e);
         }
       }
-      state.fx.push({ kind: "blast", x: p.x, y: p.y, t: 0.3, r: 42, color: "#9ad0e8" });
+      pushCombatFx({ kind: "blast", x: p.x, y: p.y, t: 0.3, r: 42, color: "#9ad0e8" });
       spawnParticles(p.x, p.y, "#9ad0e8", 8, 70);
     }
     if (key === "fire+wind" && enemy.burnT > 0) {
@@ -927,10 +1168,10 @@
     const p = posOnPath(state.path, e.dist);
     state.scrap += e.reward;
     state.score += e.reward * 2 + Math.floor(state.wave);
-    state.fx.push({ kind: "pop", x: p.x, y: p.y, t: 0.4, color: e.color });
+    pushCombatFx({ kind: "pop", x: p.x, y: p.y, t: 0.4, color: e.color });
     spawnParticles(p.x, p.y, e.color, e.type === "boss" ? 28 : 12, e.type === "boss" ? 140 : 90);
-    if (e.type === "boss") addShake(4);
-    else addShake(0.8);
+    if (e.type === "boss") addShake(1.15);
+    else addShake(0.22);
     sfx.kill();
 
     if (opts.magma) {
@@ -944,7 +1185,7 @@
           if (o.hp <= 0) killEnemy(o);
         }
       }
-      state.fx.push({ kind: "blast", x: p.x, y: p.y, t: 0.4, r: 50, color: "#e85d4c" });
+      pushCombatFx({ kind: "blast", x: p.x, y: p.y, t: 0.4, r: 50, color: "#e85d4c" });
       spawnParticles(p.x, p.y, "#e85d4c", 16, 100);
     }
   }
@@ -956,17 +1197,17 @@
       dmg *= 2;
       const p = posOnPath(state.path, e.dist);
       state.fx.push({ kind: "text", x: p.x, y: p.y - 14, t: 0.5, text: "CRIT", color: "#ffb34a" });
-      addShake(1.5);
+      addShake(0.4);
     }
     if (comboKey(tower.elements || []) === "water+wind" && e.chillT > 0) {
       const p = posOnPath(state.path, e.dist);
       state.fx.push({ kind: "text", x: p.x, y: p.y - 18, t: 0.45, text: "SHATTER", color: "#4db8c4" });
     }
     e.hp -= dmg;
-    e.hitFlash = 0.12;
+    if (settings.hitFlash !== false) e.hitFlash = 0.12;
     applyOnHitEffects(tower, e, dmg);
     const p = posOnPath(state.path, e.dist);
-    state.fx.push({ kind: "spark", x: p.x, y: p.y, t: 0.28, color: opts.color || tower.color });
+    pushCombatFx({ kind: "spark", x: p.x, y: p.y, t: 0.28, color: opts.color || tower.color });
     spawnParticles(p.x, p.y, opts.color || tower.color, 4, 55);
     sfx.hit();
     if (e.hp <= 0) {
@@ -1036,12 +1277,18 @@
       const plan = wavePlan(state.seed, Math.max(1, state.wave), state.difficulty);
       if (state.spawnTimer <= 0) {
         const next = state.spawnQueue.shift();
-        spawnEnemy(next.type, next.difficulty, next.speedMul || 1, next.rewardMul || 1);
-        state.spawnTimer = plan.interval * (next.type === "swarm" ? 0.35 : 1);
+        spawnEnemy(next.type, next.difficulty, next.speedMul || 1, next.rewardMul || 1, next);
+        if (next.type === "boss") {
+          // Space bosses along the path so packs don't stack into one blob.
+          state.spawnTimer = plan.interval * (3.2 + (next.bossIndex || 0) * 0.75);
+        } else {
+          state.spawnTimer = plan.interval * (next.type === "swarm" ? 0.35 : 1);
+        }
       }
-    } else if (state.betweenWaves <= 0 && state.enemies.every((e) => !e.alive) && state.wave > 0) {
-      state.enemies = [];
-      state.betweenWaves = 2.2;
+    } else if (state.betweenWaves <= 0 && canAdvanceWave() && state.wave > 0) {
+      // Keep living bosses when overlapping; drop only corpses.
+      state.enemies = state.enemies.filter((e) => e.alive);
+      state.betweenWaves = livingBossCount() > 0 ? 1.4 : 2.2;
       state.scrap += 28 + state.wave * 4;
       saveRun();
     }
@@ -1065,9 +1312,9 @@
       if (e.dist >= state.path.total) {
         e.alive = false;
         state.hp -= e.type === "boss" ? 5 : 1;
-        state.fx.push({ kind: "leak", t: 0.5 });
-        state.flash = 0.25;
-        addShake(3.5);
+        pushCombatFx({ kind: "leak", t: 0.5 });
+        triggerScreenFlash(0.18);
+        addShake(0.95);
         sfx.leak();
         if (state.hp <= 0) { state.hp = 0; updateHUD(); endRun(false); return; }
       }
@@ -1109,9 +1356,9 @@
               damageEnemy(e, p.damage, p.tower, { color: p.color });
             }
           }
-          state.fx.push({ kind: "blast", x: p.tx, y: p.ty, t: 0.35, r: p.splash, color: p.color });
+          pushCombatFx({ kind: "blast", x: p.tx, y: p.ty, t: 0.35, r: p.splash, color: p.color });
           spawnParticles(p.tx, p.ty, p.color, 18, 120);
-          addShake(2);
+          addShake(0.5);
           p.dead = true;
         }
       }
@@ -1749,13 +1996,53 @@
 
     const pct = Math.max(0, e.hp / e.maxHp);
     const barW = Math.max(18, e.r * 1.6);
+    const barY = -e.r - 11;
     ctx.fillStyle = "rgba(0,0,0,0.55)";
-    roundRect(-barW / 2, -e.r - 11, barW, 4, 1.5); ctx.fill();
+    roundRect(-barW / 2, barY, barW, 4, 1.5); ctx.fill();
     const hg = ctx.createLinearGradient(-barW / 2, 0, barW / 2, 0);
     hg.addColorStop(0, pct < 0.3 ? "#e85d4c" : "#4a9a60");
     hg.addColorStop(1, pct < 0.3 ? "#ffb4ab" : "#6fbf8a");
     ctx.fillStyle = hg;
-    roundRect(-barW / 2, -e.r - 11, barW * pct, 4, 1.5); ctx.fill();
+    roundRect(-barW / 2, barY, barW * pct, 4, 1.5); ctx.fill();
+
+    // Element resist pips (filled = resists, hollow-ish bright = weak)
+    const resist = enemyResist(e);
+    const pipEls = ["fire", "water", "earth", "wind"].filter((el) => {
+      const v = resist[el];
+      return v != null && (v <= 0.85 || v >= 1.15);
+    });
+    if (pipEls.length) {
+      const pipW = pipEls.length * 7;
+      pipEls.forEach((el, i) => {
+        const px = -pipW / 2 + i * 7 + 3;
+        const py = barY - 6;
+        const v = resist[el];
+        ctx.fillStyle = ELEMENTS[el].color;
+        ctx.globalAlpha = v <= 0.85 ? 0.95 : 0.55;
+        ctx.beginPath();
+        if (v <= 0.85) {
+          ctx.rect(px - 2.2, py - 2.2, 4.4, 4.4);
+        } else {
+          ctx.moveTo(px, py - 3);
+          ctx.lineTo(px + 2.6, py + 2.2);
+          ctx.lineTo(px - 2.6, py + 2.2);
+          ctx.closePath();
+        }
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      });
+    }
+
+    if (e.type === "boss" && (e.bossTotal || 1) > 1) {
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      roundRect(-8, e.r + 2, 16, 10, 3); ctx.fill();
+      ctx.fillStyle = "#ffb34a";
+      ctx.font = "bold 8px Avenir Next, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(`${(e.bossIndex || 0) + 1}/${e.bossTotal}`, 0, e.r + 7);
+      ctx.textBaseline = "alphabetic";
+    }
     ctx.restore();
   }
 
@@ -1859,8 +2146,8 @@
       }
     }
 
-    if (state.flash > 0) {
-      ctx.globalAlpha = Math.min(0.35, state.flash);
+    if (state.flash > 0 && settings.screenFlash !== false) {
+      ctx.globalAlpha = Math.min(0.22, state.flash);
       ctx.fillStyle = "#e85d4c";
       ctx.fillRect(-ox, -oy, w + 20, h + 20);
       ctx.globalAlpha = 1;
@@ -2011,6 +2298,9 @@
   $("btn-continue").addEventListener("click", continueRun);
   $("btn-upgrades").addEventListener("click", () => { showScreen("upgrades"); renderUpgrades(); });
   $("btn-upgrades-back").addEventListener("click", () => { showScreen("hub"); refreshHub(); });
+  if ($("btn-settings")) $("btn-settings").addEventListener("click", () => openSettings("hub"));
+  if ($("btn-pause-settings")) $("btn-pause-settings").addEventListener("click", () => openSettings("pause"));
+  if ($("btn-settings-back")) $("btn-settings-back").addEventListener("click", () => closeSettings());
   $("btn-to-hub").addEventListener("click", () => { saveRun(); state.mode = "hub"; showScreen("hub"); refreshHub(); hideCoach(false); });
   $("btn-abandon").addEventListener("click", () => endRun(true));
   $("btn-again").addEventListener("click", () => { clearRun(); resize(); startNewRun(); });
@@ -2020,6 +2310,7 @@
     showScreen("codex");
   });
   $("btn-codex-back").addEventListener("click", () => {
+    if (els.settings && !els.settings.classList.contains("hidden")) return closeSettings();
     if (state.seed && hasSavedRun() && state.mode === "paused") showScreen("pause");
     else if (state.mode === "hub" || !state.seed) { state.mode = "hub"; showScreen("hub"); }
     else showScreen("pause");

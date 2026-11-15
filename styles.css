@@ -544,6 +544,77 @@ html, body {
   min-height: 2.6em;
 }
 
+.settings-panel { max-height: min(92vh, 640px); display: flex; flex-direction: column; }
+.settings-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+.setting-block { margin-bottom: 16px; }
+.setting-label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.shake-picks {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.shake-btn {
+  min-height: 44px;
+  min-width: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--stroke);
+  color: var(--cream);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 4px;
+  cursor: pointer;
+}
+.shake-btn.active {
+  border-color: var(--ember);
+  background: rgba(232, 136, 58, 0.16);
+  color: var(--ember-hot);
+}
+.setting-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.setting-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--stroke);
+  color: var(--cream);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.setting-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ember);
+  flex-shrink: 0;
+}
+.setting-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .hub-actions { display: flex; flex-direction: column; gap: 10px; }
 .primary, .secondary, .danger {
   min-height: 48px;
@@ -687,7 +758,17 @@ html, body {
 }
 .codex-list li { margin-bottom: 6px; }
 .codex-list strong { color: var(--cream); }
-.codex-list em { color: var(--fire); font-style: normal; }
+.codex-list em { color: var(--ember-hot); font-style: normal; font-weight: 700; }
+.codex-note {
+  margin: 8px 0 14px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.inspect-text .match-tip {
+  color: var(--ember-hot);
+  font-size: 11px;
+}
 
 @media (max-width: 360px) {
   .hud-left .stat:last-child { display: none; }

@@ -115,6 +115,7 @@
           <button type="button" id="btn-play" class="primary">New Run</button>
           <button type="button" id="btn-continue" class="secondary hidden">Continue</button>
           <button type="button" id="btn-upgrades" class="secondary">Upgrade Trees</button>
+          <button type="button" id="btn-settings" class="secondary">Settings</button>
         </div>
         <ol class="how-to">
           <li>Pick a tower, place it on stone <em>beside</em> the rift.</li>
@@ -140,14 +141,15 @@
             <li><strong>Mortar</strong> — big splash, slow reload, long reach, <em>cannot hit flying</em>.</li>
             <li><strong>Coil</strong> — slows, strong vs air, weak vs heavy armor.</li>
           </ul>
-          <h3>Enemies</h3>
+          <h3>Enemies &amp; resists</h3>
           <ul class="codex-list">
-            <li><strong>Drone</strong> (flying/fast) — weak to Wind, shrugs Earth.</li>
-            <li><strong>Crawler</strong> — balanced ground target.</li>
-            <li><strong>Armor</strong> (heavy) — weak to Earth, resists Fire &amp; Wind.</li>
-            <li><strong>Swarm</strong> — fragile packs; Fire / Mortar excel.</li>
-            <li><strong>Boss</strong> — armored + tough; bring shred &amp; DPS.</li>
+            <li><strong>Drone</strong> (flying) — <em>resists Earth</em> · weak to Wind / Water.</li>
+            <li><strong>Crawler</strong> — slight Fire weakness · mild Wind resist.</li>
+            <li><strong>Armor</strong> (heavy) — <em>resists Fire / Wind</em> · weak to Earth.</li>
+            <li><strong>Swarm</strong> — <em>resists Water</em> · weak to Fire.</li>
+            <li><strong>Boss</strong> — armored; <em>resists Fire / Water / Wind</em> · weak to Earth. Decade waves can spawn multiple (HP shared). After wave 25, a living boss may overlap the next wave.</li>
           </ul>
+          <p class="codex-note">On the field: square pips = resists that element; triangles = weak to it.</p>
           <h3>Elements (socket up to 2)</h3>
           <ul class="codex-list">
             <li><strong>Fire</strong> — burn DoT.</li>
@@ -185,6 +187,31 @@
       </div>
     </section>
 
+    <!-- Settings -->
+    <section id="screen-settings" class="screen overlay hidden">
+      <div class="panel settings-panel">
+        <header class="panel-head">
+          <button type="button" id="btn-settings-back" class="text-btn">← Back</button>
+          <h2>Settings</h2>
+          <span class="chips-pill">Local</span>
+        </header>
+        <div class="settings-scroll">
+          <div class="setting-block">
+            <span class="setting-label">Screen shake</span>
+            <div id="shake-picks" class="shake-picks" role="radiogroup" aria-label="Screen shake intensity"></div>
+            <p class="setting-hint">Default is Low. Off disables shake entirely.</p>
+          </div>
+          <div class="setting-toggles">
+            <label class="setting-toggle"><input type="checkbox" id="opt-particles" /> Particles</label>
+            <label class="setting-toggle"><input type="checkbox" id="opt-hitflash" /> Hit flash</label>
+            <label class="setting-toggle"><input type="checkbox" id="opt-screenflash" /> Damage flash</label>
+            <label class="setting-toggle"><input type="checkbox" id="opt-combatfx" /> Combat FX rings</label>
+          </div>
+          <p class="setting-hint">Choices save on this device.</p>
+        </div>
+      </div>
+    </section>
+
     <!-- Pause overlay -->
     <section id="screen-pause" class="screen overlay hidden">
       <div class="panel pause-panel">
@@ -192,6 +219,7 @@
         <p>Progress is saved. You can close the tab and resume later.</p>
         <div class="hub-actions">
           <button type="button" id="btn-resume" class="primary">Resume</button>
+          <button type="button" id="btn-pause-settings" class="secondary">Settings</button>
           <button type="button" id="btn-to-hub" class="secondary">Save & Hub</button>
           <button type="button" id="btn-abandon" class="danger">Abandon Run</button>
         </div>
