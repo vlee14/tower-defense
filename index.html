@@ -11,13 +11,13 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="application-name" content="Emberwell" />
   <meta name="description" content="Endless molten-rift tower defense. Play offline anywhere." />
-  <link rel="manifest" href="manifest.webmanifest?v=1.9.2" />
+  <link rel="manifest" href="manifest.webmanifest?v=2.0.3" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icons/icon-512.png" sizes="512x512" />
   <title>Emberwell</title>
-  <script src="version.js?v=1.9.2"></script>
-  <link rel="stylesheet" href="styles.css?v=1.9.2" />
+  <script src="version.js?v=2.0.3"></script>
+  <link rel="stylesheet" href="styles.css?v=2.0.3" />
 </head>
 <body>
   <div id="app" data-ui="hub">
@@ -90,25 +90,25 @@
         <button type="button" class="tower-btn" data-tower="turret" aria-pressed="false">
           <span class="tb-icon turret" aria-hidden="true"></span>
           <span class="tb-name">Turret</span>
-          <span class="tb-trade">DPS · short</span>
+          <span class="tb-trade">DPS</span>
           <span class="tb-cost" data-cost="turret">58</span>
         </button>
         <button type="button" class="tower-btn" data-tower="mortar" aria-pressed="false">
           <span class="tb-icon mortar" aria-hidden="true"></span>
           <span class="tb-name">Mortar</span>
-          <span class="tb-trade">AoE · ground</span>
+          <span class="tb-trade">AoE</span>
           <span class="tb-cost" data-cost="mortar">90</span>
         </button>
         <button type="button" class="tower-btn" data-tower="coil" aria-pressed="false">
           <span class="tb-icon coil" aria-hidden="true"></span>
           <span class="tb-name">Coil</span>
-          <span class="tb-trade">Slow · air</span>
+          <span class="tb-trade">Slow</span>
           <span class="tb-cost" data-cost="coil">74</span>
         </button>
         <button type="button" class="tower-btn" data-tower="spire" aria-pressed="false">
           <span class="tb-icon spire" aria-hidden="true"></span>
           <span class="tb-name">Spire</span>
-          <span class="tb-trade">Pierce · long</span>
+          <span class="tb-trade">Pierce</span>
           <span class="tb-cost" data-cost="spire">110</span>
         </button>
       </nav>
@@ -290,10 +290,10 @@
       </div>
     </section>
   </div>
-  <script src="game.js?v=1.9.2" defer></script>
+  <script src="game.js?v=2.0.3" defer></script>
   <script>
     (function () {
-      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "1.9.2";
+      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "2.0.3";
       var el = document.getElementById("app-version");
       if (el) el.textContent = "v" + ver;
       var sv = document.getElementById("settings-version");
