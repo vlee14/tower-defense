@@ -2984,11 +2984,11 @@
 
     // Warm basalt plateau with cool moss bowls — readable ground plane.
     const sky = ctx.createLinearGradient(0, 0, 0, h);
-    sky.addColorStop(0, "#2a221c");
-    sky.addColorStop(0.18, "#1e1a14");
-    sky.addColorStop(0.55, "#161814");
-    sky.addColorStop(0.82, "#121610");
-    sky.addColorStop(1, "#0c100e");
+    sky.addColorStop(0, "#342820");
+    sky.addColorStop(0.18, "#261e18");
+    sky.addColorStop(0.55, "#1c2018");
+    sky.addColorStop(0.82, "#161a14");
+    sky.addColorStop(1, "#10140e");
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, w, h);
 
@@ -3185,15 +3185,15 @@
 
     // Road bed gradient
     const bedGrad = ctx.createLinearGradient(0, 0, 0, state.h);
-    bedGrad.addColorStop(0, "#5a4e40");
-    bedGrad.addColorStop(0.4, "#3a3026");
-    bedGrad.addColorStop(1, "#261e16");
+    bedGrad.addColorStop(0, "#6a5c4a");
+    bedGrad.addColorStop(0.4, "#4a3e32");
+    bedGrad.addColorStop(1, "#32281e");
     ctx.strokeStyle = bedGrad;
     ctx.lineWidth = bed;
     strokePts(pts); ctx.stroke();
 
     // Packed ash lane
-    ctx.strokeStyle = isMain ? "#42362c" : "#3a3028";
+    ctx.strokeStyle = isMain ? "#4a4034" : "#42382e";
     ctx.lineWidth = lane;
     strokePts(pts); ctx.stroke();
 
@@ -3228,12 +3228,12 @@
     strokePts(pts); ctx.stroke();
     ctx.setLineDash([]);
 
-    // Cooled magma center seam (dim ember — road identity, not glow-tube)
-    ctx.strokeStyle = isMain ? "rgba(200,78,36,0.62)" : "rgba(160,64,36,0.45)";
-    ctx.lineWidth = isMain ? 2.6 : 1.8;
+    // Cooled magma center seam — quiet road wear, never a neon tube
+    ctx.strokeStyle = isMain ? "rgba(140,56,28,0.4)" : "rgba(110,48,28,0.28)";
+    ctx.lineWidth = isMain ? 1.8 : 1.3;
     strokePts(pts); ctx.stroke();
-    ctx.strokeStyle = isMain ? "rgba(255,170,80,0.22)" : "rgba(220,140,60,0.14)";
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = isMain ? "rgba(200,120,60,0.12)" : "rgba(180,100,50,0.08)";
+    ctx.lineWidth = 0.8;
     strokePts(pts); ctx.stroke();
 
     // Edge kerb highlights
@@ -3251,6 +3251,7 @@
     const col = hues[index % hues.length];
     ctx.save();
     ctx.translate(p.x, p.y);
+    ctx.scale(1.22, 1.22);
 
     // Approach apron (intentional gate plaza)
     ctx.fillStyle = "rgba(0,0,0,0.35)";
@@ -3371,6 +3372,7 @@
     if (!p) return;
     ctx.save();
     ctx.translate(p.x, p.y);
+    ctx.scale(1.18, 1.18);
     const pulse = 0.5 + 0.5 * Math.sin(state.time * 2.4);
 
     // Keep plaza
@@ -3597,7 +3599,7 @@
     const idle = Math.sin(state.time * 2.4 + t.x * 0.04) * 0.6;
     const attack = recoil > 0.08;
     ctx.translate(0, idle * 0.25);
-    ctx.scale(1.28, 1.28);
+    ctx.scale(1.42, 1.42);
 
     if (selected) {
       ctx.strokeStyle = "rgba(255,179,74,0.95)";
@@ -3915,7 +3917,7 @@
   function drawEnemy(e, x, y) {
     ctx.save();
     ctx.translate(x, y);
-    ctx.scale(1.22, 1.22);
+    ctx.scale(1.35, 1.35);
     const flash = e.hitFlash > 0;
     const bob = Math.sin(state.time * (e.tags.includes("flying") ? 7 : 5) + e.dist * 0.08);
     const crawl = e.dist * 0.35;
