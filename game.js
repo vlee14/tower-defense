@@ -1535,15 +1535,20 @@
     els.scrap.textContent = formatCompact(scrap);
     els.scrap.title = String(scrap);
     const dShort = ({ normal: "N", hard: "H", nightmare: "NM" })[state.difficulty] || "N";
-    els.wave.textContent = `${dShort} · W${Math.max(1, state.wave)}`;
+    els.wave.textContent = state.awaitingStart
+      ? `${dShort} · Prep`
+      : `${dShort} · W${Math.max(1, state.wave)}`;
     els.score.textContent = formatCompact(score);
     els.score.title = String(score);
     if (els.wave && els.wave.parentElement) {
-      els.wave.parentElement.title = `${dShort} · Wave ${Math.max(1, state.wave)} · Score ${score}`;
+      els.wave.parentElement.title = state.awaitingStart
+        ? `${dShort} · Prep — tap Start when ready`
+        : `${dShort} · Wave ${Math.max(1, state.wave)} · Score ${score}`;
     }
     refreshTowerButtons();
     updateInspect();
     syncPlaceCancel();
+    syncStartBtn();
   }
   function refreshTowerButtons() {
     document.querySelectorAll(".tower-btn").forEach((btn) => {
