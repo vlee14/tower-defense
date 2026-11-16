@@ -40,22 +40,22 @@
   const BASE_TOWER = {
     turret: {
       name: "Turret", cost: 58, damage: 28, range: 82, fireRate: 0.4, sell: 28, color: "#e8883a",
-      hitsAir: true, hitsGround: true, splash: 0,
+      hitsAir: true, hitsGround: true, splash: 0, turnRate: 4.2, maxRange: 118,
       blurb: "High DPS · short range · hits air & ground",
     },
     mortar: {
       name: "Mortar", cost: 90, damage: 40, range: 128, fireRate: 1.28, splash: 50, sell: 42, color: "#6fbf8a",
-      hitsAir: false, hitsGround: true,
+      hitsAir: false, hitsGround: true, turnRate: 2.1, maxRange: 168,
       blurb: "AoE splash · slow · cannot hit flying",
     },
     coil: {
       name: "Coil", cost: 74, damage: 14, range: 108, fireRate: 0.55, sell: 36, color: "#4db8c4",
-      hitsAir: true, hitsGround: true, airBonus: 1.55, armorPenalty: 0.58, slow: 0.55, slowDur: 1.4,
+      hitsAir: true, hitsGround: true, airBonus: 1.55, armorPenalty: 0.58, slow: 0.55, slowDur: 1.4, turnRate: 5.5, maxRange: 148,
       blurb: "Slows · anti-air · weak vs armor",
     },
     spire: {
       name: "Spire", cost: 110, damage: 72, range: 158, fireRate: 1.45, sell: 52, color: "#d4a060",
-      hitsAir: true, hitsGround: true, pierce: 3, armorBonus: 1.2,
+      hitsAir: true, hitsGround: true, pierce: 3, armorBonus: 1.2, turnRate: 2.8, maxRange: 210,
       blurb: "Pierce line · long range · slow fire",
     },
   };
@@ -78,6 +78,28 @@
     hpDeepBase: 1.055, // exponential after wave 40
     countCap: 58,
     rewardDeepFade: 0.012, // reduce kill reward growth deep
+    // CC: never hard-pin. Floor = always forward progress.
+    moveFloor: 0.3,
+    moveFloorArmored: 0.36,
+    moveFloorBoss: 0.48,
+    slowFloor: 0.32,
+    slowFloorBoss: 0.5,
+    stunCap: 0.32,
+    stunCapBoss: 0.14,
+    stunCd: 2.4,
+    stunCdBoss: 3.6,
+    freezeCd: 2.2,
+    freezeCdBoss: 3.4,
+    knockCap: 5,
+    knockCapBoss: 1.6,
+    knockCd: 1.35,
+    knockCdBoss: 2.2,
+    ccDrPer: 0.45,
+    ccDrDecay: 0.55, // per second
+    ccDrCap: 2.8,
+    aoeCcMul: 0.45, // AoE CC much weaker than single-target
+    aimAlign: 0.28, // rad — must face target to fire
+    acquireDelay: 0.18, // seconds after target switch before shooting
   };
   function towerAbilityMul(def) {
     let m = 1;
@@ -107,28 +129,28 @@
     water: { id: "water", name: "Water", color: "#4db8c4", cost: 28, tip: "Chill slow" },
     earth: { id: "earth", name: "Earth", color: "#c4a35a", cost: 28, tip: "Vs armor + shred" },
     wind: { id: "wind", name: "Wind", color: "#7ec9a0", cost: 28, tip: "Vs air + shove" },
-    arc: { id: "arc", name: "Arc", color: "#d4b84a", cost: 32, tip: "Shock stun" },
-    frost: { id: "frost", name: "Frost", color: "#8ec8e8", cost: 32, tip: "Hard freeze" },
+    arc: { id: "arc", name: "Arc", color: "#d4b84a", cost: 32, tip: "Shock interrupt (ICD)" },
+    frost: { id: "frost", name: "Frost", color: "#8ec8e8", cost: 32, tip: "Chill — never full stop" },
   };
   const ELEMENT_IDS = Object.keys(ELEMENTS);
   const ELEMENT_SECOND_COST = 48;
   const MAX_ELEMENTS = 2;
   const COMBO_SHORT = {
-    "fire+water": "STEAM",
+    "fire+water": "GEYSER",
     "earth+fire": "MAGMA",
     "fire+wind": "WILDFIRE",
-    "earth+water": "MUD",
-    "water+wind": "STORM",
+    "earth+water": "MIRE",
+    "water+wind": "SHATTER",
     "earth+wind": "TEMPEST",
     "arc+fire": "PLASMA",
     "arc+water": "CONDUCT",
-    "arc+earth": "QUAKE",
+    "arc+earth": "FRACTURE",
     "arc+wind": "SURGE",
-    "arc+frost": "FLASHFREEZE",
+    "arc+frost": "BRITTLE",
     "fire+frost": "MELT",
-    "frost+water": "GLACIER",
-    "earth+frost": "PERMAFROST",
-    "frost+wind": "BLIZZARD",
+    "frost+water": "RIME",
+    "earth+frost": "SPIKE",
+    "frost+wind": "WHITEOUT",
   };
 
   // Multi-rank hub trees. col/row drive the visual tree; effect stacks per rank.
@@ -601,10 +623,15 @@
       if (e.hitsAir) base.hitsAir = true;
     }
   }
+  function clampTowerRange(type, range) {
+    const cap = (BASE_TOWER[type] && BASE_TOWER[type].maxRange) || 200;
+    return Math.min(cap, range);
+  }
   function towerStats(type) {
     const base = { ...BASE_TOWER[type] };
     const tree = UPGRADE_TREES[type] || [];
     for (const u of tree) applyUpgradeEffect(base, u.effect, ownedRank(u.id));
+    base.range = clampTowerRange(type, base.range);
     return base;
   }
 
@@ -618,21 +645,21 @@
       return el ? `${el.name}: ${el.tip}` : elements[0];
     }
     return ({
-      "fire+water": "Steam burst (AoE)",
-      "earth+fire": "Magma (explode on kill)",
+      "fire+water": "Geyser (blast + shove forward)",
+      "earth+fire": "Magma (kill → lava pool)",
       "fire+wind": "Wildfire (spread burn)",
-      "earth+water": "Mud (heavy slow)",
-      "water+wind": "Storm (shatter chill)",
-      "earth+wind": "Tempest (full vs air & armor)",
-      "arc+fire": "Plasma (burst hit)",
-      "arc+water": "Conduct (shock splash)",
-      "arc+earth": "Quake (AoE stun)",
+      "earth+water": "Mire (sticky zone)",
+      "water+wind": "Shatter (bonus vs chilled)",
+      "earth+wind": "Tempest (air + armor)",
+      "arc+fire": "Plasma (execute mark)",
+      "arc+water": "Conduct (chain splash)",
+      "arc+earth": "Fracture (shred pulse)",
       "arc+wind": "Surge (chain jump)",
-      "arc+frost": "Flashfreeze (stun + freeze)",
+      "arc+frost": "Brittle (next-hit amp)",
       "fire+frost": "Melt (armor crack)",
-      "frost+water": "Glacier (deep freeze)",
-      "earth+frost": "Permafrost (root)",
-      "frost+wind": "Blizzard (AoE chill)",
+      "frost+water": "Rime (shield then pop)",
+      "earth+frost": "Spike (armor pierce)",
+      "frost+wind": "Whiteout (scramble + chill)",
     })[comboKey(elements)] || elements.map((id) => (ELEMENTS[id] || {}).name || id).join("+");
   }
 
@@ -1094,7 +1121,7 @@
     mode: "hub", seed: null, difficulty: "normal", path: null,
     w: 390, h: 620, hp: 20, scrap: 155, score: 0, wave: 0,
     selectedTower: null, selectedBuilt: null,
-    towers: [], enemies: [], projectiles: [], fx: [], particles: [],
+    towers: [], enemies: [], projectiles: [], fx: [], particles: [], hazards: [],
     spawnQueue: [], spawnTimer: 0, betweenWaves: 0, awaitingStart: false, time: 0, frame: 0,
     shake: 0, flash: 0, ghost: null,
   };
@@ -1438,7 +1465,7 @@
     state.hp = diff.id === "nightmare" ? 16 : diff.id === "hard" ? 18 : 20;
     state.scrap = Math.floor(BALANCE.scrapStart * (diff.id === "nightmare" ? 0.85 : diff.id === "hard" ? 0.95 : 1));
     state.score = 0; state.wave = 0;
-    state.towers = []; state.enemies = []; state.projectiles = []; state.fx = []; state.particles = [];
+    state.towers = []; state.enemies = []; state.projectiles = []; state.fx = []; state.particles = []; state.hazards = []; state.enemySeq = 0;
     state.spawnQueue = []; state.spawnTimer = 0; state.betweenWaves = 0;
     state.awaitingStart = true; // Prep: place freely; waves wait for Start.
     state.selectedBuilt = null; state.selectedTower = null; state.ghost = null;
@@ -1821,9 +1848,11 @@
     const base = towerStats(t.type);
     const soft = 1 + Math.max(0, t.level - 6) * BALANCE.levelDmgSoft;
     t.damage = base.damage * (1 + (t.level - 1) * BALANCE.levelDmgPer) / soft;
-    t.range = base.range * (1 + (t.level - 1) * BALANCE.levelRangePer);
+    t.range = clampTowerRange(t.type, base.range * (1 + (t.level - 1) * BALANCE.levelRangePer));
     t.fireRate = base.fireRate * Math.max(0.48, 1 - (t.level - 1) * BALANCE.levelRatePer);
     if (base.splash) t.splash = base.splash * (1 + (t.level - 1) * 0.1);
+    t.turnRate = base.turnRate || t.turnRate;
+    t.maxRange = base.maxRange;
     Object.assign(t, {
       hitsAir: base.hitsAir, hitsGround: base.hitsGround,
       airBonus: base.airBonus, armorPenalty: base.armorPenalty, armorBonus: base.armorBonus,
@@ -2123,7 +2152,9 @@
     const r = boss && bossTotal > 1 ? def.r * (0.9 + (bossIndex % 3) * 0.04) : def.r;
     const ability = def.ability || null;
     const shieldMax = ability === "carapace" ? Math.floor(hp * 0.28) : 0;
+    state.enemySeq = (state.enemySeq || 0) + 1;
     state.enemies.push({
+      id: state.enemySeq,
       type, dist: 0, hp, maxHp: hp,
       speed: def.speed * jitter * speedMul * packSlow,
       baseSpeed: def.speed * jitter * speedMul * packSlow,
@@ -2136,9 +2167,88 @@
       abilityT: 1.5 + Math.random() * 1.5,
       enraged: false,
       slow: 1, slowT: 0, burn: 0, burnT: 0, chillT: 0, shred: 0, knockCd: 0,
-      stunT: 0, stunCd: 0, freezeT: 0, matchFxAt: 0, alive: true, hitFlash: 0,
+      stunT: 0, stunCd: 0, freezeT: 0, freezeCd: 0, ccDR: 0,
+      brittleT: 0, rimeShield: 0, plasmaMark: 0, matchFxAt: 0, alive: true, hitFlash: 0,
       lane: meta.lane || 0,
     });
+  }
+
+  function moveFloorFor(e) {
+    if (isBossEnemy(e)) return BALANCE.moveFloorBoss;
+    if (e.tags && e.tags.includes("armored")) return BALANCE.moveFloorArmored;
+    return BALANCE.moveFloor;
+  }
+  function slowFloorFor(e) {
+    return isBossEnemy(e) ? BALANCE.slowFloorBoss : BALANCE.slowFloor;
+  }
+  function ccPotency(e, opts = {}) {
+    let m = 1 / (1 + Math.min(BALANCE.ccDrCap, e.ccDR || 0) * BALANCE.ccDrPer);
+    if (isBossEnemy(e)) m *= 0.42;
+    else if (e.tags && e.tags.includes("armored")) m *= 0.72;
+    // AoE / splash CC is intentionally weaker than single-target sockets.
+    if (opts.aoe) m *= BALANCE.aoeCcMul;
+    if (opts.mul != null) m *= opts.mul;
+    return m;
+  }
+  function noteCc(e, weight = 1) {
+    e.ccDR = Math.min(BALANCE.ccDrCap, (e.ccDR || 0) + weight);
+  }
+  function applyMoveSlow(e, targetMul, dur, opts = {}) {
+    const floor = slowFloorFor(e);
+    const pot = ccPotency(e, opts);
+    const desired = Math.max(floor, 1 - (1 - targetMul) * pot);
+    e.slow = Math.min(e.slow, desired);
+    e.slowT = Math.max(e.slowT || 0, dur * Math.min(1.15, 0.65 + pot * 0.5));
+    if (!opts.soft) noteCc(e, opts.aoe ? 0.18 : 0.35);
+  }
+  function applyStun(e, dur, opts = {}) {
+    const pot = ccPotency(e, opts);
+    const cd = (isBossEnemy(e) ? BALANCE.stunCdBoss : BALANCE.stunCd) * (opts.aoe ? 1.25 : 1);
+    if ((e.stunCd || 0) > 0 || pot < 0.18) return false;
+    const cap = isBossEnemy(e) ? BALANCE.stunCapBoss : BALANCE.stunCap;
+    e.stunT = Math.max(e.stunT || 0, Math.min(cap, dur * pot));
+    e.stunCd = cd;
+    noteCc(e, opts.aoe ? 0.4 : 0.85);
+    return true;
+  }
+  function applyFreezeChill(e, targetMul, dur, freezeDur, opts = {}) {
+    const pot = ccPotency(e, opts);
+    const fCd = (isBossEnemy(e) ? BALANCE.freezeCdBoss : BALANCE.freezeCd) * (opts.aoe ? 1.2 : 1);
+    applyMoveSlow(e, targetMul, dur, opts);
+    if ((e.freezeCd || 0) <= 0 && pot > 0.22) {
+      e.freezeT = Math.max(e.freezeT || 0, Math.min(1.0, freezeDur * pot));
+      e.freezeCd = fCd;
+      noteCc(e, opts.aoe ? 0.25 : 0.5);
+    }
+    e.chillT = Math.max(e.chillT || 0, dur * (opts.aoe ? 0.55 : 0.85));
+  }
+  function applyKnock(e, push, opts = {}) {
+    const pot = ccPotency(e, opts);
+    const cd = (isBossEnemy(e) ? BALANCE.knockCdBoss : BALANCE.knockCd) * (opts.aoe ? 1.15 : 1);
+    if ((e.knockCd || 0) > 0 || pot < 0.18) return false;
+    const cap = isBossEnemy(e) ? BALANCE.knockCapBoss : BALANCE.knockCap;
+    const amt = Math.min(cap, push * pot);
+    e.dist = Math.max(0, e.dist - amt);
+    e.knockCd = cd;
+    noteCc(e, opts.aoe ? 0.2 : 0.4);
+    return true;
+  }
+  function angleDelta(a, b) {
+    let d = b - a;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    return d;
+  }
+  function pushHazard(h) {
+    if (!state.hazards) state.hazards = [];
+    state.hazards.push(h);
+    if (state.hazards.length > 24) state.hazards.shift();
+  }
+  function comboBurst(x, y, color, label) {
+    pushCombatFx({ kind: "blast", x, y, t: 0.34, r: 46, color });
+    pushCombatFx({ kind: "ring", x, y, t: 0.4, r0: 8, r1: 40, color });
+    if (label) state.fx.push({ kind: "text", x, y: y - 18, t: 0.5, text: label, color });
+    spawnParticles(x, y, color, 12, 90);
   }
 
   function hitsObstacle(x, y, rad = 18) {
@@ -2165,7 +2275,8 @@
       ...stats,
       type, x, y, nx: x / state.w, ny: y / state.h,
       level: 1, cooldown: 0, levelCd: 0, elements: [],
-      aim: -Math.PI / 2, recoil: 0,
+      aim: -Math.PI / 2, recoil: 0, turnRate: stats.turnRate || 3.5,
+      lockId: null, acquireT: 0,
     });
     burstPlace(x, y, stats.color);
     sfx.place();
@@ -2234,91 +2345,74 @@
     return mul;
   }
 
-  function applyOnHitEffects(tower, enemy, dealt) {
+  function applyOnHitEffects(tower, enemy, dealt, hitOpts = {}) {
     const elsArr = tower.elements || [];
     const has = (e) => elsArr.includes(e);
     const key = comboKey(elsArr);
     const p = enemyPos(enemy);
+    const aoeHit = !!hitOpts.aoe || !!tower.splash;
+    const st = aoeHit ? { aoe: true } : {};
     const r = enemyResist(enemy);
     const resistFactor = (el) => {
       const v = r[el] == null ? 1 : r[el];
-      // Map resist curve into status potency (resists weaken, weaknesses strengthen).
       return Math.max(0.25, Math.min(1.6, v));
     };
 
+    // Primary sockets — single-target potency unless this hit is splash.
     if (has("fire") || tower.burn) {
       const rf = resistFactor("fire");
-      const burn = ((has("fire") ? 8 : 0) + (tower.burn || 0)) * rf;
+      const burn = ((has("fire") ? 8 : 0) + (tower.burn || 0)) * rf * (aoeHit ? 0.7 : 1);
       enemy.burn = Math.max(enemy.burn, burn);
-      enemy.burnT = Math.max(enemy.burnT, (key === "fire+wind" ? 3.2 : 2.2) * Math.min(1.25, rf));
+      enemy.burnT = Math.max(enemy.burnT, (key === "fire+wind" ? 3.0 : 2.0) * Math.min(1.2, rf));
     }
-    if (has("water")) {
+    if (has("water") && key !== "earth+water" && key !== "fire+water") {
       const rf = resistFactor("water");
-      const heavy = key === "earth+water";
-      const baseSlow = heavy ? 0.35 : 0.55;
-      // Higher resist → slower effect closer to 1 (less slow).
-      const slowAmt = 1 - (1 - baseSlow) * rf;
-      enemy.slow = Math.min(enemy.slow, Math.min(0.92, Math.max(0.25, slowAmt)));
-      enemy.slowT = Math.max(enemy.slowT, (heavy ? 2.2 : 1.5) * Math.min(1.25, rf));
-      enemy.chillT = Math.max(enemy.chillT, (heavy ? 2.2 : 1.5) * Math.min(1.25, rf));
-    } else if (tower.slow) {
-      enemy.slow = Math.min(enemy.slow, tower.slow);
-      enemy.slowT = Math.max(enemy.slowT, tower.slowDur || 1.2);
+      applyMoveSlow(enemy, 1 - (1 - 0.58) * rf, 1.4, st);
+      enemy.chillT = Math.max(enemy.chillT || 0, 1.2);
+    } else if (tower.slow && !has("water")) {
+      applyMoveSlow(enemy, tower.slow, tower.slowDur || 1.2, st);
     }
-    if (has("earth") && key !== "earth+wind") {
+    if (has("earth") && key !== "earth+wind" && key !== "arc+earth" && key !== "earth+frost") {
       const rf = resistFactor("earth");
-      enemy.shred = Math.min(0.5, (enemy.shred || 0) + 0.12 * rf);
+      enemy.shred = Math.min(0.5, (enemy.shred || 0) + 0.12 * rf * (aoeHit ? BALANCE.aoeCcMul : 1));
     }
-    if (has("wind")) {
-      // Soft knockback with per-enemy ICD so multi-hit towers can't stunlock.
-      const kbCd = enemy.knockCd || 0;
+    if (has("wind") && key !== "frost+wind" && key !== "fire+water") {
       const rf = resistFactor("wind");
-      if (kbCd <= 0 && rf > 0.35) {
-        const push = (key === "earth+wind" ? 7 : 4) * rf;
-        enemy.dist = Math.max(0, enemy.dist - push);
-        enemy.knockCd = key === "earth+wind" ? 0.85 : 1.1;
-      }
+      if (rf > 0.35) applyKnock(enemy, key === "earth+wind" ? 5.5 : 3.5, st);
     }
-    if (has("arc")) {
+    if (has("arc") && key !== "arc+earth" && key !== "arc+frost" && key !== "arc+water") {
       const rf = resistFactor("arc");
-      const stunCd = enemy.stunCd || 0;
-      if (stunCd <= 0 && rf > 0.35) {
-        const dur = (key === "arc+earth" || key === "arc+frost" ? 0.55 : 0.28) * Math.min(1.2, rf);
-        enemy.stunT = Math.max(enemy.stunT || 0, dur);
-        enemy.stunCd = key === "arc+earth" ? 1.4 : 1.8;
-        if (Math.random() < 0.35) {
-          state.fx.push({ kind: "text", x: p.x, y: p.y - 20, t: 0.4, text: "SHOCK", color: ELEMENTS.arc.color });
-        }
+      if (rf > 0.35 && applyStun(enemy, 0.26, st) && Math.random() < 0.3) {
+        state.fx.push({ kind: "text", x: p.x, y: p.y - 20, t: 0.4, text: "SHOCK", color: ELEMENTS.arc.color });
       }
     }
-    if (has("frost")) {
+    if (has("frost") && key !== "arc+frost" && key !== "frost+water" && key !== "earth+frost" && key !== "frost+wind") {
       const rf = resistFactor("frost");
-      const deep = key === "frost+water" || key === "arc+frost" || key === "earth+frost";
-      const freezeAmt = deep ? 0.12 : 0.28;
-      const slowAmt = 1 - (1 - freezeAmt) * rf;
-      enemy.slow = Math.min(enemy.slow, Math.min(0.95, Math.max(0.08, slowAmt)));
-      enemy.slowT = Math.max(enemy.slowT, (deep ? 2.4 : 1.4) * Math.min(1.25, rf));
-      enemy.freezeT = Math.max(enemy.freezeT || 0, (deep ? 1.6 : 0.9) * Math.min(1.2, rf));
-      if (key === "earth+frost") {
-        enemy.shred = Math.min(0.5, (enemy.shred || 0) + 0.1 * rf);
-      }
+      applyFreezeChill(enemy, 1 - (1 - 0.38) * rf, 1.35, 0.7, st);
     }
 
+    // Distinct pair combos (mechanic + VFX) — avoid stacking the same hard CC.
     if (key === "fire+water") {
+      // Geyser: damage + shove FORWARD along path (anti-stall).
+      enemy.hp -= dealt * 0.22;
+      enemy.dist += isBossEnemy(enemy) ? 6 : 14;
+      comboBurst(p.x, p.y, "#9ad0e8", "GEYSER");
       for (const e of state.enemies) {
         if (!e.alive || e === enemy) continue;
         const q = enemyPos(e);
-        if (Math.hypot(q.x - p.x, q.y - p.y) < 42) {
-          e.hp -= dealt * 0.35;
-          e.slow = Math.min(e.slow, 0.7);
-          e.slowT = Math.max(e.slowT, 0.6);
+        if (Math.hypot(q.x - p.x, q.y - p.y) < 40) {
+          e.hp -= dealt * 0.18;
+          e.dist += isBossEnemy(e) ? 3 : 8;
           if (e.hp <= 0) killEnemy(e);
         }
       }
-      pushCombatFx({ kind: "blast", x: p.x, y: p.y, t: 0.3, r: 42, color: "#9ad0e8" });
-      spawnParticles(p.x, p.y, "#9ad0e8", 8, 70);
-    }
-    if (key === "fire+wind" && enemy.burnT > 0) {
+      if (enemy.hp <= 0) killEnemy(enemy);
+    } else if (key === "earth+water") {
+      // Mire: leave sticky zone (soft slow only via hazard).
+      pushHazard({ kind: "mire", x: p.x, y: p.y, r: 46, t: 3.2, slow: 0.72 });
+      comboBurst(p.x, p.y, ELEMENTS.earth.color, "MIRE");
+      applyMoveSlow(enemy, 0.72, 0.8, { aoe: true });
+    } else if (key === "fire+wind" && enemy.burnT > 0) {
       for (const e of state.enemies) {
         if (!e.alive || e === enemy) continue;
         const q = enemyPos(e);
@@ -2327,32 +2421,48 @@
           e.burnT = Math.max(e.burnT, 1.8);
         }
       }
-    }
-    if (key === "arc+water") {
+      pushCombatFx({ kind: "ring", x: p.x, y: p.y, t: 0.4, r0: 10, r1: 56, color: "#e85d4c" });
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 18, t: 0.45, text: "WILDFIRE", color: "#e85d4c" });
+    } else if (key === "arc+fire") {
+      // Plasma: execute mark — bonus damage if low HP.
+      enemy.plasmaMark = Math.max(enemy.plasmaMark || 0, 2.4);
+      let bonus = 0;
+      if (enemy.hp / enemy.maxHp < 0.35) bonus = dealt * (isBossEnemy(enemy) ? 0.35 : 0.7);
+      if (bonus) {
+        enemy.hp -= bonus;
+        state.fx.push({ kind: "text", x: p.x, y: p.y - 22, t: 0.5, text: "PLASMA", color: ELEMENTS.arc.color });
+        pushCombatFx({ kind: "beam", x: tower.x, y: tower.y, x2: p.x, y2: p.y, t: 0.14, color: "#ffe08a" });
+        if (enemy.hp <= 0) killEnemy(enemy);
+      } else {
+        pushCombatFx({ kind: "spark", x: p.x, y: p.y, t: 0.28, color: ELEMENTS.arc.color });
+      }
+    } else if (key === "arc+water") {
+      // Conduct: splash damage, tiny stumble (AoE CC nerfed).
       for (const e of state.enemies) {
         if (!e.alive || e === enemy) continue;
         const q = enemyPos(e);
         if (Math.hypot(q.x - p.x, q.y - p.y) < 48) {
-          e.hp -= dealt * 0.28;
-          e.stunT = Math.max(e.stunT || 0, 0.2);
+          e.hp -= dealt * 0.3;
+          applyStun(e, 0.16, { aoe: true });
           if (e.hp <= 0) killEnemy(e);
         }
       }
-      pushCombatFx({ kind: "blast", x: p.x, y: p.y, t: 0.28, r: 48, color: ELEMENTS.arc.color });
-      spawnParticles(p.x, p.y, ELEMENTS.arc.color, 10, 80);
-    }
-    if (key === "arc+earth") {
+      comboBurst(p.x, p.y, ELEMENTS.arc.color, "CONDUCT");
+    } else if (key === "arc+earth") {
+      // Fracture: shred pulse — not a stun lock.
+      enemy.shred = Math.min(0.5, (enemy.shred || 0) + 0.16);
+      applyMoveSlow(enemy, 0.7, 0.55, st);
       for (const e of state.enemies) {
         if (!e.alive || e === enemy) continue;
         const q = enemyPos(e);
         if (Math.hypot(q.x - p.x, q.y - p.y) < 50) {
-          e.stunT = Math.max(e.stunT || 0, 0.35);
-          e.stunCd = Math.max(e.stunCd || 0, 1.1);
+          e.shred = Math.min(0.5, (e.shred || 0) + 0.1);
+          applyMoveSlow(e, 0.78, 0.4, { aoe: true });
         }
       }
-      pushCombatFx({ kind: "ring", x: p.x, y: p.y, t: 0.35, r0: 10, r1: 50, color: ELEMENTS.earth.color });
-    }
-    if (key === "arc+wind") {
+      pushCombatFx({ kind: "ring", x: p.x, y: p.y, t: 0.4, r0: 8, r1: 52, color: ELEMENTS.earth.color });
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 18, t: 0.45, text: "FRACTURE", color: ELEMENTS.earth.color });
+    } else if (key === "arc+wind") {
       let bestD = Infinity, second = null;
       for (const e of state.enemies) {
         if (!e.alive || e === enemy) continue;
@@ -2364,29 +2474,64 @@
         const q = enemyPos(second);
         second.hp -= dealt * 0.55;
         if (settings.hitFlash !== false) second.hitFlash = 0.1;
-        second.stunT = Math.max(second.stunT || 0, 0.18);
+        applyStun(second, 0.14, { aoe: true });
         state.fx.push({ kind: "beam", x: p.x, y: p.y, x2: q.x, y2: q.y, t: 0.12, color: ELEMENTS.arc.color });
         pushCombatFx({ kind: "spark", x: q.x, y: q.y, t: 0.22, color: ELEMENTS.arc.color });
+        state.fx.push({ kind: "text", x: q.x, y: q.y - 16, t: 0.4, text: "SURGE", color: ELEMENTS.arc.color });
         if (second.hp <= 0) killEnemy(second);
       }
-    }
-    if (key === "frost+wind") {
-      for (const e of state.enemies) {
-        if (!e.alive || e === enemy) continue;
-        const q = enemyPos(e);
-        if (Math.hypot(q.x - p.x, q.y - p.y) < 58) {
-          e.slow = Math.min(e.slow, 0.45);
-          e.slowT = Math.max(e.slowT, 1.2);
-          e.freezeT = Math.max(e.freezeT || 0, 0.7);
-          e.chillT = Math.max(e.chillT, 1.2);
+    } else if (key === "arc+frost") {
+      // Brittle: next hit amp — no stun+freeze stack.
+      enemy.brittleT = Math.max(enemy.brittleT || 0, 2.8);
+      applyMoveSlow(enemy, 0.65, 0.9, st);
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 20, t: 0.45, text: "BRITTLE", color: ELEMENTS.frost.color });
+      pushCombatFx({ kind: "ring", x: p.x, y: p.y, t: 0.35, r0: 6, r1: 28, color: ELEMENTS.frost.color });
+    } else if (key === "frost+water") {
+      // Rime: temporary shell that pops for damage (not deep freeze).
+      if ((enemy.rimeShield || 0) <= 0) {
+        enemy.rimeShield = Math.max(18, dealt * 0.45);
+        state.fx.push({ kind: "text", x: p.x, y: p.y - 18, t: 0.45, text: "RIME", color: ELEMENTS.frost.color });
+        pushCombatFx({ kind: "ring", x: p.x, y: p.y, t: 0.4, r0: 4, r1: 26, color: "#c8e8f8" });
+      } else {
+        const pop = enemy.rimeShield;
+        enemy.rimeShield = 0;
+        for (const e of state.enemies) {
+          if (!e.alive) continue;
+          const q = enemyPos(e);
+          if (Math.hypot(q.x - p.x, q.y - p.y) < 44) {
+            e.hp -= pop * (e === enemy ? 1 : 0.55);
+            applyMoveSlow(e, 0.7, 0.5, { aoe: true });
+            if (e.hp <= 0) killEnemy(e);
+          }
         }
+        comboBurst(p.x, p.y, ELEMENTS.frost.color, "POP");
       }
-      pushCombatFx({ kind: "blast", x: p.x, y: p.y, t: 0.32, r: 58, color: ELEMENTS.frost.color });
-      spawnParticles(p.x, p.y, ELEMENTS.frost.color, 12, 70);
-    }
-    if (key === "fire+frost" && enemy.tags.includes("armored")) {
-      enemy.shred = Math.min(0.5, (enemy.shred || 0) + 0.18);
-      if (Math.random() < 0.4) {
+      applyMoveSlow(enemy, 0.62, 1.0, st);
+    } else if (key === "earth+frost") {
+      // Spike: armor pierce damage, light chill.
+      const pierce = dealt * (enemy.tags.includes("armored") ? 0.45 : 0.2);
+      enemy.hp -= pierce;
+      enemy.shred = Math.min(0.5, (enemy.shred || 0) + 0.14);
+      applyMoveSlow(enemy, 0.68, 0.7, st);
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 20, t: 0.45, text: "SPIKE", color: ELEMENTS.earth.color });
+      pushCombatFx({ kind: "spark", x: p.x, y: p.y, t: 0.3, color: ELEMENTS.frost.color });
+      if (enemy.hp <= 0) killEnemy(enemy);
+    } else if (key === "frost+wind") {
+      // Whiteout: scramble facing + soft chill (AoE).
+      for (const e of state.enemies) {
+        if (!e.alive) continue;
+        const q = enemyPos(e);
+        if (Math.hypot(q.x - p.x, q.y - p.y) > 58) continue;
+        applyMoveSlow(e, 0.7, 1.0, { aoe: true });
+        e.chillT = Math.max(e.chillT || 0, 1.0);
+        // Nudge along path — keeps pressure, not a pin.
+        e.dist += (Math.random() - 0.35) * (isBossEnemy(e) ? 4 : 10);
+        e.dist = Math.max(0, e.dist);
+      }
+      comboBurst(p.x, p.y, ELEMENTS.frost.color, "WHITEOUT");
+    } else if (key === "fire+frost" && enemy.tags.includes("armored")) {
+      enemy.shred = Math.min(0.5, (enemy.shred || 0) + 0.2);
+      if (Math.random() < 0.45) {
         state.fx.push({ kind: "text", x: p.x, y: p.y - 22, t: 0.4, text: "MELT", color: ELEMENTS.frost.color });
       }
     }
@@ -2405,17 +2550,19 @@
     sfx.kill();
 
     if (opts.magma) {
+      pushHazard({ kind: "magma", x: p.x, y: p.y, r: 48, t: 2.6, dps: Math.max(10, opts.magma * 0.4) });
       for (const o of state.enemies) {
         if (!o.alive) continue;
         const q = enemyPos(o);
         if (Math.hypot(q.x - p.x, q.y - p.y) < 50) {
-          o.hp -= opts.magma;
+          o.hp -= opts.magma * 0.55;
           o.burn = Math.max(o.burn, 5);
           o.burnT = Math.max(o.burnT, 1.5);
           if (o.hp <= 0) killEnemy(o);
         }
       }
       pushCombatFx({ kind: "blast", x: p.x, y: p.y, t: 0.4, r: 50, color: "#e85d4c" });
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 16, t: 0.5, text: "MAGMA", color: "#e85d4c" });
       spawnParticles(p.x, p.y, "#e85d4c", 16, 100);
     }
   }
@@ -2431,6 +2578,12 @@
       const p = enemyPos(e);
       state.fx.push({ kind: "text", x: p.x, y: p.y - 14, t: 0.5, text: "CRIT", color: "#ffb34a" });
       addShake(0.4);
+    }
+    if ((e.brittleT || 0) > 0) {
+      dmg *= 1.4;
+      e.brittleT = 0;
+      const bp = enemyPos(e);
+      state.fx.push({ kind: "text", x: bp.x, y: bp.y - 16, t: 0.4, text: "CRACK", color: ELEMENTS.frost.color });
     }
     if (comboKey(tower.elements || []) === "water+wind" && e.chillT > 0) {
       const p = enemyPos(e);
@@ -2450,7 +2603,7 @@
     }
     e.hp -= dmg;
     if (settings.hitFlash !== false) e.hitFlash = 0.12;
-    applyOnHitEffects(tower, e, dmg);
+    applyOnHitEffects(tower, e, dmg, { aoe: !!opts.aoe });
     const p = enemyPos(e);
     pushCombatFx({ kind: "spark", x: p.x, y: p.y, t: 0.28, color: opts.color || tower.color });
     // Teach matchups in combat: occasional WEAK / RESIST callouts (ICD per foe).
@@ -2497,7 +2650,7 @@
     const p = enemyPos(target);
     const elsArr = tower.elements || [];
     const tint = elsArr.length ? ELEMENTS[elsArr[0]].color : tower.color;
-    tower.aim = Math.atan2(p.y - tower.y, p.x - tower.x);
+    // Keep current aim — rotation system already slewed toward the target.
     tower.recoil = 1;
 
     if (tower.type === "mortar") {
@@ -2602,10 +2755,14 @@
       if (e.hitFlash > 0) e.hitFlash -= step;
       if (e.knockCd > 0) e.knockCd -= step;
       if (e.stunCd > 0) e.stunCd -= step;
+      if (e.freezeCd > 0) e.freezeCd -= step;
       if (e.stunT > 0) e.stunT -= step;
       if (e.freezeT > 0) e.freezeT -= step;
       if (e.slowT > 0) { e.slowT -= step; if (e.slowT <= 0) e.slow = 1; }
       if (e.chillT > 0) e.chillT -= step;
+      if (e.brittleT > 0) e.brittleT -= step;
+      if (e.plasmaMark > 0) e.plasmaMark -= step;
+      if (e.ccDR > 0) e.ccDR = Math.max(0, e.ccDR - BALANCE.ccDrDecay * step);
       if (e.burnT > 0) {
         e.burnT -= step;
         e.hp -= e.burn * step;
@@ -2646,10 +2803,13 @@
         if (e.enraged) e.knockCd = Math.max(e.knockCd, 0.3);
       }
 
-      const rooted = (e.stunT > 0) || (e.freezeT > 0 && e.slow <= 0.15);
-      const moveMul = e.stunT > 0 ? 0 : e.slow;
+      // Always keep forward progress — stun/freeze softens to moveFloor, never 0.
+      const floor = moveFloorFor(e);
+      let moveMul = Math.max(floor, e.slow == null ? 1 : e.slow);
+      if (e.stunT > 0) moveMul = floor;
+      else if (e.freezeT > 0) moveMul = Math.max(floor, Math.min(moveMul, floor + 0.08));
       e.dist += e.speed * moveMul * step;
-      if (rooted && Math.random() < step * 3) {
+      if ((e.stunT > 0 || e.freezeT > 0) && Math.random() < step * 3) {
         const p = enemyPos(e);
         spawnParticles(p.x, p.y, e.stunT > 0 ? ELEMENTS.arc.color : ELEMENTS.frost.color, 1, 20);
       }
@@ -2673,23 +2833,58 @@
       spawnParticles(p.x, p.y, b.color, 8, 60);
     }
 
+    // Hazards (mire / magma pools)
+    if (state.hazards && state.hazards.length) {
+      for (const h of state.hazards) {
+        h.t -= step;
+        if (h.t <= 0) continue;
+        for (const e of state.enemies) {
+          if (!e.alive) continue;
+          const q = enemyPos(e);
+          if (Math.hypot(q.x - h.x, q.y - h.y) > h.r) continue;
+          if (h.kind === "mire") applyMoveSlow(e, h.slow || 0.72, 0.25, { aoe: true, soft: true });
+          if (h.kind === "magma") {
+            e.hp -= (h.dps || 12) * step;
+            e.burn = Math.max(e.burn, 4);
+            e.burnT = Math.max(e.burnT, 0.6);
+            if (e.hp <= 0) killEnemy(e);
+          }
+        }
+      }
+      state.hazards = state.hazards.filter((h) => h.t > 0);
+    }
+
     for (const tower of state.towers) {
       // Level CD is wall-clock so Up All isn't glued shut at 1× or trivial at 5×.
       if (tower.levelCd > 0) tower.levelCd = Math.max(0, tower.levelCd - dt);
       if (tower.recoil > 0) tower.recoil = Math.max(0, tower.recoil - step * 4.5);
+      if (tower.acquireT > 0) tower.acquireT = Math.max(0, tower.acquireT - step);
+
       const track = findTarget(tower, state.enemies);
+      const trackId = track ? track.id : null;
+      if (trackId != null && tower.lockId !== trackId) {
+        tower.lockId = trackId;
+        tower.acquireT = BALANCE.acquireDelay * (tower.type === "mortar" ? 1.35 : tower.type === "spire" ? 1.15 : 1);
+      }
+      if (!track) tower.lockId = null;
+
+      let aligned = false;
       if (track) {
         const tp = enemyPos(track);
         const want = Math.atan2(tp.y - tower.y, tp.x - tower.x);
-        let dAim = want - (tower.aim || 0);
-        while (dAim > Math.PI) dAim -= Math.PI * 2;
-        while (dAim < -Math.PI) dAim += Math.PI * 2;
-        tower.aim = (tower.aim || 0) + dAim * Math.min(1, step * 10);
+        const dAim = angleDelta(tower.aim || 0, want);
+        const rate = tower.turnRate || (BASE_TOWER[tower.type] && BASE_TOWER[tower.type].turnRate) || 3.5;
+        const maxStep = rate * step;
+        tower.aim = (tower.aim || 0) + Math.max(-maxStep, Math.min(maxStep, dAim));
+        aligned = Math.abs(angleDelta(tower.aim, want)) <= BALANCE.aimAlign;
       }
+
       tower.cooldown -= step;
       if (tower.cooldown > 0) continue;
-      const target = findTarget(tower, state.enemies);
-      if (target) { fireTower(tower, target); tower.cooldown = tower.fireRate; }
+      if (track && aligned && (tower.acquireT || 0) <= 0) {
+        fireTower(tower, track);
+        tower.cooldown = tower.fireRate;
+      }
     }
 
     for (const p of state.projectiles) {
@@ -2708,7 +2903,7 @@
             if (!e.alive || !canTarget(p.tower, e)) continue;
             const q = enemyPos(e);
             if (Math.hypot(q.x - p.tx, q.y - p.ty) <= p.splash) {
-              damageEnemy(e, p.damage, p.tower, { color: p.color });
+              damageEnemy(e, p.damage, p.tower, { color: p.color, aoe: true });
             }
           }
           pushCombatFx({ kind: "blast", x: p.tx, y: p.ty, t: 0.35, r: p.splash, color: p.color });
