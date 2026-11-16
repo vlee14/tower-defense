@@ -24,109 +24,212 @@
 
   const BASE_TOWER = {
     turret: {
-      name: "Turret", cost: 52, damage: 32, range: 84, fireRate: 0.38, sell: 26, color: "#e8883a",
+      name: "Turret", cost: 58, damage: 28, range: 82, fireRate: 0.4, sell: 28, color: "#e8883a",
       hitsAir: true, hitsGround: true, splash: 0,
       blurb: "High DPS · short range · hits air & ground",
     },
     mortar: {
-      name: "Mortar", cost: 82, damage: 46, range: 130, fireRate: 1.22, splash: 54, sell: 40, color: "#6fbf8a",
+      name: "Mortar", cost: 90, damage: 40, range: 128, fireRate: 1.28, splash: 50, sell: 42, color: "#6fbf8a",
       hitsAir: false, hitsGround: true,
       blurb: "AoE splash · slow · cannot hit flying",
     },
     coil: {
-      name: "Coil", cost: 68, damage: 16, range: 110, fireRate: 0.52, sell: 34, color: "#4db8c4",
-      hitsAir: true, hitsGround: true, airBonus: 1.6, armorPenalty: 0.58, slow: 0.52, slowDur: 1.5,
+      name: "Coil", cost: 74, damage: 14, range: 108, fireRate: 0.55, sell: 36, color: "#4db8c4",
+      hitsAir: true, hitsGround: true, airBonus: 1.55, armorPenalty: 0.58, slow: 0.55, slowDur: 1.4,
       blurb: "Slows · anti-air · weak vs armor",
+    },
+    spire: {
+      name: "Spire", cost: 110, damage: 72, range: 158, fireRate: 1.45, sell: 52, color: "#d4a060",
+      hitsAir: true, hitsGround: true, pierce: 3, armorBonus: 1.2,
+      blurb: "Pierce line · long range · slow fire",
     },
   };
 
-  const ELEMENTS = {
-    fire: { id: "fire", name: "Fire", color: "#e85d4c", cost: 25 },
-    water: { id: "water", name: "Water", color: "#4db8c4", cost: 25 },
-    earth: { id: "earth", name: "Earth", color: "#c4a35a", cost: 25 },
-    wind: { id: "wind", name: "Wind", color: "#7ec9a0", cost: 25 },
+  // Internal balance ledger: cost-per-DPS / ability budget for tuning.
+  // DPS ~ damage / fireRate (splash & pierce counted as ability multipliers).
+  const BALANCE = {
+    scrapStart: 105,
+    scrapWaveBase: 16,
+    scrapWavePer: 2.1,
+    scrapKillScale: 0.72,
+    levelDmgPer: 0.22,
+    levelDmgSoft: 0.035, // damp after L6
+    levelRangePer: 0.08,
+    levelRatePer: 0.04,
+    levelCd: 2.4,
+    hpEarly: 0.13,
+    hpMid: 0.2,
+    hpLate: 0.32,
+    hpDeepBase: 1.055, // exponential after wave 40
+    countCap: 58,
+    rewardDeepFade: 0.012, // reduce kill reward growth deep
   };
-  const ELEMENT_SECOND_COST = 40;
-  const MAX_ELEMENTS = 2;
+  function towerAbilityMul(def) {
+    let m = 1;
+    if (def.splash) m *= 1.35;
+    if (def.pierce) m *= 1 + 0.22 * Math.min(4, def.pierce);
+    if (def.slow != null) m *= 1.15;
+    if (def.airBonus) m *= 1.08;
+    if (def.armorBonus) m *= 1.1;
+    if (def.chain) m *= 1.12;
+    if (def.crit) m *= 1 + def.crit * 0.5;
+    if (def.burn) m *= 1.1;
+    return m;
+  }
+  function estimateTowerDps(def) {
+    return (def.damage / Math.max(0.12, def.fireRate)) * towerAbilityMul(def);
+  }
+  function costPerDps(def) {
+    return def.cost / Math.max(1, estimateTowerDps(def));
+  }
+  // Sanity anchors used while retuning (kept for balance audits).
+  const COST_PER_DPS = Object.fromEntries(
+    Object.keys(BASE_TOWER).map((k) => [k, Math.round(costPerDps(BASE_TOWER[k]) * 10) / 10])
+  );
 
+  const ELEMENTS = {
+    fire: { id: "fire", name: "Fire", color: "#e85d4c", cost: 28, tip: "Burn DoT" },
+    water: { id: "water", name: "Water", color: "#4db8c4", cost: 28, tip: "Chill slow" },
+    earth: { id: "earth", name: "Earth", color: "#c4a35a", cost: 28, tip: "Vs armor + shred" },
+    wind: { id: "wind", name: "Wind", color: "#7ec9a0", cost: 28, tip: "Vs air + shove" },
+    arc: { id: "arc", name: "Arc", color: "#d4b84a", cost: 32, tip: "Shock stun" },
+    frost: { id: "frost", name: "Frost", color: "#8ec8e8", cost: 32, tip: "Hard freeze" },
+  };
+  const ELEMENT_IDS = Object.keys(ELEMENTS);
+  const ELEMENT_SECOND_COST = 48;
+  const MAX_ELEMENTS = 2;
+  const COMBO_SHORT = {
+    "fire+water": "STEAM",
+    "earth+fire": "MAGMA",
+    "fire+wind": "WILDFIRE",
+    "earth+water": "MUD",
+    "water+wind": "STORM",
+    "earth+wind": "TEMPEST",
+    "arc+fire": "PLASMA",
+    "arc+water": "CONDUCT",
+    "arc+earth": "QUAKE",
+    "arc+wind": "SURGE",
+    "arc+frost": "FLASHFREEZE",
+    "fire+frost": "MELT",
+    "frost+water": "GLACIER",
+    "earth+frost": "PERMAFROST",
+    "frost+wind": "BLIZZARD",
+  };
+
+  // Multi-rank hub trees. col/row drive the visual tree; effect stacks per rank.
+  function upNode(partial) {
+    return {
+      max: 1, cost: 24, costGrow: 1.48, req: null, reqRank: 1, col: 0, row: 0, icon: "star",
+      ...partial,
+    };
+  }
   const UPGRADE_TREES = {
     turret: [
-      { id: "t_dmg1", name: "Hot Rounds I", desc: "+28% damage", cost: 28, req: null, effect: { damage: 1.28 } },
-      { id: "t_dmg2", name: "Hot Rounds II", desc: "+30% damage", cost: 48, req: "t_dmg1", effect: { damage: 1.3 } },
-      { id: "t_dmg3", name: "AP Core", desc: "+35% damage", cost: 80, req: "t_dmg2", effect: { damage: 1.35 } },
-      { id: "t_rng1", name: "Long Barrel", desc: "+18% range", cost: 32, req: null, effect: { range: 1.18 } },
-      { id: "t_rng2", name: "Spotter Link", desc: "+22% range", cost: 65, req: "t_rng1", effect: { range: 1.22 } },
-      { id: "t_spd1", name: "Servo Drive", desc: "+22% fire rate", cost: 35, req: null, effect: { fireRate: 0.82 } },
-      { id: "t_spd2", name: "Burst Mag", desc: "+25% fire rate", cost: 70, req: "t_spd1", effect: { fireRate: 0.8 } },
-      { id: "t_crit", name: "Crit Optics", desc: "22% chance ×2 damage", cost: 90, req: "t_dmg2", effect: { crit: 0.22 } },
+      upNode({ id: "t_dmg", name: "Hot Rounds", desc: "+16% damage / rank", icon: "dmg", max: 5, cost: 22, col: 0, row: 0, effect: { damage: 1.16 } }),
+      upNode({ id: "t_spd", name: "Servo Drive", desc: "+12% fire rate / rank", icon: "spd", max: 4, cost: 24, col: 1, row: 0, effect: { fireRate: 0.88 } }),
+      upNode({ id: "t_rng", name: "Long Barrel", desc: "+10% range / rank", icon: "rng", max: 4, cost: 20, col: 2, row: 0, effect: { range: 1.1 } }),
+      upNode({ id: "t_ap", name: "AP Core", desc: "+14% damage / rank", icon: "dmg", max: 4, cost: 36, req: "t_dmg", reqRank: 2, col: 0, row: 1, effect: { damage: 1.14 } }),
+      upNode({ id: "t_burst", name: "Burst Mag", desc: "+11% fire rate / rank", icon: "spd", max: 3, cost: 40, req: "t_spd", reqRank: 2, col: 1, row: 1, effect: { fireRate: 0.89 } }),
+      upNode({ id: "t_spot", name: "Spotter Link", desc: "+12% range / rank", icon: "rng", max: 3, cost: 34, req: "t_rng", reqRank: 2, col: 2, row: 1, effect: { range: 1.12 } }),
+      upNode({ id: "t_crit", name: "Crit Optics", desc: "+7% crit / rank (×2 dmg)", icon: "crit", max: 4, cost: 48, req: "t_ap", reqRank: 1, col: 0, row: 2, effect: { critAdd: 0.07 } }),
+      upNode({ id: "t_focus", name: "Focus Latch", desc: "+8% vs bosses / rank", icon: "special", max: 3, cost: 52, req: "t_burst", reqRank: 1, col: 1, row: 2, effect: { bossBonus: 0.08 } }),
+      upNode({ id: "t_air", name: "Flak Tips", desc: "+10% vs air / rank", icon: "air", max: 3, cost: 44, req: "t_spot", reqRank: 1, col: 2, row: 2, effect: { airBonusAdd: 0.1 } }),
+      upNode({ id: "t_over", name: "Overdrive", desc: "+9% dmg & rate / rank", icon: "special", max: 3, cost: 70, req: "t_crit", reqRank: 2, col: 0, row: 3, effect: { damage: 1.09, fireRate: 0.93 } }),
+      upNode({ id: "t_rail", name: "Rail Sync", desc: "+15% range / rank", icon: "rng", max: 2, cost: 75, req: "t_focus", reqRank: 1, col: 1, row: 3, effect: { range: 1.15 } }),
+      upNode({ id: "t_master", name: "Masterwork", desc: "+12% all combat / rank", icon: "star", max: 2, cost: 95, req: "t_over", reqRank: 1, col: 1, row: 4, effect: { damage: 1.12, fireRate: 0.94, range: 1.06 } }),
     ],
     mortar: [
-      { id: "m_dmg1", name: "HE Shells I", desc: "+28% damage", cost: 30, req: null, effect: { damage: 1.28 } },
-      { id: "m_dmg2", name: "HE Shells II", desc: "+30% damage", cost: 55, req: "m_dmg1", effect: { damage: 1.3 } },
-      { id: "m_splash1", name: "Wider Blast", desc: "+28% splash", cost: 40, req: null, effect: { splash: 1.28 } },
-      { id: "m_splash2", name: "Cluster Cap", desc: "+35% splash", cost: 72, req: "m_splash1", effect: { splash: 1.35 } },
-      { id: "m_rng1", name: "Arc Sight", desc: "+15% range", cost: 34, req: null, effect: { range: 1.15 } },
-      { id: "m_spd1", name: "Fast Loader", desc: "+18% fire rate", cost: 42, req: null, effect: { fireRate: 0.85 } },
-      { id: "m_burn", name: "Incendiary Base", desc: "Mild burn without Fire socket", cost: 95, req: "m_dmg1", effect: { burn: 6 } },
+      upNode({ id: "m_dmg", name: "HE Shells", desc: "+16% damage / rank", icon: "dmg", max: 5, cost: 24, col: 0, row: 0, effect: { damage: 1.16 } }),
+      upNode({ id: "m_splash", name: "Wider Blast", desc: "+14% splash / rank", icon: "splash", max: 4, cost: 26, col: 1, row: 0, effect: { splash: 1.14 } }),
+      upNode({ id: "m_rng", name: "Arc Sight", desc: "+9% range / rank", icon: "rng", max: 4, cost: 22, col: 2, row: 0, effect: { range: 1.09 } }),
+      upNode({ id: "m_he2", name: "Cluster Core", desc: "+13% damage / rank", icon: "dmg", max: 4, cost: 38, req: "m_dmg", reqRank: 2, col: 0, row: 1, effect: { damage: 1.13 } }),
+      upNode({ id: "m_cluster", name: "Cluster Cap", desc: "+16% splash / rank", icon: "splash", max: 3, cost: 42, req: "m_splash", reqRank: 2, col: 1, row: 1, effect: { splash: 1.16 } }),
+      upNode({ id: "m_loader", name: "Fast Loader", desc: "+10% fire rate / rank", icon: "spd", max: 4, cost: 30, req: "m_rng", reqRank: 1, col: 2, row: 1, effect: { fireRate: 0.9 } }),
+      upNode({ id: "m_burn", name: "Incendiary", desc: "+4 burn / rank", icon: "burn", max: 4, cost: 48, req: "m_he2", reqRank: 1, col: 0, row: 2, effect: { burnAdd: 4 } }),
+      upNode({ id: "m_quake", name: "Quake Fuse", desc: "+8% vs armor / rank", icon: "earth", max: 3, cost: 50, req: "m_cluster", reqRank: 1, col: 1, row: 2, effect: { armorBonusAdd: 0.08 } }),
+      upNode({ id: "m_sky", name: "Sky Hook", desc: "Unlock air hits · +6% air / rank", icon: "air", max: 2, cost: 85, req: "m_loader", reqRank: 2, col: 2, row: 2, effect: { hitsAir: true, airBonusAdd: 0.06 } }),
+      upNode({ id: "m_napalm", name: "Napalm Nest", desc: "+5 burn & +8% splash / rank", icon: "burn", max: 3, cost: 72, req: "m_burn", reqRank: 2, col: 0, row: 3, effect: { burnAdd: 5, splash: 1.08 } }),
+      upNode({ id: "m_siege", name: "Siege Cadence", desc: "+11% dmg & rate / rank", icon: "special", max: 3, cost: 78, req: "m_quake", reqRank: 1, col: 1, row: 3, effect: { damage: 1.11, fireRate: 0.92 } }),
+      upNode({ id: "m_master", name: "Barrage Crown", desc: "+12% combat / rank", icon: "star", max: 2, cost: 100, req: "m_siege", reqRank: 1, col: 1, row: 4, effect: { damage: 1.12, splash: 1.1, range: 1.05 } }),
     ],
     coil: [
-      { id: "c_dmg1", name: "Amp Coil I", desc: "+30% damage", cost: 28, req: null, effect: { damage: 1.3 } },
-      { id: "c_dmg2", name: "Amp Coil II", desc: "+35% damage", cost: 52, req: "c_dmg1", effect: { damage: 1.35 } },
-      { id: "c_slow1", name: "Deep Freeze", desc: "Stronger base slow", cost: 36, req: null, effect: { slow: 0.4 } },
-      { id: "c_slow2", name: "Cryo Hold", desc: "Longer slow", cost: 60, req: "c_slow1", effect: { slowDur: 1.5 } },
-      { id: "c_rng1", name: "Field Expand", desc: "+18% range", cost: 34, req: null, effect: { range: 1.18 } },
-      { id: "c_spd1", name: "Pulse Sync", desc: "+24% fire rate", cost: 40, req: null, effect: { fireRate: 0.8 } },
-      { id: "c_chain", name: "Arc Jump", desc: "Chain to 2nd target", cost: 88, req: "c_dmg1", effect: { chain: 1 } },
+      upNode({ id: "c_dmg", name: "Amp Coil", desc: "+17% damage / rank", icon: "dmg", max: 5, cost: 22, col: 0, row: 0, effect: { damage: 1.17 } }),
+      upNode({ id: "c_slow", name: "Deep Freeze", desc: "Stronger slow / rank", icon: "slow", max: 4, cost: 26, col: 1, row: 0, effect: { slowStep: 0.06 } }),
+      upNode({ id: "c_rng", name: "Field Expand", desc: "+10% range / rank", icon: "rng", max: 4, cost: 22, col: 2, row: 0, effect: { range: 1.1 } }),
+      upNode({ id: "c_amp2", name: "Resonance", desc: "+14% damage / rank", icon: "dmg", max: 4, cost: 36, req: "c_dmg", reqRank: 2, col: 0, row: 1, effect: { damage: 1.14 } }),
+      upNode({ id: "c_hold", name: "Cryo Hold", desc: "+18% slow duration / rank", icon: "slow", max: 3, cost: 34, req: "c_slow", reqRank: 2, col: 1, row: 1, effect: { slowDur: 1.18 } }),
+      upNode({ id: "c_pulse", name: "Pulse Sync", desc: "+12% fire rate / rank", icon: "spd", max: 4, cost: 28, req: "c_rng", reqRank: 1, col: 2, row: 1, effect: { fireRate: 0.88 } }),
+      upNode({ id: "c_chain", name: "Arc Jump", desc: "+1 chain target / rank", icon: "chain", max: 2, cost: 55, req: "c_amp2", reqRank: 1, col: 0, row: 2, effect: { chainAdd: 1 } }),
+      upNode({ id: "c_air", name: "Sky Latch", desc: "+12% air bonus / rank", icon: "air", max: 3, cost: 40, req: "c_hold", reqRank: 1, col: 1, row: 2, effect: { airBonusAdd: 0.12 } }),
+      upNode({ id: "c_armor", name: "Breach Coil", desc: "Less armor penalty / rank", icon: "earth", max: 3, cost: 46, req: "c_pulse", reqRank: 1, col: 2, row: 2, effect: { armorPenStep: 0.08 } }),
+      upNode({ id: "c_storm", name: "Storm Lattice", desc: "+10% dmg & chain potency", icon: "special", max: 3, cost: 70, req: "c_chain", reqRank: 1, col: 0, row: 3, effect: { damage: 1.1, fireRate: 0.94 } }),
+      upNode({ id: "c_glare", name: "Glare Field", desc: "+12% range & slow / rank", icon: "slow", max: 2, cost: 74, req: "c_air", reqRank: 1, col: 1, row: 3, effect: { range: 1.12, slowStep: 0.04 } }),
+      upNode({ id: "c_master", name: "Singularity", desc: "+12% combat / rank", icon: "star", max: 2, cost: 98, req: "c_storm", reqRank: 1, col: 1, row: 4, effect: { damage: 1.12, range: 1.06, slowDur: 1.1 } }),
+    ],
+    spire: [
+      upNode({ id: "s_dmg", name: "Focus Lens", desc: "+15% damage / rank", icon: "dmg", max: 5, cost: 28, col: 0, row: 0, effect: { damage: 1.15 } }),
+      upNode({ id: "s_pierce", name: "Rift Bore", desc: "+1 pierce / rank", icon: "pierce", max: 3, cost: 34, col: 1, row: 0, effect: { pierceAdd: 1 } }),
+      upNode({ id: "s_rng", name: "Sky Spire", desc: "+11% range / rank", icon: "rng", max: 4, cost: 26, col: 2, row: 0, effect: { range: 1.11 } }),
+      upNode({ id: "s_core", name: "Magma Core", desc: "+13% damage / rank", icon: "dmg", max: 4, cost: 42, req: "s_dmg", reqRank: 2, col: 0, row: 1, effect: { damage: 1.13 } }),
+      upNode({ id: "s_shaft", name: "Deep Shaft", desc: "+1 pierce / rank", icon: "pierce", max: 2, cost: 55, req: "s_pierce", reqRank: 1, col: 1, row: 1, effect: { pierceAdd: 1 } }),
+      upNode({ id: "s_servo", name: "Gyro Mount", desc: "+10% fire rate / rank", icon: "spd", max: 4, cost: 32, req: "s_rng", reqRank: 1, col: 2, row: 1, effect: { fireRate: 0.9 } }),
+      upNode({ id: "s_boss", name: "Tyrant Mark", desc: "+10% vs bosses / rank", icon: "special", max: 3, cost: 58, req: "s_core", reqRank: 1, col: 0, row: 2, effect: { bossBonus: 0.1 } }),
+      upNode({ id: "s_armor", name: "Sunder Tip", desc: "+10% vs armor / rank", icon: "earth", max: 3, cost: 52, req: "s_shaft", reqRank: 1, col: 1, row: 2, effect: { armorBonusAdd: 0.1 } }),
+      upNode({ id: "s_seek", name: "Seeking Beam", desc: "+9% range & rate / rank", icon: "rng", max: 3, cost: 56, req: "s_servo", reqRank: 2, col: 2, row: 2, effect: { range: 1.09, fireRate: 0.93 } }),
+      upNode({ id: "s_crit", name: "Eclipse Crit", desc: "+8% crit / rank", icon: "crit", max: 3, cost: 72, req: "s_boss", reqRank: 1, col: 0, row: 3, effect: { critAdd: 0.08 } }),
+      upNode({ id: "s_line", name: "Line Storm", desc: "+12% pierce damage / rank", icon: "pierce", max: 3, cost: 76, req: "s_armor", reqRank: 1, col: 1, row: 3, effect: { damage: 1.12 } }),
+      upNode({ id: "s_master", name: "Apex Spire", desc: "+12% combat / rank", icon: "star", max: 2, cost: 110, req: "s_crit", reqRank: 1, col: 1, row: 4, effect: { damage: 1.12, range: 1.08, fireRate: 0.94 } }),
     ],
   };
 
   // resist: <1 resists that element, >1 is weak. Applied per socketed element on hit.
+  // Learn via pips (□ resist / △ weak) + WEAK/RESIST hit text — no wiki needed.
   const ENEMY = {
     drone: {
       hp: 34, speed: 70, reward: 11, r: 11, color: "#4db8c4", shape: "tri",
       tags: ["flying", "fast"], label: "Drone",
-      resist: { fire: 0.9, water: 1.2, earth: 0.5, wind: 1.45 },
+      resist: { fire: 0.9, water: 1.2, earth: 0.5, wind: 1.45, arc: 1.35, frost: 0.75 },
     },
     crawler: {
       hp: 88, speed: 40, reward: 18, r: 13, color: "#e8883a", shape: "sq",
       tags: ["ground"], label: "Crawler",
-      resist: { fire: 1.2, water: 1.0, earth: 1.1, wind: 0.8 },
+      resist: { fire: 1.2, water: 1.0, earth: 1.1, wind: 0.8, arc: 0.9, frost: 1.15 },
     },
     armor: {
       hp: 220, speed: 26, reward: 38, r: 15, color: "#a89a8c", shape: "hex",
       tags: ["ground", "armored"], label: "Armor",
-      resist: { fire: 0.55, water: 0.8, earth: 1.5, wind: 0.5 },
+      resist: { fire: 0.55, water: 0.8, earth: 1.5, wind: 0.5, arc: 1.4, frost: 0.7 },
     },
     swarm: {
       hp: 18, speed: 84, reward: 7, r: 8, color: "#6fbf8a", shape: "dot",
       tags: ["ground", "swarm"], label: "Swarm",
-      resist: { fire: 1.55, water: 0.65, earth: 0.9, wind: 0.85 },
+      resist: { fire: 1.55, water: 0.65, earth: 0.9, wind: 0.85, arc: 0.7, frost: 1.35 },
     },
     // Boss roster — distinct silhouettes, resists, and abilities.
     behemoth: {
       hp: 920, speed: 20, reward: 120, r: 24, color: "#e85d4c", shape: "boss",
       tags: ["ground", "armored", "boss"], label: "Behemoth", ability: "bulk",
-      resist: { fire: 0.65, water: 0.7, earth: 1.25, wind: 0.55 },
+      resist: { fire: 0.65, water: 0.7, earth: 1.25, wind: 0.55, arc: 1.2, frost: 0.6 },
     },
     emberwyrm: {
       hp: 760, speed: 34, reward: 130, r: 22, color: "#ff8a4a", shape: "wyrm",
       tags: ["flying", "armored", "boss"], label: "Emberwyrm", ability: "ashregen",
-      resist: { fire: 0.35, water: 1.45, earth: 0.75, wind: 1.05 },
+      resist: { fire: 0.35, water: 1.45, earth: 0.75, wind: 1.05, arc: 0.85, frost: 1.35 },
     },
     shellwarden: {
       hp: 1100, speed: 16, reward: 140, r: 26, color: "#a89a8c", shape: "warden",
       tags: ["ground", "armored", "boss"], label: "Shellwarden", ability: "carapace",
-      resist: { fire: 0.5, water: 0.55, earth: 1.55, wind: 0.45 },
+      resist: { fire: 0.5, water: 0.55, earth: 1.55, wind: 0.45, arc: 1.45, frost: 0.55 },
     },
     broodmother: {
       hp: 840, speed: 22, reward: 135, r: 23, color: "#6fbf8a", shape: "brood",
       tags: ["ground", "armored", "boss", "swarm"], label: "Broodmother", ability: "brood",
-      resist: { fire: 1.35, water: 0.5, earth: 0.85, wind: 0.8 },
+      resist: { fire: 1.35, water: 0.5, earth: 0.85, wind: 0.8, arc: 0.65, frost: 1.25 },
     },
     galeheart: {
       hp: 780, speed: 30, reward: 125, r: 22, color: "#4db8c4", shape: "gale",
       tags: ["ground", "armored", "boss", "fast"], label: "Galeheart", ability: "tempest",
-      resist: { fire: 1.15, water: 0.85, earth: 1.2, wind: 0.3 },
+      resist: { fire: 1.15, water: 0.85, earth: 1.2, wind: 0.3, arc: 1.1, frost: 1.3 },
     },
   };
   // Save/compat alias
@@ -175,7 +278,7 @@
   }
   function formatResistLine(resist) {
     const weak = [], tank = [];
-    for (const el of ["fire", "water", "earth", "wind"]) {
+    for (const el of ELEMENT_IDS) {
       const v = resist[el];
       if (v == null) continue;
       const name = ELEMENTS[el].name;
@@ -323,7 +426,7 @@
     overSummary: $("over-summary"), overChips: $("over-chips"),
     btnMute: $("btn-mute"), btnPause: $("btn-pause"), btnSpeed: $("btn-speed"),
     speedLabel: $("speed-label"),
-    btnSell: $("btn-sell"), btnUpgrade: $("btn-upgrade"),
+    btnSell: $("btn-sell"), btnUpgrade: $("btn-upgrade"), btnAutoLevel: $("btn-auto-level"),
     inspect: $("inspect"), inspectText: $("inspect-text"),
     coach: $("coach"), coachText: $("coach-text"),
   };
@@ -433,7 +536,7 @@
     place: () => { toneSlide(520, 780, 0.09, "triangle", 0.05); haptic(12); },
     upgrade: () => { beep(520, 0.05, "triangle", 0.03); setTimeout(() => toneSlide(780, 980, 0.09, "triangle", 0.04), 40); haptic([8, 30, 16]); },
     socket: () => { beep(640, 0.06, "sine", 0.035); beep(960, 0.04, "sine", 0.02); haptic(10); },
-    shoot: (kind) => beep(kind === "mortar" ? 140 : kind === "coil" ? 980 : 880, 0.028, "square", 0.016),
+    shoot: (kind) => beep(kind === "mortar" ? 140 : kind === "coil" ? 980 : kind === "spire" ? 320 : 880, 0.028, "square", 0.016),
     hit: () => beep(260 + Math.random() * 60, 0.025, "square", 0.014),
     kill: () => { toneSlide(420, 180, 0.08, "square", 0.028); haptic(8); },
     leak: () => { beep(110, 0.18, "sawtooth", 0.05); haptic([30, 40, 30]); },
@@ -446,12 +549,22 @@
     cancel: () => beep(220, 0.04, "triangle", 0.02),
   };
 
-  function towerStats(type) {
-    const base = { ...BASE_TOWER[type] };
-    const owned = meta.owned || {};
-    for (const u of UPGRADE_TREES[type]) {
-      if (!owned[u.id]) continue;
-      const e = u.effect;
+  function ownedRank(id) {
+    const v = (meta.owned || {})[id];
+    if (v === true) return 1;
+    const n = Number(v) || 0;
+    return Math.max(0, Math.floor(n));
+  }
+  function upgradeCostAt(u, nextRank) {
+    return Math.floor(u.cost * Math.pow(u.costGrow || 1.45, Math.max(0, nextRank - 1)));
+  }
+  function reqSatisfied(u) {
+    if (!u.req) return true;
+    return ownedRank(u.req) >= (u.reqRank || 1);
+  }
+  function applyUpgradeEffect(base, e, ranks) {
+    if (!e || ranks <= 0) return;
+    for (let i = 0; i < ranks; i++) {
       if (e.damage) base.damage *= e.damage;
       if (e.range) base.range *= e.range;
       if (e.fireRate) base.fireRate *= e.fireRate;
@@ -459,9 +572,24 @@
       if (e.slow != null) base.slow = e.slow;
       if (e.slowDur) base.slowDur = (base.slowDur || 1.2) * e.slowDur;
       if (e.crit) base.crit = e.crit;
+      if (e.critAdd) base.crit = (base.crit || 0) + e.critAdd;
       if (e.burn) base.burn = e.burn;
+      if (e.burnAdd) base.burn = (base.burn || 0) + e.burnAdd;
       if (e.chain) base.chain = e.chain;
+      if (e.chainAdd) base.chain = (base.chain || 0) + e.chainAdd;
+      if (e.pierceAdd) base.pierce = (base.pierce || 0) + e.pierceAdd;
+      if (e.bossBonus) base.bossBonus = (base.bossBonus || 0) + e.bossBonus;
+      if (e.airBonusAdd) base.airBonus = (base.airBonus || 1) + e.airBonusAdd;
+      if (e.armorBonusAdd) base.armorBonus = (base.armorBonus || 1) + e.armorBonusAdd;
+      if (e.armorPenStep) base.armorPenalty = Math.min(1, (base.armorPenalty == null ? 1 : base.armorPenalty) + e.armorPenStep);
+      if (e.slowStep) base.slow = Math.max(0.2, (base.slow == null ? 0.7 : base.slow) - e.slowStep);
+      if (e.hitsAir) base.hitsAir = true;
     }
+  }
+  function towerStats(type) {
+    const base = { ...BASE_TOWER[type] };
+    const tree = UPGRADE_TREES[type] || [];
+    for (const u of tree) applyUpgradeEffect(base, u.effect, ownedRank(u.id));
     return base;
   }
 
@@ -471,12 +599,8 @@
   function describeCombo(elements) {
     if (!elements.length) return "No elements";
     if (elements.length === 1) {
-      return ({
-        fire: "Fire: burn DoT",
-        water: "Water: chill slow",
-        earth: "Earth: vs armor + shred",
-        wind: "Wind: vs flying + shove",
-      })[elements[0]];
+      const el = ELEMENTS[elements[0]];
+      return el ? `${el.name}: ${el.tip}` : elements[0];
     }
     return ({
       "fire+water": "Steam burst (AoE)",
@@ -485,30 +609,19 @@
       "earth+water": "Mud (heavy slow)",
       "water+wind": "Storm (shatter chill)",
       "earth+wind": "Tempest (full vs air & armor)",
-    })[comboKey(elements)] || elements.join("+");
+      "arc+fire": "Plasma (burst hit)",
+      "arc+water": "Conduct (shock splash)",
+      "arc+earth": "Quake (AoE stun)",
+      "arc+wind": "Surge (chain jump)",
+      "arc+frost": "Flashfreeze (stun + freeze)",
+      "fire+frost": "Melt (armor crack)",
+      "frost+water": "Glacier (deep freeze)",
+      "earth+frost": "Permafrost (root)",
+      "frost+wind": "Blizzard (AoE chill)",
+    })[comboKey(elements)] || elements.map((id) => (ELEMENTS[id] || {}).name || id).join("+");
   }
 
-  function generatePath(seed, w, h) {
-    const rng = mulberry32(hashSeed(seed + ":path"));
-    const padX = w * 0.14, padY = h * 0.09;
-    const points = [];
-    let y = padY;
-    let x = padX + rng() * (w - padX * 2);
-    points.push({ x, y });
-    const lanes = 5 + Math.floor(rng() * 3);
-    let goingRight = rng() > 0.5;
-    for (let i = 1; i <= lanes; i++) {
-      const targetY = padY + ((h - padY * 2) * i) / (lanes + 1);
-      points.push({ x, y: targetY });
-      const margin = padX + rng() * w * 0.05;
-      const targetX = goingRight ? w - margin : margin;
-      const mid = (x + targetX) / 2 + (rng() - 0.5) * w * 0.08;
-      points.push({ x: mid, y: targetY + (rng() - 0.5) * 12 });
-      x = targetX;
-      points.push({ x, y: targetY });
-      goingRight = !goingRight;
-    }
-    points.push({ x, y: h - padY });
+  function finalizeLane(points) {
     const dense = densify(points, 18);
     const lengths = [0];
     let total = 0;
@@ -516,7 +629,83 @@
       total += Math.hypot(dense[i].x - dense[i - 1].x, dense[i].y - dense[i - 1].y);
       lengths.push(total);
     }
-    return { points: dense, lengths, total };
+    return { points: dense, lengths, total, corners: points.slice() };
+  }
+  function spawnCountForDifficulty(diffId) {
+    if (diffId === "nightmare") return 4;
+    if (diffId === "hard") return 3;
+    return 2;
+  }
+  function generatePath(seed, w, h, diffId) {
+    const rng = mulberry32(hashSeed(seed + ":path:" + (diffId || "normal")));
+    const padX = w * 0.14, padY = h * 0.09;
+    const corners = [];
+    let y = padY;
+    let x = padX + rng() * (w - padX * 2);
+    corners.push({ x, y });
+    const zigzags = 5 + Math.floor(rng() * 3);
+    let goingRight = rng() > 0.5;
+    for (let i = 1; i <= zigzags; i++) {
+      const targetY = padY + ((h - padY * 2) * i) / (zigzags + 1);
+      corners.push({ x, y: targetY });
+      const margin = padX + rng() * w * 0.05;
+      const targetX = goingRight ? w - margin : margin;
+      const mid = (x + targetX) / 2 + (rng() - 0.5) * w * 0.08;
+      corners.push({ x: mid, y: targetY + (rng() - 0.5) * 12 });
+      x = targetX;
+      corners.push({ x, y: targetY });
+      goingRight = !goingRight;
+    }
+    const exit = { x, y: h - padY };
+    corners.push(exit);
+    const main = finalizeLane(corners);
+    const lanes = [main];
+    const spawnN = spawnCountForDifficulty(diffId || "normal");
+    // Extra spawn lanes merge into the main rift after the first bend.
+    const mergeIdx = Math.min(corners.length - 2, 3);
+    const mergePt = corners[mergeIdx];
+    const sideStarts = [
+      { x: padX * 0.55, y: padY * 0.7 },
+      { x: w - padX * 0.55, y: padY * 0.7 },
+      { x: padX * 0.7, y: padY + (h - padY * 2) * 0.18 },
+      { x: w - padX * 0.7, y: padY + (h - padY * 2) * 0.18 },
+    ];
+    for (let s = 1; s < spawnN; s++) {
+      const start = sideStarts[(s - 1) % sideStarts.length];
+      const midY = (start.y + mergePt.y) / 2;
+      const midX = start.x * 0.35 + mergePt.x * 0.65 + (rng() - 0.5) * 18;
+      const spur = [start, { x: midX, y: midY }, mergePt, ...corners.slice(mergeIdx + 1)];
+      lanes.push(finalizeLane(spur));
+    }
+    // Guaranteed placeable pads at each bend (perpendicular offset from path).
+    const pads = [];
+    const bendPts = corners.filter((_, i) => i > 0 && i < corners.length - 1 && i % 3 === 1);
+    for (let i = 0; i < bendPts.length; i++) {
+      const b = bendPts[i];
+      const prev = corners[Math.max(0, corners.indexOf(b) - 1)] || corners[0];
+      const next = corners[Math.min(corners.length - 1, corners.indexOf(b) + 1)] || exit;
+      let tx = next.x - prev.x, ty = next.y - prev.y;
+      const len = Math.hypot(tx, ty) || 1;
+      tx /= len; ty /= len;
+      const side = (i % 2 === 0) ? 1 : -1;
+      const ox = -ty * side * 46;
+      const oy = tx * side * 46;
+      let px = b.x + ox, py = b.y + oy;
+      px = Math.max(22, Math.min(w - 22, px));
+      py = Math.max(22, Math.min(h - 22, py));
+      // Nudge outward until clear of all lanes.
+      for (let n = 0; n < 6; n++) {
+        if (distToPathNetwork({ lanes }, px, py) >= 30) break;
+        px += ox * 0.25; py += oy * 0.25;
+        px = Math.max(22, Math.min(w - 22, px));
+        py = Math.max(22, Math.min(h - 22, py));
+      }
+      pads.push({ x: px, y: py, bend: i });
+    }
+    return {
+      points: main.points, lengths: main.lengths, total: main.total,
+      lanes, pads, spawnN: lanes.length,
+    };
   }
   function densify(pts, step) {
     const out = [pts[0]];
@@ -542,6 +731,7 @@
     return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
   }
   function distToPath(path, x, y) {
+    if (!path || !path.points) return Infinity;
     let bestD = Infinity;
     for (let i = 1; i < path.points.length; i++) {
       const a = path.points[i - 1], b = path.points[i];
@@ -552,6 +742,31 @@
       bestD = Math.min(bestD, Math.hypot(x - (a.x + dx * t), y - (a.y + dy * t)));
     }
     return bestD;
+  }
+  function distToPathNetwork(path, x, y) {
+    if (!path) return Infinity;
+    if (path.lanes && path.lanes.length) {
+      let best = Infinity;
+      for (const lane of path.lanes) best = Math.min(best, distToPath(lane, x, y));
+      return best;
+    }
+    return distToPath(path, x, y);
+  }
+  function laneForEnemy(e) {
+    if (!state.path) return null;
+    if (state.path.lanes && state.path.lanes.length) {
+      const i = Math.max(0, Math.min(state.path.lanes.length - 1, e.lane || 0));
+      return state.path.lanes[i];
+    }
+    return state.path;
+  }
+  function enemyPos(e) {
+    const lane = laneForEnemy(e);
+    return lane ? posOnPath(lane, e.dist) : { x: 0, y: 0 };
+  }
+  function enemyPathTotal(e) {
+    const lane = laneForEnemy(e);
+    return lane ? lane.total : (state.path ? state.path.total : 0);
   }
 
   function bossCountForWave(wave, rng) {
@@ -570,18 +785,22 @@
   function wavePlan(seed, wave, diffId) {
     const diff = DIFFICULTIES[diffId] || DIFFICULTIES.normal;
     const rng = mulberry32(hashSeed(seed + ":wave:" + wave + ":" + diff.id));
-    // Skill-forward curve: punchy early, readable mid, firm late without brick walls.
     const early = Math.min(wave, 10);
     const mid = Math.max(0, Math.min(wave, 22) - 10);
     const late = Math.max(0, Math.min(wave, 40) - 22);
     const deep = Math.max(0, wave - 40);
-    const difficulty = (1 + (early - 1) * 0.1 + mid * 0.145 + late * 0.2 + deep * 0.22) * diff.hpMul;
+    // Steeper deep curve so endless is a real climb (cost-per-DPS tuned).
+    const difficulty = (
+      1 + early * BALANCE.hpEarly + mid * BALANCE.hpMid + late * BALANCE.hpLate
+    ) * Math.pow(BALANCE.hpDeepBase, deep) * diff.hpMul;
     const bossN = bossCountForWave(wave, rng);
     const isBoss = bossN > 0;
-    const count = Math.min(50, Math.floor((6 + Math.floor(wave * 1.28 + rng() * 3)) * diff.countMul));
-    const interval = Math.max(0.22, (0.94 - wave * 0.026 + (rng() - 0.5) * 0.12) * diff.intervalMul);
+    const count = Math.min(
+      BALANCE.countCap,
+      Math.floor((7 + Math.floor(wave * 1.35 + rng() * 3) + deep * 0.15) * diff.countMul)
+    );
+    const interval = Math.max(0.18, (0.9 - wave * 0.024 + (rng() - 0.5) * 0.1) * diff.intervalMul);
     const mix = [];
-    // Shared HP budget across multi-boss packs keeps them fair and readable.
     const bossHpShare = bossN <= 1 ? 1 : (0.62 + 0.38 / bossN);
     const usedBosses = new Set();
     const bossPacks = [];
@@ -595,8 +814,8 @@
     const weights = {
       drone: 0.4 + rng() * 0.15,
       crawler: 0.28,
-      armor: Math.min(0.4, 0.08 + wave * 0.02 + (diff.id === "nightmare" ? 0.08 : 0)),
-      swarm: wave >= 3 ? 0.22 + rng() * 0.12 : 0,
+      armor: Math.min(0.45, 0.1 + wave * 0.022 + (diff.id === "nightmare" ? 0.1 : 0)),
+      swarm: wave >= 3 ? 0.24 + rng() * 0.12 : 0,
     };
     let left = Math.max(0, count - bossN);
     const fodder = [];
@@ -616,7 +835,6 @@
       const j = Math.floor(rng() * (i + 1));
       [fodder[i], fodder[j]] = [fodder[j], fodder[i]];
     }
-    // Keep bosses from stacking: fodder first half, then spaced bosses, then rest.
     if (bossN > 0 && fodder.length) {
       const split = Math.ceil(fodder.length * 0.45);
       mix.length = 0;
@@ -626,9 +844,12 @@
     } else {
       for (const f of fodder) mix.push(f);
     }
+    const rewardFade = 1 / (1 + deep * BALANCE.rewardDeepFade);
     return {
       count, interval, mix, difficulty, isBoss, bossN,
-      speedMul: diff.speedMul, rewardMul: diff.rewardMul,
+      speedMul: diff.speedMul * (1 + Math.min(0.35, deep * 0.002)),
+      rewardMul: diff.rewardMul * rewardFade * BALANCE.scrapKillScale,
+      spawnLanes: (state.path && state.path.spawnN) || spawnCountForDifficulty(diff.id),
     };
   }
 
@@ -757,8 +978,8 @@
 
   const COACH_STEPS = [
     "Pick Turret, then place on stone beside the rift.",
-    "Tap your tower → socket Fire / Water / Earth / Wind.",
-    "Speed up with 1×…5× when waves feel slow.",
+    "Tap your tower → socket elements (try Arc / Frost too).",
+    "Watch △ weak / □ resist pips — trial wins fights.",
   ];
   let coachTimer = null;
   function syncCoachDots(step) {
@@ -833,7 +1054,7 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     state.w = cssW; state.h = cssH;
     if (state.seed) {
-      state.path = generatePath(state.seed, state.w, state.h);
+      state.path = generatePath(state.seed, state.w, state.h, state.difficulty);
       for (const t of state.towers) {
         if (t.nx != null) { t.x = t.nx * state.w; t.y = t.ny * state.h; }
       }
@@ -848,12 +1069,14 @@
       betweenWaves: state.betweenWaves, spawnTimer: state.spawnTimer, spawnQueue: state.spawnQueue,
       towers: state.towers.map((t) => ({
         type: t.type, nx: t.x / state.w, ny: t.y / state.h,
-        level: t.level, cooldown: t.cooldown, elements: t.elements || [],
+        level: t.level, cooldown: t.cooldown, levelCd: t.levelCd || 0, elements: t.elements || [],
       })),
       enemies: state.enemies.map((e) => ({
-        type: e.type, dist: e.dist, hp: e.hp, maxHp: e.maxHp, speed: e.speed,
+        type: e.type, dist: e.dist, hp: e.hp, maxHp: e.maxHp, speed: e.speed, lane: e.lane || 0,
         slow: e.slow, slowT: e.slowT, burn: e.burn, burnT: e.burnT,
-        chillT: e.chillT, shred: e.shred, knockCd: e.knockCd || 0, reward: e.reward, tags: e.tags,
+        chillT: e.chillT, shred: e.shred, knockCd: e.knockCd || 0,
+        stunT: e.stunT || 0, stunCd: e.stunCd || 0, freezeT: e.freezeT || 0,
+        reward: e.reward, tags: e.tags,
         resist: e.resist, bossIndex: e.bossIndex, bossTotal: e.bossTotal, color: e.color, r: e.r,
         ability: e.ability, shield: e.shield, shieldMax: e.shieldMax, shieldCd: e.shieldCd,
         abilityT: e.abilityT, enraged: e.enraged, baseSpeed: e.baseSpeed, label: e.label,
@@ -875,19 +1098,16 @@
     } catch { return false; }
   }
   function hydrateTower(t) {
-    const stats = towerStats(t.type);
     const level = t.level || 1;
-    return {
+    const tower = {
       type: t.type, x: t.nx * state.w, y: t.ny * state.h, nx: t.nx, ny: t.ny,
-      level, cooldown: t.cooldown || 0, elements: [...(t.elements || [])],
-      ...stats,
-      damage: stats.damage * (1 + (level - 1) * 0.35),
-      range: stats.range * (1 + (level - 1) * 0.1),
-      fireRate: stats.fireRate * Math.max(0.5, 1 - (level - 1) * 0.05),
-      splash: stats.splash ? stats.splash * (1 + (level - 1) * 0.12) : 0,
+      level, cooldown: t.cooldown || 0, levelCd: t.levelCd || 0,
+      elements: [...(t.elements || [])],
       aim: typeof t.aim === "number" ? t.aim : -Math.PI / 2,
       recoil: 0,
     };
+    applyTowerLevelStats(tower);
+    return tower;
   }
   function loadRun() {
     try {
@@ -898,7 +1118,7 @@
       runIsDaily = !!data.isDaily;
       runDailyKey = data.dailyKey || (runIsDaily ? dailyKey() : null);
       meta.selectedDifficulty = state.difficulty;
-      state.path = generatePath(state.seed, state.w, state.h);
+      state.path = generatePath(state.seed, state.w, state.h, state.difficulty);
       state.hp = data.hp; state.scrap = data.scrap; state.score = data.score; state.wave = data.wave;
       state.betweenWaves = data.betweenWaves || 0;
       state.spawnTimer = data.spawnTimer || 0;
@@ -917,7 +1137,9 @@
           shield: e.shield || 0, shieldMax: e.shieldMax || 0, shieldCd: e.shieldCd || 0,
           abilityT: e.abilityT || 0, enraged: !!e.enraged, baseSpeed: e.baseSpeed || e.speed,
           slow: e.slow || 1, slowT: e.slowT || 0, burn: e.burn || 0, burnT: e.burnT || 0,
-          chillT: e.chillT || 0, shred: e.shred || 0, knockCd: e.knockCd || 0, reward: e.reward, alive: true, hitFlash: 0,
+          chillT: e.chillT || 0, shred: e.shred || 0, knockCd: e.knockCd || 0,
+          stunT: e.stunT || 0, stunCd: e.stunCd || 0, freezeT: e.freezeT || 0,
+          matchFxAt: 0, reward: e.reward, alive: true, hitFlash: 0, lane: e.lane || 0,
         };
       });
       state.projectiles = []; state.fx = []; state.particles = [];
@@ -970,10 +1192,10 @@
       state.difficulty = "normal";
       state.seed = dailySeedFor(runDailyKey || dailyKey());
     }
-    state.path = generatePath(state.seed, state.w, state.h);
+    state.path = generatePath(state.seed, state.w, state.h, state.difficulty);
     const diff = currentDiff();
     state.hp = diff.id === "nightmare" ? 16 : diff.id === "hard" ? 18 : 20;
-    state.scrap = diff.id === "nightmare" ? 110 : diff.id === "hard" ? 130 : 145;
+    state.scrap = Math.floor(BALANCE.scrapStart * (diff.id === "nightmare" ? 0.85 : diff.id === "hard" ? 0.95 : 1));
     state.score = 0; state.wave = 0;
     state.towers = []; state.enemies = []; state.projectiles = []; state.fx = []; state.particles = [];
     state.spawnQueue = []; state.spawnTimer = 0; state.betweenWaves = 1.2;
@@ -982,7 +1204,7 @@
     state.shake = 0; state.flash = 0;
     state.mode = "playing";
     showScreen(null);
-    showBanner(diff.name.toUpperCase() + " RUN");
+    showBanner(diff.name);
     ensureAudio();
     sfx.start();
     syncMusic();
@@ -1050,7 +1272,7 @@
     els.upgrades.classList.toggle("hidden", name !== "upgrades");
     els.pause.classList.toggle("hidden", name !== "pause");
     els.over.classList.toggle("hidden", name !== "over");
-    els.codex.classList.toggle("hidden", name !== "codex");
+    if (els.codex) els.codex.classList.toggle("hidden", name !== "codex");
     if (els.settings) els.settings.classList.toggle("hidden", name !== "settings");
     // Layout mode: play chrome only when no full-screen sheet is up (stops HUD/dock stacking).
     const app = $("app");
@@ -1308,7 +1530,56 @@
     });
   }
   function upgradeCost(t) {
-    return Math.floor(BASE_TOWER[t.type].cost * (0.5 + t.level * 0.42));
+    // Steeper curve so endless scrap can't buy infinite power.
+    const base = BASE_TOWER[t.type].cost;
+    return Math.floor(base * (0.62 + t.level * 0.58 + Math.pow(Math.max(0, t.level - 3), 1.35) * 0.35));
+  }
+  function towerLevelReady(t) {
+    return !t.levelCd || t.levelCd <= 0;
+  }
+  function applyTowerLevelStats(t) {
+    const base = towerStats(t.type);
+    const soft = 1 + Math.max(0, t.level - 6) * BALANCE.levelDmgSoft;
+    t.damage = base.damage * (1 + (t.level - 1) * BALANCE.levelDmgPer) / soft;
+    t.range = base.range * (1 + (t.level - 1) * BALANCE.levelRangePer);
+    t.fireRate = base.fireRate * Math.max(0.48, 1 - (t.level - 1) * BALANCE.levelRatePer);
+    if (base.splash) t.splash = base.splash * (1 + (t.level - 1) * 0.1);
+    Object.assign(t, {
+      hitsAir: base.hitsAir, hitsGround: base.hitsGround,
+      airBonus: base.airBonus, armorPenalty: base.armorPenalty, armorBonus: base.armorBonus,
+      slow: base.slow, slowDur: base.slowDur, crit: base.crit, burn: base.burn,
+      chain: base.chain, pierce: base.pierce, bossBonus: base.bossBonus,
+      color: base.color, sell: base.sell,
+    });
+  }
+  function levelTower(t, opts = {}) {
+    if (!t || !towerLevelReady(t)) return false;
+    const cost = upgradeCost(t);
+    if (state.scrap < cost) return false;
+    state.scrap -= cost;
+    t.level += 1;
+    t.levelCd = BALANCE.levelCd;
+    applyTowerLevelStats(t);
+    if (!opts.silent) {
+      burstUpgrade(t.x, t.y, t.color);
+      sfx.upgrade();
+    }
+    return true;
+  }
+  function autoLevelAllTowers() {
+    if (!state.towers.length) { toast("No towers yet"); return; }
+    let n = 0;
+    // Cheapest-first so scrap spreads.
+    const order = state.towers.map((t, i) => i).sort((a, b) => upgradeCost(state.towers[a]) - upgradeCost(state.towers[b]));
+    for (const i of order) {
+      const t = state.towers[i];
+      if (!towerLevelReady(t)) continue;
+      if (!levelTower(t, { silent: true })) continue;
+      n += 1;
+      burstUpgrade(t.x, t.y, t.color);
+    }
+    if (n) { sfx.upgrade(); toast(`Leveled ${n} tower${n > 1 ? "s" : ""}`); updateHUD(); saveRun(); }
+    else toast("On cooldown or need scrap");
   }
   function elementCost(t) {
     return (t.elements && t.elements.length) ? ELEMENT_SECOND_COST : ELEMENTS.fire.cost;
@@ -1323,36 +1594,47 @@
     els.inspect.classList.remove("hidden");
     const elsList = sel.elements || [];
     const matchTip = elsList.length
-      ? `<span class="match-tip">Sockets deal × resist on each foe — check Codex matchups.</span><br>`
-      : `<span class="match-tip">Socket elements: enemies resist / weaken specific ones.</span><br>`;
+      ? `<span class="match-tip">Hit feedback shows WEAK / RESIST — △ weak · □ resist on foes.</span><br>`
+      : `<span class="match-tip">Socket up to 2. Pair for combos; learn matchups in combat.</span><br>`;
     els.inspectText.innerHTML =
       `<strong>${BASE_TOWER[sel.type].name}</strong> Lv${sel.level} · ${BASE_TOWER[sel.type].blurb}<br>` +
       matchTip +
       `${describeCombo(elsList)} · socket ${elsList.length}/${MAX_ELEMENTS}` +
       (elsList.length < MAX_ELEMENTS ? ` · next ${elementCost(sel)} scrap` : "");
     els.btnSell.disabled = false;
-    els.btnUpgrade.disabled = state.scrap < upgradeCost(sel);
-    els.btnUpgrade.textContent = `Up ${upgradeCost(sel)}`;
+    const ready = towerLevelReady(sel);
+    const upCost = upgradeCost(sel);
+    els.btnUpgrade.disabled = !ready || state.scrap < upCost;
+    els.btnUpgrade.textContent = !ready ? `Up ${Math.ceil(sel.levelCd || 0)}s` : `Up ${upCost}`;
+    if (els.btnAutoLevel) {
+      const anyReady = state.towers.some((t) => towerLevelReady(t) && state.scrap >= upgradeCost(t));
+      els.btnAutoLevel.disabled = !anyReady;
+    }
     document.querySelectorAll(".el-btn").forEach((btn) => {
       const el = btn.dataset.el;
+      const def = ELEMENTS[el];
       const owned = elsList.includes(el);
       const full = elsList.length >= MAX_ELEMENTS;
+      const label = def ? def.name : (el[0].toUpperCase() + el.slice(1));
       btn.classList.toggle("active", owned);
       btn.disabled = owned || (full && !owned) || state.scrap < elementCost(sel);
-      btn.textContent = owned ? el[0].toUpperCase() + el.slice(1) + " ✓" : el[0].toUpperCase() + el.slice(1);
+      btn.textContent = owned ? label + " ✓" : label;
+      if (def) btn.title = `${def.name}: ${def.tip}`;
     });
   }
 
   function showBanner(text) {
     const b = els.banner;
+    if (!b) return;
     b.textContent = text;
-    b.classList.remove("hidden");
+    b.classList.remove("hidden", "show");
+    // Subtle non-blocking chip — short dwell, no stage takeover.
     requestAnimationFrame(() => b.classList.add("show"));
     clearTimeout(showBanner._t);
     showBanner._t = setTimeout(() => {
       b.classList.remove("show");
-      setTimeout(() => b.classList.add("hidden"), 280);
-    }, 1200);
+      setTimeout(() => b.classList.add("hidden"), 220);
+    }, 700);
   }
   function toast(text) {
     const t = els.toast;
@@ -1374,55 +1656,103 @@
     document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === upgradeTab));
     const list = els.upgradeList;
     list.innerHTML = "";
-    for (const u of UPGRADE_TREES[upgradeTab]) {
-      const owned = !!meta.owned[u.id];
-      const reqOk = !u.req || !!meta.owned[u.req];
-      const row = document.createElement("div");
-      row.className = "up-row" + (owned ? " owned" : "") + (!reqOk && !owned ? " locked" : "");
-      row.innerHTML = `<div><h3>${u.name}</h3><p>${u.desc}${u.req && !reqOk ? " · needs prior node" : ""}</p></div>`;
-      const btn = document.createElement("button");
-      btn.type = "button"; btn.className = "buy-btn";
-      if (owned) { btn.textContent = "Owned"; btn.disabled = true; }
-      else {
-        btn.textContent = `${u.cost}`;
-        btn.disabled = !reqOk || meta.chips < u.cost;
-        btn.addEventListener("click", () => {
-          if (meta.owned[u.id] || meta.chips < u.cost || (u.req && !meta.owned[u.req])) return;
-          meta.chips -= u.cost; meta.owned[u.id] = true;
+    list.className = "upgrade-tree";
+    const tree = UPGRADE_TREES[upgradeTab] || [];
+    const maxRow = tree.reduce((m, u) => Math.max(m, u.row || 0), 0);
+    const maxCol = tree.reduce((m, u) => Math.max(m, u.col || 0), 0);
+    const grid = document.createElement("div");
+    grid.className = "up-tree-grid";
+    grid.style.setProperty("--up-cols", String(maxCol + 1));
+    grid.style.setProperty("--up-rows", String(maxRow + 1));
+    // Connector layer
+    const wires = document.createElement("div");
+    wires.className = "up-tree-wires";
+    wires.setAttribute("aria-hidden", "true");
+    for (const u of tree) {
+      if (!u.req) continue;
+      const parent = tree.find((p) => p.id === u.req);
+      if (!parent) continue;
+      const wire = document.createElement("span");
+      wire.className = "up-wire" + (ownedRank(u.req) >= (u.reqRank || 1) ? " lit" : "");
+      const x1 = (parent.col + 0.5) / (maxCol + 1);
+      const y1 = (parent.row + 0.82) / (maxRow + 1);
+      const x2 = (u.col + 0.5) / (maxCol + 1);
+      const y2 = (u.row + 0.18) / (maxRow + 1);
+      wire.style.left = `${Math.min(x1, x2) * 100}%`;
+      wire.style.width = `${Math.abs(x2 - x1) * 100}%`;
+      wire.style.top = `${y1 * 100}%`;
+      wire.style.height = `${Math.max(8, (y2 - y1) * 100)}%`;
+      if (Math.abs(x2 - x1) < 0.02) wire.classList.add("vert");
+      else wire.classList.add("elbow");
+      wires.appendChild(wire);
+    }
+    grid.appendChild(wires);
+    for (const u of tree) {
+      const rank = ownedRank(u.id);
+      const max = u.max || 1;
+      const full = rank >= max;
+      const reqOk = reqSatisfied(u);
+      const nextCost = full ? 0 : upgradeCostAt(u, rank + 1);
+      const node = document.createElement("button");
+      node.type = "button";
+      node.className = "up-node" + (rank ? " owned" : "") + (full ? " maxed" : "") + (!reqOk && !rank ? " locked" : "");
+      node.style.gridColumn = String((u.col || 0) + 1);
+      node.style.gridRow = String((u.row || 0) + 1);
+      node.innerHTML =
+        `<span class="up-ico up-ico-${u.icon || "star"}" aria-hidden="true"></span>` +
+        `<span class="up-body"><span class="up-name">${u.name}</span>` +
+        `<span class="up-desc">${u.desc}</span>` +
+        `<span class="up-rank">${rank}/${max}</span></span>` +
+        `<span class="up-cost">${full ? "MAX" : nextCost}</span>`;
+      node.disabled = full || !reqOk || meta.chips < nextCost;
+      if (!full && reqOk) {
+        node.addEventListener("click", () => {
+          const r = ownedRank(u.id);
+          if (r >= (u.max || 1) || !reqSatisfied(u)) return;
+          const cost = upgradeCostAt(u, r + 1);
+          if (meta.chips < cost) return;
+          meta.chips -= cost;
+          meta.owned[u.id] = r + 1;
           saveJSON(STORAGE.meta, meta); sfx.buy();
           renderUpgrades(); refreshHub();
         });
       }
-      row.appendChild(btn); list.appendChild(row);
+      grid.appendChild(node);
     }
+    list.appendChild(grid);
   }
 
   function beginWave() {
     state.wave += 1;
     const plan = wavePlan(state.seed, state.wave, state.difficulty);
     state.spawnQueue = [];
+    const laneN = (state.path && state.path.spawnN) || plan.spawnLanes || 1;
+    let laneCursor = 0;
     for (const pack of plan.mix) {
       for (let i = 0; i < pack.n; i++) {
+        const lane = laneCursor % laneN;
+        laneCursor += 1;
         state.spawnQueue.push({
           type: pack.type, difficulty: plan.difficulty,
           speedMul: plan.speedMul, rewardMul: plan.rewardMul,
           bossIndex: pack.bossIndex, bossTotal: pack.bossTotal, bossHpShare: pack.bossHpShare,
+          lane,
         });
       }
     }
     state.spawnTimer = 0.35; state.betweenWaves = 0;
     const diffName = (DIFFICULTIES[state.difficulty] || DIFFICULTIES.normal).name;
-    let banner = `${diffName.toUpperCase()} ${state.wave}`;
+    let banner = `W${state.wave}`;
     if (plan.bossN > 1) {
       const names = [...new Set(plan.mix.filter((p) => isBossType(p.type)).map((p) => (ENEMY[p.type] || {}).label || p.type))];
       banner = names.length <= 2
-        ? `${names.join(" + ")} · ${state.wave}`
-        : `BOSSES ×${plan.bossN} · ${state.wave}`;
+        ? `${names.join(" + ")} · W${state.wave}`
+        : `×${plan.bossN} · W${state.wave}`;
     } else if (plan.isBoss) {
       const b = plan.mix.find((p) => isBossType(p.type));
-      banner = `${((b && ENEMY[b.type]) || {}).label || "BOSS"} · ${state.wave}`;
+      banner = `${((b && ENEMY[b.type]) || {}).label || "Boss"} · W${state.wave}`;
     }
-    if (livingBossCount() > 0 && plan.isBoss) banner = `OVERLAP · ${banner}`;
+    if (livingBossCount() > 0 && plan.isBoss) banner = `Overlap · ${banner}`;
     showBanner(banner);
     sfx.wave();
     saveRun();
@@ -1453,7 +1783,9 @@
       shield: shieldMax, shieldMax, shieldCd: 0,
       abilityT: 1.5 + Math.random() * 1.5,
       enraged: false,
-      slow: 1, slowT: 0, burn: 0, burnT: 0, chillT: 0, shred: 0, knockCd: 0, alive: true, hitFlash: 0,
+      slow: 1, slowT: 0, burn: 0, burnT: 0, chillT: 0, shred: 0, knockCd: 0,
+      stunT: 0, stunCd: 0, freezeT: 0, matchFxAt: 0, alive: true, hitFlash: 0,
+      lane: meta.lane || 0,
     });
   }
 
@@ -1462,15 +1794,24 @@
     if (!type || !state.path) return;
     const stats = towerStats(type);
     if (state.scrap < stats.cost) { toast("Not enough scrap"); return; }
-    if (distToPath(state.path, x, y) < 28) { toast("Too close to the rift"); return; }
+    if (distToPathNetwork(state.path, x, y) < 28) { toast("Too close to the rift"); return; }
     if (x < 16 || y < 16 || x > state.w - 16 || y > state.h - 16) return;
     for (const t of state.towers) {
       if (Math.hypot(t.x - x, t.y - y) < 36) { toast("Too close to another tower"); return; }
     }
     state.scrap -= stats.cost;
+    // Snap to nearest bend pad when close — guarantees a spot at each bend.
+    if (state.path.pads && state.path.pads.length) {
+      let best = null, bestD = 28;
+      for (const pad of state.path.pads) {
+        const d = Math.hypot(pad.x - x, pad.y - y);
+        if (d < bestD) { bestD = d; best = pad; }
+      }
+      if (best) { x = best.x; y = best.y; }
+    }
     state.towers.push({
       type, x, y, nx: x / state.w, ny: y / state.h,
-      level: 1, cooldown: 0, elements: [], ...stats,
+      level: 1, cooldown: 0, levelCd: 0, elements: [], ...stats,
       aim: -Math.PI / 2, recoil: 0,
     });
     burstPlace(x, y, stats.color);
@@ -1491,7 +1832,7 @@
     let bestE = null;
     for (const e of enemies) {
       if (!e.alive || !canTarget(tower, e)) continue;
-      const p = posOnPath(state.path, e.dist);
+      const p = enemyPos(e);
       const d = Math.hypot(p.x - tower.x, p.y - tower.y);
       if (d <= tower.range && e.dist > (bestE ? bestE.dist : -1)) bestE = e;
     }
@@ -1509,6 +1850,8 @@
 
     if (tower.airBonus && flying) mul *= tower.airBonus;
     if (tower.armorPenalty && armored) mul *= tower.armorPenalty;
+    if (tower.armorBonus && armored) mul *= tower.armorBonus;
+    if (tower.bossBonus && isBossEnemy(enemy)) mul *= 1 + tower.bossBonus;
 
     if (key === "earth+wind") {
       if (tower.armorPenalty && armored) mul /= tower.armorPenalty;
@@ -1521,7 +1864,14 @@
       if (has("wind") && armored) mul *= 0.7;
       if (has("fire") && swarm) mul *= 1.25;
       if (has("fire") && armored) mul *= 0.85;
+      if (has("arc") && armored) mul *= 1.3;
+      if (has("frost") && enemy.tags.includes("fast")) mul *= 1.2;
+      if (has("frost") && swarm) mul *= 1.15;
     }
+
+    if (key === "arc+fire") mul *= 1.35;
+    if (key === "fire+frost" && armored) mul *= 1.4;
+    if (key === "arc+frost" && (enemy.stunT > 0 || enemy.freezeT > 0)) mul *= 1.25;
 
     // Per-enemy elemental resists / weaknesses (matchups).
     mul *= elementResistMul(enemy, elsArr);
@@ -1535,7 +1885,7 @@
     const elsArr = tower.elements || [];
     const has = (e) => elsArr.includes(e);
     const key = comboKey(elsArr);
-    const p = posOnPath(state.path, enemy.dist);
+    const p = enemyPos(enemy);
     const r = enemyResist(enemy);
     const resistFactor = (el) => {
       const v = r[el] == null ? 1 : r[el];
@@ -1576,11 +1926,35 @@
         enemy.knockCd = key === "earth+wind" ? 0.85 : 1.1;
       }
     }
+    if (has("arc")) {
+      const rf = resistFactor("arc");
+      const stunCd = enemy.stunCd || 0;
+      if (stunCd <= 0 && rf > 0.35) {
+        const dur = (key === "arc+earth" || key === "arc+frost" ? 0.55 : 0.28) * Math.min(1.2, rf);
+        enemy.stunT = Math.max(enemy.stunT || 0, dur);
+        enemy.stunCd = key === "arc+earth" ? 1.4 : 1.8;
+        if (Math.random() < 0.35) {
+          state.fx.push({ kind: "text", x: p.x, y: p.y - 20, t: 0.4, text: "SHOCK", color: ELEMENTS.arc.color });
+        }
+      }
+    }
+    if (has("frost")) {
+      const rf = resistFactor("frost");
+      const deep = key === "frost+water" || key === "arc+frost" || key === "earth+frost";
+      const freezeAmt = deep ? 0.12 : 0.28;
+      const slowAmt = 1 - (1 - freezeAmt) * rf;
+      enemy.slow = Math.min(enemy.slow, Math.min(0.95, Math.max(0.08, slowAmt)));
+      enemy.slowT = Math.max(enemy.slowT, (deep ? 2.4 : 1.4) * Math.min(1.25, rf));
+      enemy.freezeT = Math.max(enemy.freezeT || 0, (deep ? 1.6 : 0.9) * Math.min(1.2, rf));
+      if (key === "earth+frost") {
+        enemy.shred = Math.min(0.5, (enemy.shred || 0) + 0.1 * rf);
+      }
+    }
 
     if (key === "fire+water") {
       for (const e of state.enemies) {
         if (!e.alive || e === enemy) continue;
-        const q = posOnPath(state.path, e.dist);
+        const q = enemyPos(e);
         if (Math.hypot(q.x - p.x, q.y - p.y) < 42) {
           e.hp -= dealt * 0.35;
           e.slow = Math.min(e.slow, 0.7);
@@ -1594,11 +1968,73 @@
     if (key === "fire+wind" && enemy.burnT > 0) {
       for (const e of state.enemies) {
         if (!e.alive || e === enemy) continue;
-        const q = posOnPath(state.path, e.dist);
+        const q = enemyPos(e);
         if (Math.hypot(q.x - p.x, q.y - p.y) < 55) {
           e.burn = Math.max(e.burn, 6);
           e.burnT = Math.max(e.burnT, 1.8);
         }
+      }
+    }
+    if (key === "arc+water") {
+      for (const e of state.enemies) {
+        if (!e.alive || e === enemy) continue;
+        const q = enemyPos(e);
+        if (Math.hypot(q.x - p.x, q.y - p.y) < 48) {
+          e.hp -= dealt * 0.28;
+          e.stunT = Math.max(e.stunT || 0, 0.2);
+          if (e.hp <= 0) killEnemy(e);
+        }
+      }
+      pushCombatFx({ kind: "blast", x: p.x, y: p.y, t: 0.28, r: 48, color: ELEMENTS.arc.color });
+      spawnParticles(p.x, p.y, ELEMENTS.arc.color, 10, 80);
+    }
+    if (key === "arc+earth") {
+      for (const e of state.enemies) {
+        if (!e.alive || e === enemy) continue;
+        const q = enemyPos(e);
+        if (Math.hypot(q.x - p.x, q.y - p.y) < 50) {
+          e.stunT = Math.max(e.stunT || 0, 0.35);
+          e.stunCd = Math.max(e.stunCd || 0, 1.1);
+        }
+      }
+      pushCombatFx({ kind: "ring", x: p.x, y: p.y, t: 0.35, r0: 10, r1: 50, color: ELEMENTS.earth.color });
+    }
+    if (key === "arc+wind") {
+      let bestD = Infinity, second = null;
+      for (const e of state.enemies) {
+        if (!e.alive || e === enemy) continue;
+        const q = enemyPos(e);
+        const d = Math.hypot(q.x - p.x, q.y - p.y);
+        if (d < 70 && d < bestD) { bestD = d; second = e; }
+      }
+      if (second) {
+        const q = enemyPos(second);
+        second.hp -= dealt * 0.55;
+        if (settings.hitFlash !== false) second.hitFlash = 0.1;
+        second.stunT = Math.max(second.stunT || 0, 0.18);
+        state.fx.push({ kind: "beam", x: p.x, y: p.y, x2: q.x, y2: q.y, t: 0.12, color: ELEMENTS.arc.color });
+        pushCombatFx({ kind: "spark", x: q.x, y: q.y, t: 0.22, color: ELEMENTS.arc.color });
+        if (second.hp <= 0) killEnemy(second);
+      }
+    }
+    if (key === "frost+wind") {
+      for (const e of state.enemies) {
+        if (!e.alive || e === enemy) continue;
+        const q = enemyPos(e);
+        if (Math.hypot(q.x - p.x, q.y - p.y) < 58) {
+          e.slow = Math.min(e.slow, 0.45);
+          e.slowT = Math.max(e.slowT, 1.2);
+          e.freezeT = Math.max(e.freezeT || 0, 0.7);
+          e.chillT = Math.max(e.chillT, 1.2);
+        }
+      }
+      pushCombatFx({ kind: "blast", x: p.x, y: p.y, t: 0.32, r: 58, color: ELEMENTS.frost.color });
+      spawnParticles(p.x, p.y, ELEMENTS.frost.color, 12, 70);
+    }
+    if (key === "fire+frost" && enemy.tags.includes("armored")) {
+      enemy.shred = Math.min(0.5, (enemy.shred || 0) + 0.18);
+      if (Math.random() < 0.4) {
+        state.fx.push({ kind: "text", x: p.x, y: p.y - 22, t: 0.4, text: "MELT", color: ELEMENTS.frost.color });
       }
     }
   }
@@ -1606,7 +2042,7 @@
   function killEnemy(e, opts = {}) {
     if (!e.alive) return;
     e.alive = false;
-    const p = posOnPath(state.path, e.dist);
+    const p = enemyPos(e);
     state.scrap += e.reward;
     state.score += e.reward * 2 + Math.floor(state.wave);
     pushCombatFx({ kind: "pop", x: p.x, y: p.y, t: 0.4, color: e.color });
@@ -1618,7 +2054,7 @@
     if (opts.magma) {
       for (const o of state.enemies) {
         if (!o.alive) continue;
-        const q = posOnPath(state.path, o.dist);
+        const q = enemyPos(o);
         if (Math.hypot(q.x - p.x, q.y - p.y) < 50) {
           o.hp -= opts.magma;
           o.burn = Math.max(o.burn, 5);
@@ -1633,17 +2069,18 @@
 
   function damageEnemy(e, amount, tower, opts = {}) {
     if (!e.alive) return 0;
-    let dmg = amount * damageMultiplier(tower, e);
+    const matchMul = damageMultiplier(tower, e);
+    let dmg = amount * matchMul;
     let didCrit = false;
     if (opts.critChance && Math.random() < opts.critChance) {
       dmg *= 2;
       didCrit = true;
-      const p = posOnPath(state.path, e.dist);
+      const p = enemyPos(e);
       state.fx.push({ kind: "text", x: p.x, y: p.y - 14, t: 0.5, text: "CRIT", color: "#ffb34a" });
       addShake(0.4);
     }
     if (comboKey(tower.elements || []) === "water+wind" && e.chillT > 0) {
-      const p = posOnPath(state.path, e.dist);
+      const p = enemyPos(e);
       state.fx.push({ kind: "text", x: p.x, y: p.y - 18, t: 0.45, text: "SHATTER", color: "#4db8c4" });
     }
     if (e.shield > 0) {
@@ -1653,7 +2090,7 @@
       e.shieldCd = 4.5;
       if (dmg <= 0) {
         if (settings.hitFlash !== false) e.hitFlash = 0.08;
-        const sp = posOnPath(state.path, e.dist);
+        const sp = enemyPos(e);
         pushCombatFx({ kind: "spark", x: sp.x, y: sp.y, t: 0.2, color: "#d8d0c4" });
         return absorbed;
       }
@@ -1661,17 +2098,37 @@
     e.hp -= dmg;
     if (settings.hitFlash !== false) e.hitFlash = 0.12;
     applyOnHitEffects(tower, e, dmg);
-    const p = posOnPath(state.path, e.dist);
+    const p = enemyPos(e);
     pushCombatFx({ kind: "spark", x: p.x, y: p.y, t: 0.28, color: opts.color || tower.color });
+    // Teach matchups in combat: occasional WEAK / RESIST callouts (ICD per foe).
+    const elsArr = tower.elements || [];
+    if (elsArr.length && !opts.silentMatch) {
+      const now = performance.now();
+      const cdUntil = e.matchFxAt || 0;
+      if (now >= cdUntil) {
+        if (matchMul >= 1.25) {
+          state.fx.push({ kind: "text", x: p.x, y: p.y - e.r - 20, t: 0.5, text: "WEAK", color: "#6fbf8a" });
+          e.matchFxAt = now + 900;
+        } else if (matchMul <= 0.75) {
+          state.fx.push({ kind: "text", x: p.x, y: p.y - e.r - 20, t: 0.5, text: "RESIST", color: "#a89a8c" });
+          e.matchFxAt = now + 900;
+        }
+      }
+    }
     if (settings.dmgNumbers !== false && dmg >= 1) {
       const shown = Math.max(1, Math.round(dmg));
+      let numColor = didCrit ? "#ffb34a" : (opts.color || "#f3ebe2");
+      if (!didCrit && elsArr.length) {
+        if (matchMul >= 1.25) numColor = "#9fe0b0";
+        else if (matchMul <= 0.75) numColor = "#9a9088";
+      }
       state.fx.push({
         kind: "text",
         x: p.x + (Math.random() - 0.5) * 10,
         y: p.y - e.r - 8,
         t: 0.55,
         text: String(shown),
-        color: didCrit ? "#ffb34a" : (opts.color || "#f3ebe2"),
+        color: numColor,
       });
     }
     spawnParticles(p.x, p.y, opts.color || tower.color, 4, 55);
@@ -1684,7 +2141,7 @@
   }
 
   function fireTower(tower, target) {
-    const p = posOnPath(state.path, target.dist);
+    const p = enemyPos(target);
     const elsArr = tower.elements || [];
     const tint = elsArr.length ? ELEMENTS[elsArr[0]].color : tower.color;
     tower.aim = Math.atan2(p.y - tower.y, p.x - tower.x);
@@ -1703,16 +2160,40 @@
         let second = null, bestD = Infinity;
         for (const e of state.enemies) {
           if (!e.alive || e === target || !canTarget(tower, e)) continue;
-          const q = posOnPath(state.path, e.dist);
+          const q = enemyPos(e);
           const d = Math.hypot(q.x - p.x, q.y - p.y);
           if (d < 70 && d < bestD) { bestD = d; second = e; }
         }
         if (second) {
-          const q = posOnPath(state.path, second.dist);
+          const q = enemyPos(second);
           damageEnemy(second, tower.damage * 0.7, tower, { color: tint });
           state.fx.push({ kind: "beam", x: p.x, y: p.y, x2: q.x, y2: q.y, t: 0.1, color: tint });
         }
       }
+    } else if (tower.type === "spire") {
+      // Pierce line: hit primary + further foes along the aim ray.
+      const ang = tower.aim;
+      const ux = Math.cos(ang), uy = Math.sin(ang);
+      const hits = [];
+      for (const e of state.enemies) {
+        if (!e.alive || !canTarget(tower, e)) continue;
+        const q = enemyPos(e);
+        const vx = q.x - tower.x, vy = q.y - tower.y;
+        const along = vx * ux + vy * uy;
+        if (along < 8 || along > tower.range) continue;
+        const perp = Math.abs(vx * uy - vy * ux);
+        if (perp > 16) continue;
+        hits.push({ e, along });
+      }
+      hits.sort((a, b) => a.along - b.along);
+      const pierce = Math.max(1, tower.pierce || 3);
+      const end = hits[Math.min(hits.length, pierce) - 1];
+      const ex = end ? enemyPos(end.e).x : tower.x + ux * tower.range;
+      const ey = end ? enemyPos(end.e).y : tower.y + uy * tower.range;
+      state.fx.push({ kind: "beam", x: tower.x, y: tower.y, x2: ex, y2: ey, t: 0.16, color: tint });
+      hits.slice(0, pierce).forEach((h, i) => {
+        damageEnemy(h.e, tower.damage * (1 - i * 0.12), tower, { color: tint, critChance: tower.crit || 0 });
+      });
     } else {
       state.projectiles.push({
         kind: "bolt", x: tower.x, y: tower.y, tx: p.x, ty: p.y,
@@ -1755,7 +2236,7 @@
       // Timer advance: next wave starts even if foes remain (overlaps OK).
       state.enemies = state.enemies.filter((e) => e.alive);
       state.betweenWaves = nextWaveDelay();
-      state.scrap += 32 + state.wave * 5;
+      state.scrap += Math.floor(BALANCE.scrapWaveBase + state.wave * BALANCE.scrapWavePer);
       saveRun();
     }
 
@@ -1764,13 +2245,16 @@
       if (!e.alive) continue;
       if (e.hitFlash > 0) e.hitFlash -= step;
       if (e.knockCd > 0) e.knockCd -= step;
+      if (e.stunCd > 0) e.stunCd -= step;
+      if (e.stunT > 0) e.stunT -= step;
+      if (e.freezeT > 0) e.freezeT -= step;
       if (e.slowT > 0) { e.slowT -= step; if (e.slowT <= 0) e.slow = 1; }
       if (e.chillT > 0) e.chillT -= step;
       if (e.burnT > 0) {
         e.burnT -= step;
         e.hp -= e.burn * step;
         if (Math.random() < step * 8) {
-          const p = posOnPath(state.path, e.dist);
+          const p = enemyPos(e);
           spawnParticles(p.x, p.y, "#e85d4c", 1, 30);
         }
         if (e.hp <= 0) killEnemy(e);
@@ -1799,15 +2283,21 @@
         if (!e.enraged && e.hp / e.maxHp <= 0.45) {
           e.enraged = true;
           e.speed = (e.baseSpeed || e.speed) * 1.4;
-          const p = posOnPath(state.path, e.dist);
+          const p = enemyPos(e);
           state.fx.push({ kind: "text", x: p.x, y: p.y - 16, t: 0.6, text: "TEMPEST", color: "#4db8c4" });
           spawnParticles(p.x, p.y, "#4db8c4", 14, 90);
         }
         if (e.enraged) e.knockCd = Math.max(e.knockCd, 0.3);
       }
 
-      e.dist += e.speed * e.slow * step;
-      if (e.dist >= state.path.total) {
+      const rooted = (e.stunT > 0) || (e.freezeT > 0 && e.slow <= 0.15);
+      const moveMul = e.stunT > 0 ? 0 : e.slow;
+      e.dist += e.speed * moveMul * step;
+      if (rooted && Math.random() < step * 3) {
+        const p = enemyPos(e);
+        spawnParticles(p.x, p.y, e.stunT > 0 ? ELEMENTS.arc.color : ELEMENTS.frost.color, 1, 20);
+      }
+      if (e.dist >= enemyPathTotal(e)) {
         e.alive = false;
         state.hp -= isBossEnemy(e) ? 5 : 1;
         pushCombatFx({ kind: "leak", t: 0.5 });
@@ -1823,15 +2313,16 @@
         const child = state.enemies[state.enemies.length - 1];
         child.dist = Math.max(0, b.dist - 18 - i * 10);
       }
-      const p = posOnPath(state.path, b.dist);
+      const p = enemyPos(b);
       spawnParticles(p.x, p.y, b.color, 8, 60);
     }
 
     for (const tower of state.towers) {
+      if (tower.levelCd > 0) tower.levelCd = Math.max(0, tower.levelCd - step);
       if (tower.recoil > 0) tower.recoil = Math.max(0, tower.recoil - step * 4.5);
       const track = findTarget(tower, state.enemies);
       if (track) {
-        const tp = posOnPath(state.path, track.dist);
+        const tp = enemyPos(track);
         const want = Math.atan2(tp.y - tower.y, tp.x - tower.x);
         let dAim = want - (tower.aim || 0);
         while (dAim > Math.PI) dAim -= Math.PI * 2;
@@ -1858,7 +2349,7 @@
         if (u >= 1) {
           for (const e of state.enemies) {
             if (!e.alive || !canTarget(p.tower, e)) continue;
-            const q = posOnPath(state.path, e.dist);
+            const q = enemyPos(e);
             if (Math.hypot(q.x - p.tx, q.y - p.ty) <= p.splash) {
               damageEnemy(e, p.damage, p.tower, { color: p.color });
             }
@@ -1969,120 +2460,68 @@
     }
   }
 
-  function drawRiftPath() {
-    if (!state.path) return;
-    const pts = state.path.points;
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-
-    // Outer ash shadow bank
-    ctx.strokeStyle = "rgba(0,0,0,0.55)";
-    ctx.lineWidth = 44;
+  function strokeLane(pts, widths) {
     ctx.beginPath();
     pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-    ctx.stroke();
-
-    // Cooled basalt lip
-    const bank = ctx.createLinearGradient(0, 0, 0, state.h);
-    bank.addColorStop(0, "#3a3028");
-    bank.addColorStop(0.5, "#2a241c");
-    bank.addColorStop(1, "#1c1814");
-    ctx.strokeStyle = bank;
-    ctx.lineWidth = 34;
-    ctx.beginPath();
-    pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-    ctx.stroke();
-
-    // Inner scorched edge
-    ctx.strokeStyle = "rgba(90, 40, 18, 0.65)";
-    ctx.lineWidth = 22;
-    ctx.beginPath();
-    pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-    ctx.stroke();
-
-    // Soft magma glow under channel
+  }
+  function drawOneLane(pts, alphaMul) {
     ctx.save();
-    ctx.strokeStyle = "rgba(232, 90, 42, 0.28)";
-    ctx.lineWidth = 20;
-    ctx.filter = "blur(2px)";
-    ctx.beginPath();
-    pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-    ctx.stroke();
-    ctx.restore();
-
-    // Molten channel
+    ctx.globalAlpha *= alphaMul;
+    ctx.strokeStyle = "rgba(0,0,0,0.5)";
+    ctx.lineWidth = 40;
+    ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.stroke();
+    ctx.strokeStyle = "#2a241c";
+    ctx.lineWidth = 30;
+    ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.stroke();
     const glow = ctx.createLinearGradient(0, 0, 0, state.h);
     glow.addColorStop(0, "#ffc86a");
-    glow.addColorStop(0.35, "#e85a2a");
-    glow.addColorStop(0.7, "#c43a18");
+    glow.addColorStop(0.4, "#e85a2a");
     glow.addColorStop(1, "#6a1c0c");
     ctx.strokeStyle = glow;
-    ctx.lineWidth = 13;
-    ctx.globalAlpha = 0.97;
-    ctx.beginPath();
-    pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-
-    // Bright core
-    ctx.strokeStyle = "rgba(255, 230, 160, 0.9)";
-    ctx.lineWidth = 3.2;
-    ctx.beginPath();
-    pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-    ctx.stroke();
-
-    // Flowing ember dashes
-    ctx.save();
-    ctx.setLineDash([5, 12]);
-    ctx.lineDashOffset = -state.time * 30;
-    ctx.strokeStyle = "rgba(255, 179, 74, 0.6)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-    ctx.stroke();
+    ctx.lineWidth = 12;
+    ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,230,160,0.85)";
+    ctx.lineWidth = 2.6;
+    ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.stroke();
     ctx.restore();
-
-    const start = pts[0], end = pts[pts.length - 1];
-    // Spawn vent
-    const ventPulse = 12 + Math.sin(state.time * 3) * 2;
-    const vent = ctx.createRadialGradient(start.x, start.y, 2, start.x, start.y, ventPulse + 4);
-    vent.addColorStop(0, "rgba(168, 238, 245, 0.55)");
-    vent.addColorStop(0.5, "rgba(77, 184, 196, 0.3)");
-    vent.addColorStop(1, "rgba(77, 184, 196, 0)");
-    ctx.fillStyle = vent;
-    ctx.beginPath(); ctx.arc(start.x, start.y, ventPulse + 4, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "rgba(168, 238, 245, 0.75)";
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(start.x, start.y, ventPulse, 0, Math.PI * 2); ctx.stroke();
-
-    // Wellheart — layered crystal shrine
-    const threatened = state.hp <= 5;
-    ctx.fillStyle = "rgba(0,0,0,0.4)";
-    ctx.beginPath();
-    ctx.ellipse(end.x, end.y + 16, 22, 7, 0, 0, Math.PI * 2);
-    ctx.fill();
-    const plinth = ctx.createLinearGradient(end.x - 20, end.y - 16, end.x + 20, end.y + 14);
-    plinth.addColorStop(0, threatened ? "#ff8a70" : "#ffb34a");
-    plinth.addColorStop(0.45, threatened ? "#e85d4c" : "#e8883a");
-    plinth.addColorStop(1, threatened ? "#5a1810" : "#5a2a10");
-    ctx.fillStyle = plinth;
-    roundRect(end.x - 20, end.y - 16, 40, 30, 10); ctx.fill();
-    ctx.strokeStyle = "rgba(26,16,8,0.45)";
-    ctx.lineWidth = 1.5;
-    roundRect(end.x - 20, end.y - 16, 40, 30, 10); ctx.stroke();
-    const core = ctx.createRadialGradient(end.x - 2, end.y - 2, 1, end.x, end.y, 9);
-    core.addColorStop(0, "#fff8e0");
-    core.addColorStop(0.4, threatened ? "#ffb4ab" : "#ffb34a");
-    core.addColorStop(1, "#1a1008");
-    ctx.fillStyle = core;
-    ctx.beginPath(); ctx.arc(end.x, end.y, 8, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,0.55)";
-    ctx.beginPath(); ctx.arc(end.x - 2.5, end.y - 2.5, 2, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#1a1008";
-    ctx.font = "800 9px Bricolage Grotesque, Avenir Next, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("WELL", end.x, end.y + 24);
   }
+  function drawRiftPath() {
+    if (!state.path) return;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    const lanes = (state.path.lanes && state.path.lanes.length) ? state.path.lanes : [state.path];
+    // Side lanes slightly quieter; main lane full heat.
+    lanes.forEach((lane, i) => drawOneLane(lane.points, i === 0 ? 1 : 0.72));
+    // Bend build pads — soft stone discs so placement reads as intentional.
+    if (state.path.pads) {
+      for (const pad of state.path.pads) {
+        ctx.save();
+        ctx.translate(pad.x, pad.y);
+        const g = ctx.createRadialGradient(0, 0, 2, 0, 0, 18);
+        g.addColorStop(0, "rgba(232,136,58,0.22)");
+        g.addColorStop(0.55, "rgba(44,36,28,0.85)");
+        g.addColorStop(1, "rgba(14,12,10,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "rgba(244,236,227,0.18)";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      }
+    }
+    // Spawn markers
+    lanes.forEach((lane, i) => {
+      const p = lane.points[0];
+      if (!p) return;
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = i === 0 ? "#ffb34a" : "#4db8c4";
+      ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    });
+  }
+
+
 
   function drawGhostPlacement() {
     if (!state.ghost || !state.selectedTower || !state.path) return;
@@ -2265,7 +2704,7 @@
       ctx.fillStyle = `rgba(111,191,138,${0.4 + pulse * 0.4})`;
       ctx.fillRect(-2, 8, 4, 3);
 
-    } else {
+    } else if (t.type === "coil") {
       const spin = state.time * 2.8;
       ctx.save();
       const chassis = ctx.createLinearGradient(-14, -14, 14, 14);
@@ -2310,6 +2749,31 @@
       ctx.moveTo(8, -2.5); ctx.lineTo(16 - recoil * 2, 0); ctx.lineTo(8, 2.5);
       ctx.closePath(); ctx.fill();
       ctx.restore();
+      ctx.restore();
+    } else if (t.type === "spire") {
+      const shaft = ctx.createLinearGradient(0, -28, 0, 12);
+      shaft.addColorStop(0, "#fff0c8");
+      shaft.addColorStop(0.35, "#d4a060");
+      shaft.addColorStop(1, "#4a3018");
+      ctx.fillStyle = shaft;
+      ctx.beginPath();
+      ctx.moveTo(-5, 10); ctx.lineTo(-3.5, -18); ctx.lineTo(0, -28); ctx.lineTo(3.5, -18); ctx.lineTo(5, 10);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = "rgba(255,230,160,0.35)";
+      ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = "#2a1c10";
+      roundRect(-7, 6, 14, 8, 2); ctx.fill();
+      ctx.save();
+      ctx.rotate(aim);
+      ctx.fillStyle = "#1a1008";
+      roundRect(2, -2.5, 14, 5, 1.5); ctx.fill();
+      if (recoil > 0.1) {
+        ctx.globalAlpha = recoil;
+        ctx.strokeStyle = "#ffb34a";
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(28 + recoil * 8, 0); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
       ctx.restore();
     }
 
@@ -2364,6 +2828,23 @@
       ctx.lineDashOffset = -state.time * 20;
       ctx.beginPath(); ctx.arc(0, 0, e.r + 8, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
+    }
+    if (e.stunT > 0) {
+      ctx.strokeStyle = ELEMENTS.arc.color;
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, e.r + 5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (e.freezeT > 0) {
+      ctx.strokeStyle = ELEMENTS.frost.color;
+      ctx.globalAlpha = 0.5;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, e.r + 4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
     if (e.slow < 1 || e.chillT > 0) {
       ctx.strokeStyle = "rgba(77,184,196,0.6)";
@@ -2735,14 +3216,15 @@
 
     // Element resist pips: filled square = resist, bright triangle = weak
     const resist = enemyResist(e);
-    const pipEls = ["fire", "water", "earth", "wind"].filter((el) => {
+    const pipEls = ELEMENT_IDS.filter((el) => {
       const v = resist[el];
       return v != null && (v <= 0.85 || v >= 1.15);
     });
     if (pipEls.length) {
-      const pipW = pipEls.length * 9;
+      const pipGap = pipEls.length > 5 ? 7 : 9;
+      const pipW = pipEls.length * pipGap;
       pipEls.forEach((el, i) => {
-        const px = -pipW / 2 + i * 9 + 4;
+        const px = -pipW / 2 + i * pipGap + pipGap / 2;
         const py = barY - 7;
         const v = resist[el];
         ctx.save();
@@ -2816,7 +3298,7 @@
     }
     for (const e of state.enemies) {
       if (!e.alive) continue;
-      const p = posOnPath(state.path, e.dist);
+      const p = enemyPos(e);
       drawEnemy(e, p.x, p.y);
     }
     for (const p of state.projectiles) {
@@ -2917,7 +3399,7 @@
   }
   function placementOk(x, y) {
     if (!state.path) return false;
-    if (distToPath(state.path, x, y) < 28) return false;
+    if (distToPathNetwork(state.path, x, y) < 28) return false;
     if (x < 16 || y < 16 || x > state.w - 16 || y > state.h - 16) return false;
     for (const t of state.towers) {
       if (Math.hypot(t.x - x, t.y - y) < 36) return false;
@@ -3046,14 +3528,7 @@
       const combo = describeCombo(t.elements);
       toast(combo);
       if (t.elements.length >= 2) {
-        const short = ({
-          "fire+water": "STEAM",
-          "earth+fire": "MAGMA",
-          "fire+wind": "WILDFIRE",
-          "earth+water": "MUD",
-          "water+wind": "STORM",
-          "earth+wind": "TEMPEST",
-        })[comboKey(t.elements)] || "COMBO";
+        const short = COMBO_SHORT[comboKey(t.elements)] || "COMBO";
         state.fx.push({ kind: "text", x: t.x, y: t.y - 28, t: 0.85, text: short, color: ELEMENTS[el].color });
         pushCombatFx({ kind: "ring", x: t.x, y: t.y, t: 0.45, r0: 12, r1: 48, color: ELEMENTS[el].color });
         haptic([10, 40, 18]);
@@ -3077,23 +3552,13 @@
   els.btnUpgrade.addEventListener("click", () => {
     if (state.selectedBuilt == null) return;
     const t = state.towers[state.selectedBuilt];
-    const cost = upgradeCost(t);
-    if (state.scrap < cost) { toast("Need more scrap"); return; }
-    state.scrap -= cost; t.level += 1;
-    const base = towerStats(t.type);
-    t.damage = base.damage * (1 + (t.level - 1) * 0.35);
-    t.range = base.range * (1 + (t.level - 1) * 0.1);
-    t.fireRate = base.fireRate * Math.max(0.5, 1 - (t.level - 1) * 0.05);
-    if (base.splash) t.splash = base.splash * (1 + (t.level - 1) * 0.12);
-    Object.assign(t, {
-      hitsAir: base.hitsAir, hitsGround: base.hitsGround,
-      airBonus: base.airBonus, armorPenalty: base.armorPenalty,
-      slow: base.slow, slowDur: base.slowDur, crit: base.crit, burn: base.burn, chain: base.chain,
-    });
-    burstUpgrade(t.x, t.y, t.color);
-    sfx.upgrade();
+    if (!towerLevelReady(t)) { toast("Level cooling down"); return; }
+    if (!levelTower(t)) { toast("Need more scrap"); return; }
     updateHUD(); saveRun();
   });
+  if (els.btnAutoLevel) {
+    els.btnAutoLevel.addEventListener("click", () => autoLevelAllTowers());
+  }
 
   els.btnPause.addEventListener("click", () => {
     if (state.mode === "playing") { state.mode = "paused"; saveRun(); showScreen("pause"); }
@@ -3141,16 +3606,9 @@
   $("btn-abandon").addEventListener("click", () => endRun(true));
   $("btn-again").addEventListener("click", () => { clearRun(); resize(); startNewRun(); });
   $("btn-over-hub").addEventListener("click", () => { state.mode = "hub"; showScreen("hub"); refreshHub(); });
-  $("btn-codex").addEventListener("click", () => {
-    if (state.mode === "playing") { state.mode = "paused"; saveRun(); }
-    showScreen("codex");
-  });
-  $("btn-codex-back").addEventListener("click", () => {
-    if (els.settings && !els.settings.classList.contains("hidden")) return closeSettings();
-    if (state.seed && hasSavedRun() && state.mode === "paused") showScreen("pause");
-    else if (state.mode === "hub" || !state.seed) { state.mode = "hub"; showScreen("hub"); }
-    else showScreen("pause");
-  });
+  // Codex hidden — discovery via play (tooltips, combat feedback, trial).
+  if ($("btn-codex")) $("btn-codex").classList.add("hidden");
+  if ($("screen-codex")) $("screen-codex").classList.add("hidden");
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => { upgradeTab = tab.dataset.tab; renderUpgrades(); });
   });

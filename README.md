@@ -5,11 +5,11 @@ Endless mobile-first tower defense along a molten rift. Static PWA — works off
 ## Play
 
 - Tap a tower (Turret / Mortar / Coil), then tap stone beside the rift.
-- Select a placed tower to socket **Fire / Water / Earth / Wind** (max 2) for singles + combos.
+- Select a placed tower to socket **Fire / Water / Earth / Wind / Arc / Frost** (max 2) for singles + combos — learn matchups in combat (△ weak · □ resist).
+- Four towers: **Turret**, **Mortar**, **Coil**, **Spire** (pierce). Level one tower or **Up All**; per-tower level has a short cooldown.
 - Use the **speed** control (1× → 1.5× → 2× → 3× → 5×) to pace runs; preference saves locally.
 - **Settings** (hub or pause): volume + optional ambient music, screen shake Off/Low/Med/High (default Low), juice toggles, haptics, **Battery saver**, and **Large tap targets**. Mute and reduce-motion quiet feedback.
-- **Place towers** by tapping or dragging on stone beside the rift; tap the selected shop item or **Cancel** / Esc to abort placement.
-- Open **Codex** in-run for tower/enemy/element tradeoffs and resists (square pip = resist, triangle = weak).
+- **Place towers** on stone or bend pads beside the rift; harder difficulties open more spawn lanes.
 - Waves advance on a short timer after spawning finishes — clearing the field is not required; overlaps are normal.
 - Boss roster: **Behemoth**, **Emberwyrm**, **Shellwarden**, **Broodmother**, **Galeheart** (distinct silhouettes, resists, abilities). Decade packs can mix several.
 - Survive endless waves, earn scrap in-run and chips between runs.

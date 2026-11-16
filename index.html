@@ -11,13 +11,13 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="application-name" content="Emberwell" />
   <meta name="description" content="Endless molten-rift tower defense. Play offline anywhere." />
-  <link rel="manifest" href="manifest.webmanifest?v=1.7.0" />
+  <link rel="manifest" href="manifest.webmanifest?v=1.8.0" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icons/icon-512.png" sizes="512x512" />
   <title>Emberwell</title>
-  <script src="version.js?v=1.7.0"></script>
-  <link rel="stylesheet" href="styles.css?v=1.7.0" />
+  <script src="version.js?v=1.8.0"></script>
+  <link rel="stylesheet" href="styles.css?v=1.8.0" />
 </head>
 <body>
   <div id="app" data-ui="hub">
@@ -33,9 +33,9 @@
         </div>
       </div>
       <div class="hud-center">
-        <div class="brand">EMBERWELL</div>
+        <div class="brand">Emberwell</div>
         <div class="wave-line">
-          <span id="wave">Wave 1</span>
+          <span id="wave">W1</span>
           <span class="dot">·</span>
           <span id="score">0</span>
         </div>
@@ -55,7 +55,7 @@
 
     <main id="stage-wrap">
       <canvas id="game" width="390" height="620" aria-label="Emberwell battlefield"></canvas>
-      <div id="banner" class="hidden" aria-live="polite"></div>
+      <div id="banner" class="wave-chip hidden" aria-live="polite"></div>
       <div id="toast" class="hidden"></div>
       <div id="coach" class="coach hidden" aria-live="polite">
         <div class="coach-steps" id="coach-steps" aria-hidden="true">
@@ -71,14 +71,17 @@
       <div id="inspect" class="inspect hidden" aria-live="polite">
         <div id="inspect-text" class="inspect-text"></div>
         <div id="element-bar" class="element-bar" aria-label="Apply element">
-          <button type="button" class="el-btn" data-el="fire" title="Fire: burn">Fire</button>
-          <button type="button" class="el-btn" data-el="water" title="Water: chill">Water</button>
-          <button type="button" class="el-btn" data-el="earth" title="Earth: vs armor">Earth</button>
-          <button type="button" class="el-btn" data-el="wind" title="Wind: vs air">Wind</button>
+          <button type="button" class="el-btn" data-el="fire" title="Fire: burn DoT">Fire</button>
+          <button type="button" class="el-btn" data-el="water" title="Water: chill slow">Water</button>
+          <button type="button" class="el-btn" data-el="earth" title="Earth: vs armor + shred">Earth</button>
+          <button type="button" class="el-btn" data-el="wind" title="Wind: vs air + shove">Wind</button>
+          <button type="button" class="el-btn" data-el="arc" title="Arc: shock stun">Arc</button>
+          <button type="button" class="el-btn" data-el="frost" title="Frost: hard freeze">Frost</button>
         </div>
         <div class="inspect-actions">
           <button type="button" id="btn-sell" class="util-btn" disabled>Sell</button>
           <button type="button" id="btn-upgrade" class="util-btn" disabled>Up +</button>
+          <button type="button" id="btn-auto-level" class="util-btn" disabled title="Level every ready tower">Up All</button>
         </div>
       </div>
 
@@ -87,21 +90,26 @@
           <span class="tb-icon turret" aria-hidden="true"></span>
           <span class="tb-name">Turret</span>
           <span class="tb-trade">DPS · short</span>
-          <span class="tb-cost" data-cost="turret">60</span>
+          <span class="tb-cost" data-cost="turret">58</span>
         </button>
         <button type="button" class="tower-btn" data-tower="mortar" aria-pressed="false">
           <span class="tb-icon mortar" aria-hidden="true"></span>
           <span class="tb-name">Mortar</span>
-          <span class="tb-trade">AoE · no air</span>
+          <span class="tb-trade">AoE · ground</span>
           <span class="tb-cost" data-cost="mortar">90</span>
         </button>
         <button type="button" class="tower-btn" data-tower="coil" aria-pressed="false">
           <span class="tb-icon coil" aria-hidden="true"></span>
           <span class="tb-name">Coil</span>
-          <span class="tb-trade">Slow · anti-air</span>
-          <span class="tb-cost" data-cost="coil">75</span>
+          <span class="tb-trade">Slow · air</span>
+          <span class="tb-cost" data-cost="coil">74</span>
         </button>
-        <button type="button" id="btn-codex" class="util-btn">Codex</button>
+        <button type="button" class="tower-btn" data-tower="spire" aria-pressed="false">
+          <span class="tb-icon spire" aria-hidden="true"></span>
+          <span class="tb-name">Spire</span>
+          <span class="tb-trade">Pierce · long</span>
+          <span class="tb-cost" data-cost="spire">110</span>
+        </button>
       </nav>
     </footer>
 
@@ -142,13 +150,13 @@
           <span class="diff-label">Milestones</span>
           <ul id="milestone-list" class="milestone-list"></ul>
         </div>
-        <p class="hub-tip">Coach teaches the first run in ~30s — place beside the rift, socket elements, then speed up.</p>
+        <p class="hub-tip">Coach covers the first run fast — place on bend pads, socket elements, learn matchups in combat.</p>
         <p class="app-version" id="app-version" aria-hidden="true"></p>
       </div>
     </section>
 
     <!-- Codex -->
-    <section id="screen-codex" class="screen overlay hidden">
+    <section id="screen-codex" class="screen overlay hidden" hidden aria-hidden="true">
       <div class="panel codex-panel">
         <header class="panel-head">
           <button type="button" id="btn-codex-back" class="text-btn">← Back</button>
@@ -207,8 +215,9 @@
           <button type="button" class="tab active" data-tab="turret">Turret</button>
           <button type="button" class="tab" data-tab="mortar">Mortar</button>
           <button type="button" class="tab" data-tab="coil">Coil</button>
+          <button type="button" class="tab" data-tab="spire">Spire</button>
         </div>
-        <div id="upgrade-list" class="upgrade-list"></div>
+        <div id="upgrade-list" class="upgrade-tree" role="list"></div>
       </div>
     </section>
 
@@ -280,10 +289,10 @@
       </div>
     </section>
   </div>
-  <script src="game.js?v=1.7.0" defer></script>
+  <script src="game.js?v=1.8.0" defer></script>
   <script>
     (function () {
-      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "1.7.0";
+      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "1.8.0";
       var el = document.getElementById("app-version");
       if (el) el.textContent = "v" + ver;
       var sv = document.getElementById("settings-version");

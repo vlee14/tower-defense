@@ -1,8 +1,8 @@
 /* Emberwell service worker — versioned cache, replace on deploy */
-/* APP_VERSION marker: 1.7.0 — keep in sync with version.js (SW update check). */
+/* APP_VERSION marker: 1.8.0 — keep in sync with version.js (SW update check). */
 importScripts("./version.js");
 
-const VERSION = self.APP_VERSION || "1.7.0";
+const VERSION = self.APP_VERSION || "1.8.0";
 const CACHE = "emberwell-" + VERSION;
 const ASSETS = [
   "./",
