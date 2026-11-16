@@ -1,6 +1,6 @@
 # Emberwell
 
-Endless mobile-first tower defense along a molten rift. Static PWA — works offline after first load.
+Endless mobile-first tower defense along a molten rift. Stone roads, gate portals, and lit tower models on a basalt field. Static PWA — works offline after first load.
 
 ## Play
 

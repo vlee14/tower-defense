@@ -884,10 +884,12 @@
     // Main lane = first spawn (or spine head) through spine.
     const mainStart = spawns[0] || spine[0];
     const mainCorners = [mainStart];
-    // Soft approach into first merge / spine.
+    // Authored gate plaza → approach into first merge / spine.
+    mainCorners.push(pt(mainStart.x, mainStart.y + h * 0.05, w, h));
     if (merges[0] && Math.hypot(mainStart.x - merges[0].x, mainStart.y - merges[0].y) > 20) {
       const m0 = merges[0];
-      mainCorners.push(pt((mainStart.x + m0.x) / 2, (mainStart.y + m0.y) / 2, w, h));
+      mainCorners.push(pt(mainStart.x * 0.55 + m0.x * 0.45, mainStart.y * 0.35 + m0.y * 0.65, w, h));
+      mainCorners.push(pt(m0.x, m0.y - h * 0.015, w, h));
     }
     for (const c of spine) {
       const last = mainCorners[mainCorners.length - 1];
@@ -896,19 +898,26 @@
     const main = finalizeLane(mainCorners);
     const lanes = [main];
 
-    // Side spawns → join at successive merges (earlier on hard).
+    // Side spawns → authored approach arcs into merges (readable multi-gate pressure).
     for (let s = 1; s < spawns.length; s++) {
       const start = spawns[s];
       const merge = merges[Math.min(merges.length - 1, Math.floor((s - 1) / Math.max(1, spawns.length - 1) * merges.length))] || merges[0] || spine[0];
-      const mid = pt(
-        start.x * 0.35 + merge.x * 0.65 + (rng() - 0.5) * 10,
-        start.y * 0.4 + merge.y * 0.6,
+      const side = start.x < w * 0.5 ? -1 : 1;
+      // Plaza drop just below the gate, then sweep inward toward the choke.
+      const plaza = pt(start.x + side * w * 0.01, start.y + h * 0.055, w, h);
+      const sweep = pt(
+        start.x * 0.55 + merge.x * 0.45 + side * w * 0.04,
+        start.y * 0.35 + merge.y * 0.65,
         w, h
       );
-      // Attach remaining spine after merge.
+      const mouth = pt(
+        merge.x + side * 8,
+        merge.y - h * 0.02,
+        w, h
+      );
       const mergeIdx = spine.findIndex((p) => Math.hypot(p.x - merge.x, p.y - merge.y) < 8);
       const rest = mergeIdx >= 0 ? spine.slice(mergeIdx) : [merge, ...spine];
-      const spur = [start, mid, ...rest];
+      const spur = [start, plaza, sweep, mouth, ...rest];
       lanes.push(finalizeLane(spur));
     }
 
@@ -2044,26 +2053,48 @@
     grid.style.setProperty("--up-cols", String(cols));
     grid.style.setProperty("--up-rows", String(rows));
 
-    // SVG branch connectors in grid coordinates (1 cell = 1 unit).
+    // Connected skill tree: curved branches + hub nodes in grid space.
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "up-tree-svg");
     svg.setAttribute("viewBox", `0 0 ${cols} ${rows}`);
     svg.setAttribute("preserveAspectRatio", "none");
     svg.setAttribute("aria-hidden", "true");
+    const hubKeys = new Set();
     for (const u of tree) {
       if (!u.req) continue;
       const parent = tree.find((p) => p.id === u.req);
       if (!parent) continue;
       const lit = ownedRank(u.req) >= (u.reqRank || 1);
       const x1 = (parent.col || 0) + 0.5;
-      const y1 = (parent.row || 0) + 0.92;
+      const y1 = (parent.row || 0) + 0.88;
       const x2 = (u.col || 0) + 0.5;
-      const y2 = (u.row || 0) + 0.08;
+      const y2 = (u.row || 0) + 0.12;
       const midY = (y1 + y2) / 2;
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", `M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`);
+      // Smooth S-curve when columns differ; vertical otherwise.
+      if (Math.abs(x1 - x2) < 0.05) {
+        path.setAttribute("d", `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`);
+      } else {
+        path.setAttribute("d", `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`);
+      }
       path.setAttribute("class", "up-branch" + (lit ? " lit" : ""));
       svg.appendChild(path);
+      const hk = `${parent.col},${parent.row}`;
+      if (!hubKeys.has(hk)) {
+        hubKeys.add(hk);
+        const hub = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        hub.setAttribute("cx", String(x1));
+        hub.setAttribute("cy", String(y1));
+        hub.setAttribute("r", "0.045");
+        hub.setAttribute("class", "up-hub" + (lit ? " lit" : ""));
+        svg.appendChild(hub);
+      }
+      const leaf = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      leaf.setAttribute("cx", String(x2));
+      leaf.setAttribute("cy", String(y2));
+      leaf.setAttribute("r", "0.038");
+      leaf.setAttribute("class", "up-hub" + (ownedRank(u.id) > 0 ? " lit" : ""));
+      svg.appendChild(leaf);
     }
     grid.appendChild(svg);
 
@@ -2943,92 +2974,174 @@
     ctx.closePath();
   }
 
+  function hash2(i, j) {
+    const n = Math.sin(i * 127.1 + j * 311.7) * 43758.5453;
+    return n - Math.floor(n);
+  }
   function drawField() {
     const w = state.w, h = state.h;
-    // Layered basalt plateau — readable ground, not void.
-    const g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0, "#241c16");
-    g.addColorStop(0.28, "#1a1612");
-    g.addColorStop(0.62, "#141812");
-    g.addColorStop(1, "#0e100e");
-    ctx.fillStyle = g;
+    const seedN = (state.seed || "ember").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+
+    // Warm basalt plateau with cool moss bowls — readable ground plane.
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, "#2a221c");
+    sky.addColorStop(0.18, "#1e1a14");
+    sky.addColorStop(0.55, "#161814");
+    sky.addColorStop(0.82, "#121610");
+    sky.addColorStop(1, "#0c100e");
+    ctx.fillStyle = sky;
     ctx.fillRect(0, 0, w, h);
 
-    // Broad ash / moss shelves
-    for (let i = 0; i < 14; i++) {
-      const sx = ((i * 149 + 23) % 97) / 97 * w;
-      const sy = ((i * 83 + 37) % 91) / 91 * h;
-      const rw = 48 + (i % 5) * 18;
-      const rh = 22 + (i % 4) * 12;
-      const shelf = ctx.createRadialGradient(sx, sy, 2, sx, sy, rw);
-      shelf.addColorStop(0, i % 3 === 0 ? "rgba(56,72,52,0.35)" : "rgba(58,48,36,0.4)");
+    // Soft horizon heat wash near spawn belt
+    const heat = ctx.createLinearGradient(0, 0, 0, h * 0.28);
+    heat.addColorStop(0, "rgba(232,90,42,0.14)");
+    heat.addColorStop(0.55, "rgba(180,80,30,0.05)");
+    heat.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = heat;
+    ctx.fillRect(0, 0, w, h * 0.32);
+
+    // Broad mineral shelves (seeded, motif-stable)
+    for (let i = 0; i < 18; i++) {
+      const hx = hash2(i + seedN, 3);
+      const hy = hash2(i, seedN + 7);
+      const sx = hx * w;
+      const sy = hy * h;
+      const rw = 56 + (i % 6) * 20;
+      const rh = 26 + (i % 5) * 14;
+      const shelf = ctx.createRadialGradient(sx, sy, 4, sx, sy, rw);
+      const cool = (i + seedN) % 3 === 0;
+      shelf.addColorStop(0, cool ? "rgba(62,78,58,0.42)" : "rgba(72,56,40,0.48)");
+      shelf.addColorStop(0.55, cool ? "rgba(40,52,38,0.18)" : "rgba(48,38,28,0.2)");
       shelf.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = shelf;
       ctx.beginPath();
-      ctx.ellipse(sx, sy, rw, rh, (i % 7) * 0.28, 0, Math.PI * 2);
+      ctx.ellipse(sx, sy, rw, rh, hx * 1.4, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // Rock outcrops (solid silhouettes)
-    for (let i = 0; i < 9; i++) {
-      const sx = ((i * 191 + 11) % 89) / 89 * w;
-      const sy = ((i * 67 + 29) % 83) / 83 * h;
-      ctx.fillStyle = i % 2 ? "#2a241c" : "#1c2218";
+    // Stratified stone bands
+    ctx.globalAlpha = 0.18;
+    for (let i = 0; i < 8; i++) {
+      const y = (hash2(i, seedN) * 0.85 + 0.08) * h;
+      ctx.strokeStyle = i % 2 ? "#3a3228" : "#2a3428";
+      ctx.lineWidth = 6 + (i % 3) * 3;
       ctx.beginPath();
-      ctx.moveTo(sx - 14, sy + 6);
-      ctx.lineTo(sx - 6, sy - 10);
-      ctx.lineTo(sx + 4, sy - 6);
-      ctx.lineTo(sx + 16, sy + 4);
-      ctx.lineTo(sx + 4, sy + 10);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = "rgba(111,191,138,0.12)";
-      ctx.fillRect(sx - 4, sy - 2, 8, 3);
-    }
-
-    // Cooled magma cracks (terrain veins — quiet)
-    ctx.strokeStyle = "rgba(120,48,24,0.28)";
-    ctx.lineWidth = 1.4;
-    for (let i = 0; i < 7; i++) {
-      const x0 = ((i * 73 + 17) % 100) / 100 * w;
-      const y0 = ((i * 41 + 9) % 100) / 100 * h;
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.quadraticCurveTo(x0 + 30, y0 + 18, x0 + 12, y0 + 44);
+      ctx.moveTo(-10, y);
+      for (let x = 0; x <= w + 20; x += 28) {
+        const dy = (hash2(x * 0.05 + i, seedN) - 0.5) * 10;
+        ctx.lineTo(x, y + dy);
+      }
       ctx.stroke();
-    }
-
-    // Stone grit + moss flecks
-    for (let i = 0; i < 70; i++) {
-      const sx = ((i * 97 + 13) % 100) / 100 * w;
-      const sy = ((i * 53 + 29) % 100) / 100 * h;
-      ctx.globalAlpha = 0.22;
-      ctx.fillStyle = i % 5 === 0 ? "#6fbf8a" : i % 3 === 0 ? "#4a4034" : "#1c1814";
-      ctx.beginPath();
-      ctx.arc(sx, sy, 1.1 + (i % 4) * 0.5, 0, Math.PI * 2);
-      ctx.fill();
     }
     ctx.globalAlpha = 1;
 
-    // Soft vignette
-    const vig = ctx.createRadialGradient(w * 0.5, h * 0.42, h * 0.12, w * 0.5, h * 0.5, h * 0.78);
+    // Magma vein network (quiet glow, terrain identity)
+    for (let i = 0; i < 9; i++) {
+      const x0 = hash2(i * 2, seedN) * w;
+      const y0 = hash2(seedN, i * 3) * h;
+      const x1 = x0 + (hash2(i, 9) - 0.5) * 90;
+      const y1 = y0 + 40 + hash2(i, 11) * 50;
+      const vein = ctx.createLinearGradient(x0, y0, x1, y1);
+      vein.addColorStop(0, "rgba(90,36,18,0)");
+      vein.addColorStop(0.4, "rgba(180,64,28,0.35)");
+      vein.addColorStop(0.7, "rgba(255,140,50,0.12)");
+      vein.addColorStop(1, "rgba(40,16,8,0)");
+      ctx.strokeStyle = vein;
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.quadraticCurveTo((x0 + x1) / 2 + 18, (y0 + y1) / 2 - 8, x1, y1);
+      ctx.stroke();
+    }
+
+    // Rock clusters with lit faces
+    for (let i = 0; i < 12; i++) {
+      const sx = hash2(i + 20, seedN) * w;
+      const sy = hash2(seedN + 4, i + 30) * h;
+      const s = 10 + (i % 4) * 3;
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.beginPath();
+      ctx.ellipse(sx + 1, sy + s * 0.55, s * 1.1, s * 0.35, 0, 0, Math.PI * 2);
+      ctx.fill();
+      const rock = ctx.createLinearGradient(sx - s, sy - s, sx + s, sy + s);
+      rock.addColorStop(0, "#5a5248");
+      rock.addColorStop(0.4, "#2e2a24");
+      rock.addColorStop(1, "#12100e");
+      ctx.fillStyle = rock;
+      ctx.beginPath();
+      ctx.moveTo(sx - s, sy + s * 0.2);
+      ctx.lineTo(sx - s * 0.35, sy - s * 0.85);
+      ctx.lineTo(sx + s * 0.25, sy - s);
+      ctx.lineTo(sx + s * 0.95, sy - s * 0.15);
+      ctx.lineTo(sx + s * 0.7, sy + s * 0.55);
+      ctx.lineTo(sx - s * 0.2, sy + s * 0.65);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,220,170,0.12)";
+      ctx.beginPath();
+      ctx.moveTo(sx - s * 0.2, sy - s * 0.4);
+      ctx.lineTo(sx + s * 0.1, sy - s * 0.9);
+      ctx.lineTo(sx + s * 0.35, sy - s * 0.2);
+      ctx.closePath();
+      ctx.fill();
+      if (i % 3 === 0) {
+        ctx.fillStyle = "rgba(111,191,138,0.22)";
+        ctx.beginPath();
+        ctx.ellipse(sx - s * 0.15, sy, s * 0.4, s * 0.18, -0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Fine grit / mica
+    for (let i = 0; i < 90; i++) {
+      const sx = hash2(i, seedN + 1) * w;
+      const sy = hash2(seedN + 2, i) * h;
+      ctx.globalAlpha = 0.18 + hash2(i, 5) * 0.2;
+      ctx.fillStyle = i % 6 === 0 ? "#7ec9a0" : i % 4 === 0 ? "#c4a35a" : "#3a342c";
+      ctx.fillRect(sx, sy, 1.2 + (i % 3) * 0.6, 1.2 + (i % 2) * 0.5);
+    }
+    ctx.globalAlpha = 1;
+
+    // Atmospheric depth bands
+    const haze = ctx.createLinearGradient(0, h * 0.35, 0, h);
+    haze.addColorStop(0, "rgba(0,0,0,0)");
+    haze.addColorStop(0.7, "rgba(8,10,8,0.18)");
+    haze.addColorStop(1, "rgba(6,8,6,0.35)");
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, 0, w, h);
+
+    // Vignette
+    const vig = ctx.createRadialGradient(w * 0.5, h * 0.4, h * 0.1, w * 0.5, h * 0.5, h * 0.82);
     vig.addColorStop(0, "rgba(0,0,0,0)");
-    vig.addColorStop(1, "rgba(0,0,0,0.42)");
+    vig.addColorStop(1, "rgba(0,0,0,0.48)");
     ctx.fillStyle = vig;
     ctx.fillRect(0, 0, w, h);
 
+    // Ambient ember motes + soft trails
     if (settings.particles !== false && motionAllowed()) {
-      const embers = settings.batterySaver ? 4 : 10;
+      const embers = settings.batterySaver ? 6 : 16;
       for (let i = 0; i < embers; i++) {
-        const px = ((i * 73 + state.time * (6 + i % 3) * 2.5) % (w + 20)) - 10;
-        const py = h - ((i * 41 + state.time * (10 + (i % 4))) % (h * 0.8));
-        ctx.globalAlpha = 0.1 + 0.08 * Math.sin(state.time * 2.5 + i);
-        ctx.fillStyle = i % 2 ? "#c47840" : "#8a4020";
+        const drift = state.time * (8 + i % 5) + i * 17;
+        const px = ((i * 73 + drift * 2.2) % (w + 30)) - 15;
+        const py = h - ((i * 41 + state.time * (12 + (i % 5))) % (h * 0.92));
+        const pulse = 0.12 + 0.1 * Math.sin(state.time * 2.8 + i);
+        const glow = ctx.createRadialGradient(px, py, 0, px, py, 5);
+        glow.addColorStop(0, i % 3 === 0 ? `rgba(255,200,100,${pulse + 0.15})` : `rgba(232,100,40,${pulse})`);
+        glow.addColorStop(1, "rgba(80,20,0,0)");
+        ctx.fillStyle = glow;
         ctx.beginPath();
-        ctx.arc(px, py, 1.1 + (i % 3) * 0.35, 0, Math.PI * 2);
+        ctx.arc(px, py, 5, 0, Math.PI * 2);
         ctx.fill();
+        ctx.globalAlpha = pulse;
+        ctx.strokeStyle = "rgba(255,160,60,0.35)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(px, py + 2);
+        ctx.lineTo(px - 1.5, py + 10);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
       }
-      ctx.globalAlpha = 1;
     }
   }
 
@@ -3036,100 +3149,220 @@
     ctx.beginPath();
     pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
   }
-  /** Terrain road ribbon — stone embankment + cooled basalt, not a neon tube. */
+  function laneTangent(pts, i) {
+    const a = pts[Math.max(0, i - 1)];
+    const b = pts[Math.min(pts.length - 1, i + 1)];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    return { tx: dx / len, ty: dy / len, nx: -dy / len, ny: dx / len };
+  }
+  /** Packed stone road with berm + cooled rift seam — terrain ribbon, not neon tube. */
   function drawOneLane(pts, alphaMul, isMain) {
     if (!pts || pts.length < 2) return;
     ctx.save();
     ctx.globalAlpha *= alphaMul;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
+    const outer = isMain ? 46 : 40;
+    const berm = isMain ? 38 : 34;
+    const bed = isMain ? 28 : 24;
+    const lane = isMain ? 18 : 15;
 
-    // Soft ground shadow
-    ctx.strokeStyle = "rgba(0,0,0,0.45)";
-    ctx.lineWidth = isMain ? 44 : 38;
+    // Soft contact shadow
+    ctx.strokeStyle = "rgba(0,0,0,0.5)";
+    ctx.lineWidth = outer + 6;
     strokePts(pts); ctx.stroke();
 
-    // Outer earthen berm
-    ctx.strokeStyle = "#3a3228";
-    ctx.lineWidth = isMain ? 36 : 32;
+    // Earthen berm
+    ctx.strokeStyle = "#4a3c2e";
+    ctx.lineWidth = outer;
     strokePts(pts); ctx.stroke();
 
-    // Stone shoulder
-    ctx.strokeStyle = "#2a241c";
-    ctx.lineWidth = isMain ? 30 : 26;
+    // Dark shoulder curb
+    ctx.strokeStyle = "#2a2218";
+    ctx.lineWidth = berm;
     strokePts(pts); ctx.stroke();
 
-    // Road bed (cool basalt / packed ash)
-    const bed = ctx.createLinearGradient(0, 0, 0, state.h);
-    bed.addColorStop(0, "#4a4034");
-    bed.addColorStop(0.45, "#32281e");
-    bed.addColorStop(1, "#241c14");
-    ctx.strokeStyle = bed;
-    ctx.lineWidth = isMain ? 22 : 18;
+    // Road bed gradient
+    const bedGrad = ctx.createLinearGradient(0, 0, 0, state.h);
+    bedGrad.addColorStop(0, "#5a4e40");
+    bedGrad.addColorStop(0.4, "#3a3026");
+    bedGrad.addColorStop(1, "#261e16");
+    ctx.strokeStyle = bedGrad;
+    ctx.lineWidth = bed;
     strokePts(pts); ctx.stroke();
 
-    // Inner packed lane
-    ctx.strokeStyle = isMain ? "#3a3026" : "#342c22";
-    ctx.lineWidth = isMain ? 14 : 11;
+    // Packed ash lane
+    ctx.strokeStyle = isMain ? "#42362c" : "#3a3028";
+    ctx.lineWidth = lane;
     strokePts(pts); ctx.stroke();
 
-    // Hairline cooled-lava seam (dim — readable, not glow-tube)
-    ctx.strokeStyle = isMain ? "rgba(180,72,36,0.55)" : "rgba(140,64,40,0.4)";
-    ctx.lineWidth = isMain ? 2.2 : 1.6;
+    // Cobble flecks along the ribbon
+    const step = isMain ? 14 : 16;
+    let acc = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const dx = pts[i].x - pts[i - 1].x;
+      const dy = pts[i].y - pts[i - 1].y;
+      const seg = Math.hypot(dx, dy);
+      acc += seg;
+      while (acc >= step) {
+        acc -= step;
+        const t = 1 - acc / seg;
+        const x = pts[i - 1].x + dx * t;
+        const y = pts[i - 1].y + dy * t;
+        const { nx, ny } = laneTangent(pts, i);
+        const side = ((i * 3) % 2 ? 1 : -1) * (3 + (i % 4));
+        ctx.globalAlpha = 0.22 * alphaMul;
+        ctx.fillStyle = i % 3 ? "#6a5a48" : "#2a2218";
+        ctx.beginPath();
+        ctx.ellipse(x + nx * side, y + ny * side, 2.4, 1.5, Math.atan2(dy, dx), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = alphaMul;
+
+    // Twin wheel ruts
+    ctx.strokeStyle = "rgba(18,14,10,0.35)";
+    ctx.lineWidth = isMain ? 2.4 : 2;
+    ctx.setLineDash([10, 14]);
+    strokePts(pts); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Cooled magma center seam (dim ember — road identity, not glow-tube)
+    ctx.strokeStyle = isMain ? "rgba(200,78,36,0.62)" : "rgba(160,64,36,0.45)";
+    ctx.lineWidth = isMain ? 2.6 : 1.8;
+    strokePts(pts); ctx.stroke();
+    ctx.strokeStyle = isMain ? "rgba(255,170,80,0.22)" : "rgba(220,140,60,0.14)";
+    ctx.lineWidth = 1;
     strokePts(pts); ctx.stroke();
 
-    // Edge highlight stones
-    ctx.strokeStyle = "rgba(200,180,150,0.16)";
-    ctx.lineWidth = isMain ? 1.4 : 1.1;
-    ctx.setLineDash([5, 10]);
+    // Edge kerb highlights
+    ctx.strokeStyle = "rgba(220,200,170,0.2)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 9]);
     strokePts(pts); ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
   }
   function drawSpawnPortal(p, index, total) {
     if (!p) return;
-    const pulse = 0.5 + 0.5 * Math.sin(state.time * 3.2 + index * 1.1);
+    const pulse = 0.5 + 0.5 * Math.sin(state.time * 3.1 + index * 1.15);
     const hues = ["#ffb34a", "#4db8c4", "#6fbf8a", "#d4b84a"];
     const col = hues[index % hues.length];
     ctx.save();
     ctx.translate(p.x, p.y);
-    // Ground scorch
-    const scorch = ctx.createRadialGradient(0, 4, 2, 0, 6, 26);
-    scorch.addColorStop(0, "rgba(40,20,10,0.7)");
-    scorch.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = scorch;
-    ctx.beginPath(); ctx.ellipse(0, 8, 24, 10, 0, 0, Math.PI * 2); ctx.fill();
-    // Gate pillars
-    ctx.fillStyle = "#2a2218";
-    roundRect(-16, -18, 6, 28, 2); ctx.fill();
-    roundRect(10, -18, 6, 28, 2); ctx.fill();
-    ctx.fillStyle = "#3a3024";
-    roundRect(-18, -22, 36, 7, 2); ctx.fill();
-    // Portal rings
-    for (let r = 0; r < 3; r++) {
-      ctx.strokeStyle = col;
-      ctx.globalAlpha = 0.35 + pulse * 0.35 - r * 0.1;
-      ctx.lineWidth = 2.4 - r * 0.4;
+
+    // Approach apron (intentional gate plaza)
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.beginPath();
+    ctx.ellipse(0, 18, 34, 14, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const apron = ctx.createRadialGradient(0, 10, 2, 0, 14, 36);
+    apron.addColorStop(0, "#4a3c30");
+    apron.addColorStop(0.55, "#2a2218");
+    apron.addColorStop(1, "rgba(14,12,10,0)");
+    ctx.fillStyle = apron;
+    ctx.beginPath();
+    ctx.ellipse(0, 14, 32, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Radiating ground cracks toward lane
+    ctx.strokeStyle = "rgba(180,60,28,0.4)";
+    ctx.lineWidth = 1.4;
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + (i - 2) * 0.28;
       ctx.beginPath();
-      ctx.ellipse(0, -2, 11 + r * 4 + pulse * 1.5, 8 + r * 2.5 + pulse, 0, 0, Math.PI * 2);
+      ctx.moveTo(Math.cos(a) * 10, Math.sin(a) * 6 + 6);
+      ctx.lineTo(Math.cos(a) * (22 + pulse * 4), Math.sin(a) * 14 + 16);
       ctx.stroke();
     }
+
+    // Stone arch pillars with depth
+    const pillar = (ox) => {
+      const g = ctx.createLinearGradient(ox - 5, -28, ox + 5, 14);
+      g.addColorStop(0, "#6a5a48");
+      g.addColorStop(0.45, "#3a3024");
+      g.addColorStop(1, "#1a1410");
+      ctx.fillStyle = g;
+      roundRect(ox - 5, -26, 10, 40, 2); ctx.fill();
+      ctx.fillStyle = "rgba(255,220,170,0.14)";
+      roundRect(ox - 4, -24, 3, 34, 1); ctx.fill();
+      // Cap stone
+      ctx.fillStyle = "#4a4034";
+      roundRect(ox - 7, -30, 14, 7, 2); ctx.fill();
+    };
+    pillar(-18);
+    pillar(18);
+
+    // Arch lintel + keystone
+    const lintel = ctx.createLinearGradient(-22, -32, 22, -20);
+    lintel.addColorStop(0, "#3a3024");
+    lintel.addColorStop(0.5, "#5a4a38");
+    lintel.addColorStop(1, "#2a2218");
+    ctx.fillStyle = lintel;
+    ctx.beginPath();
+    ctx.moveTo(-24, -22);
+    ctx.quadraticCurveTo(0, -40 - pulse * 2, 24, -22);
+    ctx.lineTo(22, -16);
+    ctx.quadraticCurveTo(0, -32, -22, -16);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = col;
+    ctx.globalAlpha = 0.55 + pulse * 0.35;
+    ctx.beginPath();
+    ctx.moveTo(0, -34); ctx.lineTo(4, -26); ctx.lineTo(0, -22); ctx.lineTo(-4, -26);
+    ctx.closePath(); ctx.fill();
     ctx.globalAlpha = 1;
-    const core = ctx.createRadialGradient(-1, -3, 0.5, 0, -2, 10);
-    core.addColorStop(0, "#fff6d8");
-    core.addColorStop(0.35, col);
-    core.addColorStop(1, "rgba(20,12,8,0)");
+
+    // Inner void
+    ctx.fillStyle = "#08060a";
+    ctx.beginPath();
+    ctx.ellipse(0, -6, 12, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Swirling portal energy
+    for (let r = 0; r < 4; r++) {
+      ctx.save();
+      ctx.rotate(state.time * (1.2 + r * 0.35) * (r % 2 ? 1 : -1));
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = 0.4 + pulse * 0.35 - r * 0.08;
+      ctx.lineWidth = 2.6 - r * 0.4;
+      ctx.beginPath();
+      ctx.ellipse(0, -6, 7 + r * 3.2 + pulse * 1.2, 11 + r * 2.2 + pulse, 0.3, 0, Math.PI * 1.6);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    const core = ctx.createRadialGradient(-2, -10, 0.5, 0, -6, 12);
+    core.addColorStop(0, "#fff8e0");
+    core.addColorStop(0.25, col);
+    core.addColorStop(0.7, "rgba(40,20,10,0.5)");
+    core.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = core;
-    ctx.beginPath(); ctx.ellipse(0, -2, 8 + pulse, 6 + pulse * 0.6, 0, 0, Math.PI * 2); ctx.fill();
-    // Gate index chip
+    ctx.beginPath();
+    ctx.ellipse(0, -6, 9 + pulse * 1.5, 13 + pulse, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Outer halo for multi-spawn readability
     if (total > 1) {
-      ctx.fillStyle = "rgba(10,8,6,0.72)";
-      roundRect(-9, 12, 18, 13, 4); ctx.fill();
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = 0.25 + pulse * 0.2;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(0, 2, 28 + pulse * 2, 18 + pulse, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      // Gate banner
+      ctx.fillStyle = "rgba(10,8,6,0.82)";
+      roundRect(-14, 20, 28, 16, 5); ctx.fill();
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1.5;
+      roundRect(-14, 20, 28, 16, 5); ctx.stroke();
       ctx.fillStyle = col;
-      ctx.font = "800 10px Bricolage Grotesque, Avenir Next, sans-serif";
+      ctx.font = "800 12px Bricolage Grotesque, Avenir Next, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(String(index + 1), 0, 18.5);
+      ctx.fillText("GATE " + (index + 1), 0, 28);
       ctx.textBaseline = "alphabetic";
     }
     ctx.restore();
@@ -3138,27 +3371,103 @@
     if (!p) return;
     ctx.save();
     ctx.translate(p.x, p.y);
-    const glow = ctx.createRadialGradient(0, 0, 2, 0, 0, 28);
-    glow.addColorStop(0, "rgba(232,90,42,0.45)");
-    glow.addColorStop(0.5, "rgba(120,40,20,0.25)");
+    const pulse = 0.5 + 0.5 * Math.sin(state.time * 2.4);
+
+    // Keep plaza
+    ctx.fillStyle = "rgba(0,0,0,0.4)";
+    ctx.beginPath();
+    ctx.ellipse(0, 10, 36, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const glow = ctx.createRadialGradient(0, 0, 2, 0, 4, 36);
+    glow.addColorStop(0, `rgba(232,90,42,${0.4 + pulse * 0.15})`);
+    glow.addColorStop(0.45, "rgba(120,40,20,0.28)");
     glow.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = glow;
-    ctx.beginPath(); ctx.ellipse(0, 2, 26, 14, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#1a1008";
     ctx.beginPath();
-    ctx.moveTo(-18, 6); ctx.lineTo(-12, -10); ctx.lineTo(0, -16); ctx.lineTo(12, -10); ctx.lineTo(18, 6);
-    ctx.closePath(); ctx.fill();
-    const mouth = ctx.createLinearGradient(0, -12, 0, 8);
-    mouth.addColorStop(0, "#ffb34a");
-    mouth.addColorStop(0.5, "#e85a2a");
-    mouth.addColorStop(1, "#3a1008");
+    ctx.ellipse(0, 4, 34, 18, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Bastion walls
+    const wall = ctx.createLinearGradient(-28, -18, 28, 16);
+    wall.addColorStop(0, "#3a3028");
+    wall.addColorStop(0.5, "#1a1410");
+    wall.addColorStop(1, "#4a3a2c");
+    ctx.fillStyle = wall;
+    ctx.beginPath();
+    ctx.moveTo(-26, 10);
+    ctx.lineTo(-22, -8);
+    ctx.lineTo(-12, -18);
+    ctx.lineTo(0, -22);
+    ctx.lineTo(12, -18);
+    ctx.lineTo(22, -8);
+    ctx.lineTo(26, 10);
+    ctx.lineTo(16, 14);
+    ctx.lineTo(-16, 14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,179,74,0.3)";
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+
+    // Ember mouth
+    const mouth = ctx.createLinearGradient(0, -16, 0, 12);
+    mouth.addColorStop(0, "#fff0c0");
+    mouth.addColorStop(0.35, "#ffb34a");
+    mouth.addColorStop(0.7, "#e85a2a");
+    mouth.addColorStop(1, "#2a0808");
     ctx.fillStyle = mouth;
     ctx.beginPath();
-    ctx.moveTo(-10, 4); ctx.quadraticCurveTo(0, -14, 10, 4); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = "rgba(244,236,227,0.75)";
-    ctx.font = "800 9px Nunito, sans-serif";
+    ctx.moveTo(-12, 8);
+    ctx.quadraticCurveTo(0, -20 - pulse * 2, 12, 8);
+    ctx.closePath();
+    ctx.fill();
+
+    // Shield crest
+    ctx.fillStyle = "rgba(244,236,227,0.85)";
+    ctx.beginPath();
+    ctx.moveTo(0, -6);
+    ctx.lineTo(5, -1);
+    ctx.lineTo(3, 6);
+    ctx.lineTo(0, 9);
+    ctx.lineTo(-3, 6);
+    ctx.lineTo(-5, -1);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(10,8,6,0.75)";
+    roundRect(-20, 16, 40, 14, 5); ctx.fill();
+    ctx.fillStyle = "#ffb34a";
+    ctx.font = "800 10px Bricolage Grotesque, Avenir Next, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("BASE", 0, 18);
+    ctx.textBaseline = "middle";
+    ctx.fillText("WELLHEART", 0, 23);
+    ctx.textBaseline = "alphabetic";
+    ctx.restore();
+  }
+  function drawMergeMarker(m) {
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    const pulse = 0.5 + 0.5 * Math.sin(state.time * 2 + m.x * 0.01);
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.beginPath();
+    ctx.ellipse(0, 4, 18, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(196,163,90,${0.35 + pulse * 0.25})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, 14, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(196,163,90,0.2)";
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.arc(0, 0, 9, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "rgba(196,163,90,0.45)";
+    ctx.beginPath();
+    ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
   function drawRiftPath() {
@@ -3166,94 +3475,114 @@
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     const lanes = (state.path.lanes && state.path.lanes.length) ? state.path.lanes : [state.path];
-    // Draw side lanes first; main lane on top for hierarchy.
+    // Side lanes first; main on top.
     for (let i = lanes.length - 1; i >= 0; i--) {
-      drawOneLane(lanes[i].points, i === 0 ? 1 : 0.82, i === 0);
+      drawOneLane(lanes[i].points, i === 0 ? 1 : 0.85, i === 0);
     }
-    // Merge markers — soft brass rings at choke points
     if (state.path.merges) {
-      for (const m of state.path.merges) {
-        ctx.save();
-        ctx.translate(m.x, m.y);
-        ctx.strokeStyle = "rgba(196,163,90,0.35)";
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.restore();
-      }
+      for (const m of state.path.merges) drawMergeMarker(m);
     }
-    // Unbuildable rocks — map constraint (not pad slots).
+    // Unbuildable rocks — map constraint.
     if (state.path.obstacles) {
       for (const o of state.path.obstacles) {
         ctx.save();
         ctx.translate(o.x, o.y);
-        ctx.fillStyle = "rgba(0,0,0,0.4)";
-        ctx.beginPath(); ctx.ellipse(0, o.r * 0.35, o.r * 0.95, o.r * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(0,0,0,0.45)";
+        ctx.beginPath();
+        ctx.ellipse(0, o.r * 0.4, o.r * 1.05, o.r * 0.42, 0, 0, Math.PI * 2);
+        ctx.fill();
         const rock = ctx.createLinearGradient(-o.r, -o.r, o.r, o.r);
-        rock.addColorStop(0, "#4a443c");
-        rock.addColorStop(0.45, "#2a2620");
-        rock.addColorStop(1, "#141210");
+        rock.addColorStop(0, "#5a5246");
+        rock.addColorStop(0.4, "#2e2a24");
+        rock.addColorStop(1, "#12100c");
         ctx.fillStyle = rock;
         ctx.beginPath();
-        ctx.moveTo(-o.r * 0.9, o.r * 0.2);
-        ctx.lineTo(-o.r * 0.45, -o.r * 0.75);
-        ctx.lineTo(o.r * 0.15, -o.r * 0.95);
-        ctx.lineTo(o.r * 0.85, -o.r * 0.25);
-        ctx.lineTo(o.r * 0.7, o.r * 0.55);
-        ctx.lineTo(-o.r * 0.25, o.r * 0.7);
+        ctx.moveTo(-o.r * 0.95, o.r * 0.2);
+        ctx.lineTo(-o.r * 0.5, -o.r * 0.7);
+        ctx.lineTo(o.r * 0.1, -o.r * 1.0);
+        ctx.lineTo(o.r * 0.9, -o.r * 0.3);
+        ctx.lineTo(o.r * 0.75, o.r * 0.55);
+        ctx.lineTo(-o.r * 0.2, o.r * 0.72);
         ctx.closePath();
         ctx.fill();
-        ctx.strokeStyle = "rgba(180,170,150,0.18)";
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-        ctx.fillStyle = "rgba(111,191,138,0.14)";
-        ctx.beginPath(); ctx.ellipse(-o.r * 0.15, -o.r * 0.1, o.r * 0.35, o.r * 0.18, -0.4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(255,220,170,0.14)";
+        ctx.beginPath();
+        ctx.moveTo(-o.r * 0.2, -o.r * 0.3);
+        ctx.lineTo(o.r * 0.05, -o.r * 0.85);
+        ctx.lineTo(o.r * 0.3, -o.r * 0.2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = "rgba(111,191,138,0.2)";
+        ctx.beginPath();
+        ctx.ellipse(-o.r * 0.15, -o.r * 0.05, o.r * 0.38, o.r * 0.16, -0.4, 0, Math.PI * 2);
+        ctx.fill();
         ctx.restore();
       }
     }
-    // Soft bend/merge hints only — placement is free anywhere valid.
+    // Soft bend hints only — free placement elsewhere.
     if (state.path.pads) {
       for (const pad of state.path.pads) {
         ctx.save();
         ctx.translate(pad.x, pad.y);
-        ctx.globalAlpha = 0.55;
-        ctx.strokeStyle = pad.merge ? "rgba(196,163,90,0.4)" : "rgba(232,136,58,0.28)";
-        ctx.lineWidth = 1.2;
+        ctx.globalAlpha = 0.5;
+        ctx.strokeStyle = pad.merge ? "rgba(196,163,90,0.45)" : "rgba(232,136,58,0.3)";
+        ctx.lineWidth = 1.3;
         ctx.setLineDash([3, 4]);
-        ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(0, 0, 13, 0, Math.PI * 2);
+        ctx.stroke();
         ctx.setLineDash([]);
-        ctx.fillStyle = "rgba(44,36,28,0.35)";
-        ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(44,36,28,0.4)";
+        ctx.beginPath();
+        ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
+        ctx.fill();
         ctx.restore();
       }
     }
-    // Strong spawn portals
     const spawnPts = state.path.spawns || lanes.map((l) => l.points[0]);
     spawnPts.forEach((p, i) => drawSpawnPortal(p, i, spawnPts.length));
-    // Exit / base
     const exit = state.path.exit || (lanes[0] && lanes[0].points[lanes[0].points.length - 1]);
     drawExitRift(exit);
   }
-
-
 
   function drawGhostPlacement() {
     if (!state.ghost || !state.selectedTower || !state.path) return;
     const { x, y, ok } = state.ghost;
     const stats = towerStats(state.selectedTower);
-    ctx.globalAlpha = 0.35;
+    ctx.save();
+    ctx.globalAlpha = 0.28;
     ctx.beginPath();
     ctx.arc(x, y, stats.range, 0, Math.PI * 2);
-    ctx.strokeStyle = ok ? "rgba(255,179,74,0.5)" : "rgba(232,93,76,0.5)";
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = ok ? "rgba(255,179,74,0.65)" : "rgba(232,93,76,0.65)";
+    ctx.lineWidth = 1.8;
+    ctx.setLineDash([5, 4]);
     ctx.stroke();
-    ctx.fillStyle = ok ? stats.color : "#e85d4c";
-    ctx.beginPath();
-    ctx.arc(x, y, 12, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
+    ctx.setLineDash([]);
+    ctx.restore();
+    // Mini tower silhouette instead of flat disk
+    ctx.save();
+    ctx.globalAlpha = ok ? 0.55 : 0.35;
+    ctx.translate(x, y);
+    ctx.scale(0.92, 0.92);
+    drawTower({
+      x: 0, y: 0, type: state.selectedTower, aim: -Math.PI / 2,
+      recoil: 0, level: 1, elements: [],
+    }, false);
+    ctx.restore();
+    if (!ok) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(232,93,76,0.85)";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(x - 10, y - 10);
+      ctx.lineTo(x + 10, y + 10);
+      ctx.moveTo(x + 10, y - 10);
+      ctx.lineTo(x - 10, y + 10);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
+
 
   function pulseSafe(e) {
     return Math.sin(state.time * 3 + (e.dist || 0) * 0.05) * 2;
@@ -3267,8 +3596,8 @@
     const pulse = 0.5 + 0.5 * Math.sin(state.time * 4 + t.x * 0.05);
     const idle = Math.sin(state.time * 2.4 + t.x * 0.04) * 0.6;
     const attack = recoil > 0.08;
-    ctx.translate(0, idle * 0.2);
-    ctx.scale(1.14, 1.14);
+    ctx.translate(0, idle * 0.25);
+    ctx.scale(1.28, 1.28);
 
     if (selected) {
       ctx.strokeStyle = "rgba(255,179,74,0.95)";
@@ -3285,19 +3614,25 @@
       ctx.stroke();
     }
 
-    // Ground disc
-    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    // Foundation plinth
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.beginPath();
-    ctx.ellipse(0, 14, 18, 6.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 15, 20, 7.5, 0, 0, Math.PI * 2);
     ctx.fill();
-    const pad = ctx.createRadialGradient(0, 4, 2, 0, 6, 18);
-    pad.addColorStop(0, "#5a4a38");
-    pad.addColorStop(0.55, "#2a2218");
+    const pad = ctx.createRadialGradient(0, 4, 2, 0, 6, 20);
+    pad.addColorStop(0, "#6a5844");
+    pad.addColorStop(0.45, "#3a3024");
+    pad.addColorStop(0.8, "#1a1410");
     pad.addColorStop(1, "rgba(14,12,10,0)");
     ctx.fillStyle = pad;
     ctx.beginPath();
-    ctx.ellipse(0, 9, 17, 7, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 10, 18, 7.5, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = "rgba(196,163,90,0.28)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.ellipse(0, 10, 15, 5.5, 0, 0, Math.PI * 2);
+    ctx.stroke();
 
     if (t.type === "turret") {
       // Chassis + armor skirts
@@ -3580,7 +3915,7 @@
   function drawEnemy(e, x, y) {
     ctx.save();
     ctx.translate(x, y);
-    ctx.scale(1.12, 1.12);
+    ctx.scale(1.22, 1.22);
     const flash = e.hitFlash > 0;
     const bob = Math.sin(state.time * (e.tags.includes("flying") ? 7 : 5) + e.dist * 0.08);
     const crawl = e.dist * 0.35;
@@ -4090,15 +4425,33 @@
       const y = p.y + (p.ty - p.y) * u;
       if (p.kind === "shell") {
         const arc = Math.sin(u * Math.PI) * 36;
+        const sy = y - arc;
+        const glow = ctx.createRadialGradient(x, sy, 0, x, sy, 9);
+        glow.addColorStop(0, "#fff6d0");
+        glow.addColorStop(0.35, p.color);
+        glow.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(x, sy, 9, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = p.color;
-        ctx.beginPath(); ctx.arc(x, y - arc, 5, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = "rgba(255,255,255,0.5)";
-        ctx.beginPath(); ctx.arc(x - 1, y - arc - 1, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x, sy, 4.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(255,255,255,0.65)";
+        ctx.beginPath(); ctx.arc(x - 1.2, sy - 1.4, 1.8, 0, Math.PI * 2); ctx.fill();
       } else {
+        const ang = Math.atan2(y - p.y, x - p.x);
         ctx.strokeStyle = p.color;
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 3;
         ctx.lineCap = "round";
+        ctx.globalAlpha = 0.35;
         ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(x, y); ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(x, y); ctx.stroke();
+        ctx.fillStyle = "#fff8e0";
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - Math.cos(ang) * 8 + Math.sin(ang) * 3, y - Math.sin(ang) * 8 - Math.cos(ang) * 3);
+        ctx.lineTo(x - Math.cos(ang) * 8 - Math.sin(ang) * 3, y - Math.sin(ang) * 8 + Math.cos(ang) * 3);
+        ctx.closePath(); ctx.fill();
       }
     }
 
@@ -4163,7 +4516,7 @@
 
     if (state.seed && state.mode !== "hub") {
       ctx.globalAlpha = 0.3; ctx.fillStyle = "#f3ebe2";
-      ctx.font = "9px Avenir Next, sans-serif"; ctx.textAlign = "left";
+      ctx.font = "9px Nunito, Avenir Next, sans-serif"; ctx.textAlign = "left";
       ctx.fillText(state.seed.slice(0, 18), 8, h - 8); ctx.globalAlpha = 1;
     }
 
