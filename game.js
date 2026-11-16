@@ -2085,14 +2085,14 @@
         const hub = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         hub.setAttribute("cx", String(x1));
         hub.setAttribute("cy", String(y1));
-        hub.setAttribute("r", "0.045");
+        hub.setAttribute("r", "0.07");
         hub.setAttribute("class", "up-hub" + (lit ? " lit" : ""));
         svg.appendChild(hub);
       }
       const leaf = document.createElementNS("http://www.w3.org/2000/svg", "circle");
       leaf.setAttribute("cx", String(x2));
       leaf.setAttribute("cy", String(y2));
-      leaf.setAttribute("r", "0.038");
+      leaf.setAttribute("r", "0.06");
       leaf.setAttribute("class", "up-hub" + (ownedRank(u.id) > 0 ? " lit" : ""));
       svg.appendChild(leaf);
     }
