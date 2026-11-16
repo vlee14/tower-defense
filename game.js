@@ -16,10 +16,25 @@
   const MAX_FX = 48;
   const MAX_FX_SAVER = 20;
 
+  // layout*: path length / bend / pad pressure — difficulty is not HP-only.
   const DIFFICULTIES = {
-    normal: { id: "normal", name: "Normal", hpMul: 1, speedMul: 1, countMul: 1, intervalMul: 1, rewardMul: 1, chipMul: 1, unlock: null },
-    hard: { id: "hard", name: "Hard", hpMul: 1.42, speedMul: 1.1, countMul: 1.18, intervalMul: 0.9, rewardMul: 1.4, chipMul: 1.55, unlock: { kind: "wave", difficulty: "normal", wave: 10 } },
-    nightmare: { id: "nightmare", name: "Nightmare", hpMul: 2.0, speedMul: 1.24, countMul: 1.35, intervalMul: 0.78, rewardMul: 1.85, chipMul: 2.35, unlock: { kind: "wave", difficulty: "hard", wave: 12 } },
+    normal: {
+      id: "normal", name: "Normal", hpMul: 1, speedMul: 1, countMul: 1, intervalMul: 1, rewardMul: 1, chipMul: 1,
+      zigMin: 5, zigMax: 7, edgeInset: 0.14, travel: 1.0, bendJitter: 0.08, hairpin: 0.35,
+      padOffset: 48, padClear: 30, padEvery: 1, pathClear: 28, unlock: null,
+    },
+    hard: {
+      id: "hard", name: "Hard", hpMul: 1.42, speedMul: 1.1, countMul: 1.18, intervalMul: 0.9, rewardMul: 1.4, chipMul: 1.55,
+      zigMin: 4, zigMax: 5, edgeInset: 0.18, travel: 0.78, bendJitter: 0.14, hairpin: 0.7,
+      padOffset: 38, padClear: 26, padEvery: 1, pathClear: 26,
+      unlock: { kind: "wave", difficulty: "normal", wave: 10 },
+    },
+    nightmare: {
+      id: "nightmare", name: "Nightmare", hpMul: 2.0, speedMul: 1.24, countMul: 1.35, intervalMul: 0.78, rewardMul: 1.85, chipMul: 2.35,
+      zigMin: 3, zigMax: 4, edgeInset: 0.22, travel: 0.58, bendJitter: 0.2, hairpin: 1.0,
+      padOffset: 32, padClear: 24, padEvery: 2, pathClear: 24,
+      unlock: { kind: "wave", difficulty: "hard", wave: 12 },
+    },
   };
 
   const BASE_TOWER = {
@@ -636,75 +651,113 @@
     if (diffId === "hard") return 3;
     return 2;
   }
+  function layoutForDifficulty(diffId) {
+    return DIFFICULTIES[diffId] || DIFFICULTIES.normal;
+  }
   function generatePath(seed, w, h, diffId) {
-    const rng = mulberry32(hashSeed(seed + ":path:" + (diffId || "normal")));
-    const padX = w * 0.14, padY = h * 0.09;
+    const diff = layoutForDifficulty(diffId);
+    const rng = mulberry32(hashSeed(seed + ":path:" + diff.id));
+    // Harder diffs: shorter path (fewer zigs + less horizontal travel), tighter bends, less pad room.
+    const padX = w * diff.edgeInset;
+    const padY = h * (0.07 + (diff.edgeInset - 0.14) * 0.35);
+    const travel = Math.max(0.45, Math.min(1, diff.travel));
+    const zigzags = diff.zigMin + Math.floor(rng() * (diff.zigMax - diff.zigMin + 1));
     const corners = [];
     let y = padY;
-    let x = padX + rng() * (w - padX * 2);
+    // Start nearer the center on hard layouts so early angles are worse.
+    const startSpan = (w - padX * 2) * (0.55 + travel * 0.45);
+    const startLeft = (w - startSpan) / 2;
+    let x = startLeft + rng() * startSpan;
     corners.push({ x, y });
-    const zigzags = 5 + Math.floor(rng() * 3);
     let goingRight = rng() > 0.5;
     for (let i = 1; i <= zigzags; i++) {
       const targetY = padY + ((h - padY * 2) * i) / (zigzags + 1);
       corners.push({ x, y: targetY });
-      const margin = padX + rng() * w * 0.05;
-      const targetX = goingRight ? w - margin : margin;
-      const mid = (x + targetX) / 2 + (rng() - 0.5) * w * 0.08;
-      corners.push({ x: mid, y: targetY + (rng() - 0.5) * 12 });
+      // Horizontal reach shrinks with travel; hard/nightmare stay in a tighter corridor.
+      const reach = (w * 0.5 - padX) * travel;
+      const center = w * 0.5 + (rng() - 0.5) * w * 0.06 * (1 - travel);
+      let targetX = goingRight ? center + reach : center - reach;
+      // Occasional overshoot / undershoot for meaner cover angles.
+      targetX += (rng() - 0.5) * w * 0.04 * diff.hairpin;
+      targetX = Math.max(padX * 0.85, Math.min(w - padX * 0.85, targetX));
+      // Hairpins: mid-point pulled toward the previous x so turns get acute.
+      const pull = 0.35 + diff.hairpin * 0.4;
+      const midBase = x * pull + targetX * (1 - pull);
+      const mid = midBase + (rng() - 0.5) * w * diff.bendJitter;
+      const midY = targetY + (rng() - 0.5) * (10 + diff.hairpin * 18);
+      corners.push({ x: Math.max(12, Math.min(w - 12, mid)), y: midY });
       x = targetX;
       corners.push({ x, y: targetY });
       goingRight = !goingRight;
+      // Nightmare: sometimes skip a full flip (stacked same-side jogs = bad firing lanes).
+      if (diff.hairpin > 0.85 && rng() < 0.28) goingRight = !goingRight;
     }
-    const exit = { x, y: h - padY };
+    const exit = { x, y: h - padY * (0.85 + travel * 0.2) };
     corners.push(exit);
     const main = finalizeLane(corners);
     const lanes = [main];
-    const spawnN = spawnCountForDifficulty(diffId || "normal");
-    // Extra spawn lanes merge into the main rift after the first bend.
-    const mergeIdx = Math.min(corners.length - 2, 3);
-    const mergePt = corners[mergeIdx];
+    const spawnN = spawnCountForDifficulty(diff.id);
+    // Extra spawn lanes merge earlier on hard layouts (less react time).
+    const mergeIdx = Math.min(
+      corners.length - 2,
+      diff.id === "nightmare" ? 2 : diff.id === "hard" ? 3 : 4
+    );
+    const mergePt = corners[Math.max(1, mergeIdx)];
     const sideStarts = [
-      { x: padX * 0.55, y: padY * 0.7 },
-      { x: w - padX * 0.55, y: padY * 0.7 },
-      { x: padX * 0.7, y: padY + (h - padY * 2) * 0.18 },
-      { x: w - padX * 0.7, y: padY + (h - padY * 2) * 0.18 },
+      { x: padX * 0.45, y: padY * 0.55 },
+      { x: w - padX * 0.45, y: padY * 0.55 },
+      { x: padX * 0.6, y: padY + (h - padY * 2) * 0.14 },
+      { x: w - padX * 0.6, y: padY + (h - padY * 2) * 0.14 },
     ];
     for (let s = 1; s < spawnN; s++) {
       const start = sideStarts[(s - 1) % sideStarts.length];
       const midY = (start.y + mergePt.y) / 2;
-      const midX = start.x * 0.35 + mergePt.x * 0.65 + (rng() - 0.5) * 18;
-      const spur = [start, { x: midX, y: midY }, mergePt, ...corners.slice(mergeIdx + 1)];
+      const midX = start.x * (0.25 + travel * 0.2) + mergePt.x * (0.75 - travel * 0.2)
+        + (rng() - 0.5) * (12 + diff.hairpin * 16);
+      const spur = [start, { x: midX, y: midY }, mergePt, ...corners.slice(corners.indexOf(mergePt) + 1)];
       lanes.push(finalizeLane(spur));
     }
-    // Guaranteed placeable pads at each bend (perpendicular offset from path).
+    // Bend pads: still guaranteed, but tighter / sparser as difficulty rises.
     const pads = [];
     const bendPts = corners.filter((_, i) => i > 0 && i < corners.length - 1 && i % 3 === 1);
+    const every = Math.max(1, diff.padEvery | 0);
     for (let i = 0; i < bendPts.length; i++) {
+      if (i % every !== 0) continue;
       const b = bendPts[i];
-      const prev = corners[Math.max(0, corners.indexOf(b) - 1)] || corners[0];
-      const next = corners[Math.min(corners.length - 1, corners.indexOf(b) + 1)] || exit;
+      const bIdx = corners.indexOf(b);
+      const prev = corners[Math.max(0, bIdx - 1)] || corners[0];
+      const next = corners[Math.min(corners.length - 1, bIdx + 1)] || exit;
       let tx = next.x - prev.x, ty = next.y - prev.y;
       const len = Math.hypot(tx, ty) || 1;
       tx /= len; ty /= len;
       const side = (i % 2 === 0) ? 1 : -1;
-      const ox = -ty * side * 46;
-      const oy = tx * side * 46;
+      // Worse angles: bias pads into the "inside" of acute turns on hard+.
+      const insideBias = diff.hairpin > 0.5 && rng() < 0.45 ? -side : side;
+      const ox = -ty * insideBias * diff.padOffset;
+      const oy = tx * insideBias * diff.padOffset;
       let px = b.x + ox, py = b.y + oy;
-      px = Math.max(22, Math.min(w - 22, px));
-      py = Math.max(22, Math.min(h - 22, py));
-      // Nudge outward until clear of all lanes.
+      px = Math.max(20, Math.min(w - 20, px));
+      py = Math.max(20, Math.min(h - 20, py));
       for (let n = 0; n < 6; n++) {
-        if (distToPathNetwork({ lanes }, px, py) >= 30) break;
-        px += ox * 0.25; py += oy * 0.25;
-        px = Math.max(22, Math.min(w - 22, px));
-        py = Math.max(22, Math.min(h - 22, py));
+        if (distToPathNetwork({ lanes }, px, py) >= diff.padClear) break;
+        px += ox * 0.22; py += oy * 0.22;
+        px = Math.max(20, Math.min(w - 20, px));
+        py = Math.max(20, Math.min(h - 20, py));
       }
       pads.push({ x: px, y: py, bend: i });
     }
+    // Always keep at least one pad even on nightmare sparsity.
+    if (!pads.length && bendPts.length) {
+      const b = bendPts[0];
+      pads.push({
+        x: Math.max(24, Math.min(w - 24, b.x + 36)),
+        y: Math.max(24, Math.min(h - 24, b.y)),
+        bend: 0,
+      });
+    }
     return {
       points: main.points, lengths: main.lengths, total: main.total,
-      lanes, pads, spawnN: lanes.length,
+      lanes, pads, spawnN: lanes.length, layout: diff.id, pathClear: diff.pathClear,
     };
   }
   function densify(pts, step) {
@@ -1504,8 +1557,13 @@
       wrap.appendChild(btn);
     }
     const sel = DIFFICULTIES[meta.selectedDifficulty] || DIFFICULTIES.normal;
+    const layoutNote = sel.id === "nightmare"
+      ? "short harsh path"
+      : sel.id === "hard"
+        ? "tighter bends"
+        : "open layout";
     hint.textContent = isDifficultyUnlocked(meta.selectedDifficulty)
-      ? `${sel.name}: ×${sel.hpMul.toFixed(2)} HP · ×${sel.speedMul.toFixed(2)} spd · ×${sel.chipMul} chips`
+      ? `${sel.name}: ×${sel.hpMul.toFixed(2)} HP · ${layoutNote} · ×${sel.chipMul} chips`
       : unlockHint(meta.selectedDifficulty);
   }
 
@@ -1824,7 +1882,8 @@
     if (!type || !state.path) return;
     const stats = towerStats(type);
     if (state.scrap < stats.cost) { toast("Not enough scrap"); return; }
-    if (distToPathNetwork(state.path, x, y) < 28) { toast("Too close to the rift"); return; }
+    const clear = (state.path && state.path.pathClear) || layoutForDifficulty(state.difficulty).pathClear || 28;
+    if (distToPathNetwork(state.path, x, y) < clear) { toast("Too close to the rift"); return; }
     if (x < 16 || y < 16 || x > state.w - 16 || y > state.h - 16) return;
     for (const t of state.towers) {
       if (Math.hypot(t.x - x, t.y - y) < 36) { toast("Too close to another tower"); return; }
@@ -1832,7 +1891,7 @@
     state.scrap -= stats.cost;
     // Snap to nearest bend pad when close — guarantees a spot at each bend.
     if (state.path.pads && state.path.pads.length) {
-      let best = null, bestD = 28;
+      let best = null, bestD = Math.max(22, clear + 2);
       for (const pad of state.path.pads) {
         const d = Math.hypot(pad.x - x, pad.y - y);
         if (d < bestD) { bestD = d; best = pad; }
@@ -3432,7 +3491,8 @@
   }
   function placementOk(x, y) {
     if (!state.path) return false;
-    if (distToPathNetwork(state.path, x, y) < 28) return false;
+    const clear = (state.path && state.path.pathClear) || layoutForDifficulty(state.difficulty).pathClear || 28;
+    if (distToPathNetwork(state.path, x, y) < clear) return false;
     if (x < 16 || y < 16 || x > state.w - 16 || y > state.h - 16) return false;
     for (const t of state.towers) {
       if (Math.hypot(t.x - x, t.y - y) < 36) return false;
@@ -3602,11 +3662,11 @@
 
   els.btnPause.addEventListener("click", () => {
     if (state.mode === "playing") { state.mode = "paused"; saveRun(); showScreen("pause"); }
-    else if (state.mode === "paused") { state.mode = "playing"; showScreen(null); }
+    else if (state.mode === "paused") { state.mode = "playing"; showScreen(null); syncStartBtn(); }
   });
   $("btn-resume").addEventListener("click", () => {
     if (!state.seed) loadRun();
-    state.mode = "playing"; showScreen(null); saveRun();
+    state.mode = "playing"; showScreen(null); syncStartBtn(); saveRun();
   });
   els.btnMute.addEventListener("click", () => {
     settings.muted = !settings.muted;

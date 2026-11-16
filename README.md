@@ -6,6 +6,7 @@ Endless mobile-first tower defense along a molten rift. Static PWA — works off
 
 - New runs open in **prep** — place towers freely, then tap **Start** (waves never auto-begin).
 - Tap a tower (Turret / Mortar / Coil / Spire), then tap stone or a bend pad beside the rift.
+- Higher difficulties shrink path length and tighten layout (sharper bends, less prep space, worse angles)—not HP alone.
 - Select a placed tower to socket **Fire / Water / Earth / Wind / Arc / Frost** (max 2) for singles + combos — learn matchups in combat (△ weak · □ resist).
 - Four towers: **Turret**, **Mortar**, **Coil**, **Spire** (pierce). Level one tower or **Up All**; per-tower level has a short cooldown.
 - Use the **speed** control (1× → 1.5× → 2× → 3× → 5×) to pace runs; preference saves locally.
