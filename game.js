@@ -3917,7 +3917,7 @@
   function drawEnemy(e, x, y) {
     ctx.save();
     ctx.translate(x, y);
-    ctx.scale(1.35, 1.35);
+    ctx.scale(1.48, 1.48);
     const flash = e.hitFlash > 0;
     const bob = Math.sin(state.time * (e.tags.includes("flying") ? 7 : 5) + e.dist * 0.08);
     const crawl = e.dist * 0.35;
@@ -4321,6 +4321,20 @@
       ctx.fillStyle = nuc;
       ctx.beginPath(); ctx.arc(0, bob * 0.3, e.r * 0.5, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
+    }
+
+    // Rim light — reads volume on small mobile silhouettes
+    if (!flash) {
+      ctx.strokeStyle = "rgba(255,240,210,0.28)";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.arc(0, 0, e.r * 0.92, -Math.PI * 0.85, -Math.PI * 0.15);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(0,0,0,0.35)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(0, 0, e.r * 0.95, Math.PI * 0.1, Math.PI * 0.9);
+      ctx.stroke();
     }
 
     const pct = Math.max(0, e.hp / e.maxHp);
