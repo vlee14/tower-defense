@@ -500,6 +500,34 @@ html[data-large-tap] .icon-btn,
 .place-cancel.hidden { display: none; }
 .place-cancel:active { transform: scale(0.97); }
 
+.start-wave {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: var(--z-float);
+  min-height: 48px;
+  min-width: 148px;
+  padding: 0 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 179, 74, 0.45);
+  background: linear-gradient(135deg, var(--ember-hot), var(--ember));
+  color: #1a1008;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  box-shadow: 0 10px 32px rgba(232, 90, 42, 0.4);
+  animation: start-pulse 1.8s var(--ease-out) infinite;
+}
+.start-wave.hidden { display: none; }
+.start-wave:active { transform: translateX(-50%) scale(0.96); animation: none; }
+@keyframes start-pulse {
+  0%, 100% { box-shadow: 0 10px 28px rgba(232, 90, 42, 0.35); }
+  50% { box-shadow: 0 12px 36px rgba(255, 179, 74, 0.55); }
+}
+
 .hub-tip {
   margin: 14px 0 0;
   padding: 10px 12px;

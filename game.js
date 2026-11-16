@@ -876,7 +876,7 @@
     w: 390, h: 620, hp: 20, scrap: 155, score: 0, wave: 0,
     selectedTower: null, selectedBuilt: null,
     towers: [], enemies: [], projectiles: [], fx: [], particles: [],
-    spawnQueue: [], spawnTimer: 0, betweenWaves: 0, time: 0, frame: 0,
+    spawnQueue: [], spawnTimer: 0, betweenWaves: 0, awaitingStart: false, time: 0, frame: 0,
     shake: 0, flash: 0, ghost: null,
   };
 
@@ -977,8 +977,8 @@
   }
 
   const COACH_STEPS = [
-    "Pick Turret, then place on stone beside the rift.",
-    "Tap your tower → socket elements (try Arc / Frost too).",
+    "Prep phase: place towers on stone / bend pads.",
+    "Socket elements (try Arc / Frost), then tap Start.",
     "Watch △ weak / □ resist pips — trial wins fights.",
   ];
   let coachTimer = null;
@@ -1030,6 +1030,23 @@
     const show = state.mode === "playing" && !!state.selectedTower;
     btn.classList.toggle("hidden", !show);
   }
+  function syncStartBtn() {
+    const btn = $("btn-start-wave");
+    if (!btn) return;
+    const show = state.mode === "playing" && !!state.awaitingStart && !!state.seed;
+    btn.classList.toggle("hidden", !show);
+    btn.disabled = !show;
+  }
+  function playerStartWaves() {
+    if (state.mode !== "playing" || !state.awaitingStart) return;
+    state.awaitingStart = false;
+    state.betweenWaves = 0;
+    syncStartBtn();
+    beginWave();
+    toast("Wave 1");
+    saveRun();
+    advanceCoach(1);
+  }
   function cancelPlacement(silent) {
     if (!state.selectedTower && !state.ghost) return;
     state.selectedTower = null;
@@ -1066,7 +1083,8 @@
       seed: state.seed, difficulty: state.difficulty || "normal",
       isDaily: !!runIsDaily, dailyKey: runDailyKey || null,
       hp: state.hp, scrap: state.scrap, score: state.score, wave: state.wave,
-      betweenWaves: state.betweenWaves, spawnTimer: state.spawnTimer, spawnQueue: state.spawnQueue,
+      betweenWaves: state.betweenWaves, awaitingStart: !!state.awaitingStart,
+      spawnTimer: state.spawnTimer, spawnQueue: state.spawnQueue,
       towers: state.towers.map((t) => ({
         type: t.type, nx: t.x / state.w, ny: t.y / state.h,
         level: t.level, cooldown: t.cooldown, levelCd: t.levelCd || 0, elements: t.elements || [],
@@ -1121,6 +1139,9 @@
       state.path = generatePath(state.seed, state.w, state.h, state.difficulty);
       state.hp = data.hp; state.scrap = data.scrap; state.score = data.score; state.wave = data.wave;
       state.betweenWaves = data.betweenWaves || 0;
+      state.awaitingStart = data.awaitingStart != null
+        ? !!data.awaitingStart
+        : (data.wave === 0 && !(data.spawnQueue && data.spawnQueue.length));
       state.spawnTimer = data.spawnTimer || 0;
       state.spawnQueue = data.spawnQueue || [];
       state.towers = (data.towers || []).map(hydrateTower);
@@ -1145,6 +1166,7 @@
       state.projectiles = []; state.fx = []; state.particles = [];
       state.selectedBuilt = null; state.selectedTower = null;
       state.mode = "paused";
+      syncStartBtn();
       return true;
     } catch { return false; }
   }
@@ -1198,18 +1220,20 @@
     state.scrap = Math.floor(BALANCE.scrapStart * (diff.id === "nightmare" ? 0.85 : diff.id === "hard" ? 0.95 : 1));
     state.score = 0; state.wave = 0;
     state.towers = []; state.enemies = []; state.projectiles = []; state.fx = []; state.particles = [];
-    state.spawnQueue = []; state.spawnTimer = 0; state.betweenWaves = 1.2;
+    state.spawnQueue = []; state.spawnTimer = 0; state.betweenWaves = 0;
+    state.awaitingStart = true; // Prep: place freely; waves wait for Start.
     state.selectedBuilt = null; state.selectedTower = null; state.ghost = null;
     placePtr = null;
     state.shake = 0; state.flash = 0;
     state.mode = "playing";
     showScreen(null);
-    showBanner(diff.name);
+    showBanner("Prep · place towers");
     ensureAudio();
     sfx.start();
     syncMusic();
     saveJSON(STORAGE.meta, meta);
     saveRun(); updateHUD();
+    syncStartBtn();
     if (!settings.tutorialDone) showCoach(0);
   }
   function continueRun() {
@@ -1287,6 +1311,7 @@
       }
     }
     syncPlaceCancel();
+    syncStartBtn();
   }
 
   function refreshHub() {
@@ -1740,8 +1765,8 @@
         });
       }
     }
-    state.spawnTimer = 0.35; state.betweenWaves = 0;
-    const diffName = (DIFFICULTIES[state.difficulty] || DIFFICULTIES.normal).name;
+    state.spawnTimer = 0.35; state.betweenWaves = 0; state.awaitingStart = false;
+    syncStartBtn();
     let banner = `W${state.wave}`;
     if (plan.bossN > 1) {
       const names = [...new Set(plan.mix.filter((p) => isBossType(p.type)).map((p) => (ENEMY[p.type] || {}).label || p.type))];
@@ -2214,30 +2239,33 @@
     const step = dt * speed;
     state.time += step; state.frame++;
 
-    if (state.betweenWaves > 0) {
-      state.betweenWaves -= step;
-      if (state.betweenWaves <= 0) beginWave();
-    }
-
-    if (state.spawnQueue.length) {
-      state.spawnTimer -= step;
-      const plan = wavePlan(state.seed, Math.max(1, state.wave), state.difficulty);
-      if (state.spawnTimer <= 0) {
-        const next = state.spawnQueue.shift();
-        spawnEnemy(next.type, next.difficulty, next.speedMul || 1, next.rewardMul || 1, next);
-        if (isBossType(next.type)) {
-          // Space bosses along the path so packs don't stack into one blob.
-          state.spawnTimer = plan.interval * (3.2 + (next.bossIndex || 0) * 0.75);
-        } else {
-          state.spawnTimer = plan.interval * (next.type === "swarm" ? 0.35 : 1);
-        }
+    // Prep gate: no auto-spawn until player taps Start.
+    if (!state.awaitingStart) {
+      if (state.betweenWaves > 0) {
+        state.betweenWaves -= step;
+        if (state.betweenWaves <= 0) beginWave();
       }
-    } else if (state.betweenWaves <= 0 && state.wave > 0) {
-      // Timer advance: next wave starts even if foes remain (overlaps OK).
-      state.enemies = state.enemies.filter((e) => e.alive);
-      state.betweenWaves = nextWaveDelay();
-      state.scrap += Math.floor(BALANCE.scrapWaveBase + state.wave * BALANCE.scrapWavePer);
-      saveRun();
+
+      if (state.spawnQueue.length) {
+        state.spawnTimer -= step;
+        const plan = wavePlan(state.seed, Math.max(1, state.wave), state.difficulty);
+        if (state.spawnTimer <= 0) {
+          const next = state.spawnQueue.shift();
+          spawnEnemy(next.type, next.difficulty, next.speedMul || 1, next.rewardMul || 1, next);
+          if (isBossType(next.type)) {
+            // Space bosses along the path so packs don't stack into one blob.
+            state.spawnTimer = plan.interval * (3.2 + (next.bossIndex || 0) * 0.75);
+          } else {
+            state.spawnTimer = plan.interval * (next.type === "swarm" ? 0.35 : 1);
+          }
+        }
+      } else if (state.betweenWaves <= 0 && state.wave > 0) {
+        // Timer advance: next wave starts even if foes remain (overlaps OK).
+        state.enemies = state.enemies.filter((e) => e.alive);
+        state.betweenWaves = nextWaveDelay();
+        state.scrap += Math.floor(BALANCE.scrapWaveBase + state.wave * BALANCE.scrapWavePer);
+        saveRun();
+      }
     }
 
     const broodSpawns = [];
@@ -3507,6 +3535,13 @@
 
   if ($("btn-place-cancel")) {
     $("btn-place-cancel").addEventListener("click", () => cancelPlacement(false));
+  }
+  if ($("btn-start-wave")) {
+    $("btn-start-wave").addEventListener("click", () => {
+      ensureAudio();
+      playerStartWaves();
+      sfx.ui();
+    });
   }
   document.addEventListener("keydown", (evt) => {
     if (evt.key === "Escape") cancelPlacement(false);
