@@ -71,7 +71,7 @@
     levelDmgSoft: 0.035, // damp after L6
     levelRangePer: 0.08,
     levelRatePer: 0.04,
-    levelCd: 2.4,
+    levelCd: 1.25, // wall-clock seconds (not scaled by game speed)
     hpEarly: 0.13,
     hpMid: 0.2,
     hpLate: 0.32,
@@ -1789,7 +1789,33 @@
     return Math.floor(base * (0.62 + t.level * 0.58 + Math.pow(Math.max(0, t.level - 3), 1.35) * 0.35));
   }
   function towerLevelReady(t) {
-    return !t.levelCd || t.levelCd <= 0;
+    return !t || !t.levelCd || t.levelCd <= 0;
+  }
+  function maxTowerLevelCd() {
+    let m = 0;
+    for (const t of state.towers) m = Math.max(m, t.levelCd || 0);
+    return m;
+  }
+  function countAffordableLevels(readyOnly = true) {
+    // Estimate how many levels Up All can buy right now (cheapest-first spend-down).
+    let scrap = state.scrap;
+    const levels = state.towers.map((t) => t.level);
+    const ready = state.towers.map((t) => towerLevelReady(t));
+    let n = 0;
+    for (let guard = 0; guard < 200; guard++) {
+      let best = -1, bestCost = Infinity;
+      for (let i = 0; i < state.towers.length; i++) {
+        if (readyOnly && !ready[i]) continue;
+        const fake = { type: state.towers[i].type, level: levels[i] };
+        const c = upgradeCost(fake);
+        if (scrap >= c && c < bestCost) { bestCost = c; best = i; }
+      }
+      if (best < 0) break;
+      scrap -= bestCost;
+      levels[best] += 1;
+      n += 1;
+    }
+    return n;
   }
   function applyTowerLevelStats(t) {
     const base = towerStats(t.type);
@@ -1812,7 +1838,7 @@
     if (state.scrap < cost) return false;
     state.scrap -= cost;
     t.level += 1;
-    t.levelCd = BALANCE.levelCd;
+    if (!opts.skipCd) t.levelCd = BALANCE.levelCd;
     applyTowerLevelStats(t);
     if (!opts.silent) {
       burstUpgrade(t.x, t.y, t.color);
@@ -1820,20 +1846,86 @@
     }
     return true;
   }
+  function syncAutoLevelBtn() {
+    if (!els.btnAutoLevel) return;
+    if (!state.towers.length) {
+      els.btnAutoLevel.disabled = true;
+      els.btnAutoLevel.textContent = "Up All";
+      els.btnAutoLevel.title = "Place a tower first";
+      return;
+    }
+    const ready = state.towers.some((t) => towerLevelReady(t));
+    const canBuy = countAffordableLevels(true);
+    if (!ready) {
+      const cd = maxTowerLevelCd();
+      els.btnAutoLevel.disabled = true;
+      els.btnAutoLevel.textContent = cd > 0 ? `All ${Math.ceil(cd)}s` : "Up All";
+      els.btnAutoLevel.title = cd > 0 ? `Level cooldown ${cd.toFixed(1)}s` : "No towers ready";
+      return;
+    }
+    if (!canBuy) {
+      const cheapest = Math.min(...state.towers.filter(towerLevelReady).map(upgradeCost));
+      els.btnAutoLevel.disabled = true;
+      els.btnAutoLevel.textContent = "Up All";
+      els.btnAutoLevel.title = `Need ${cheapest} scrap for next level`;
+      return;
+    }
+    els.btnAutoLevel.disabled = false;
+    els.btnAutoLevel.textContent = canBuy > 1 ? `Up All · ${canBuy}` : "Up All";
+    els.btnAutoLevel.title = `Auto-level ready towers (${canBuy} level${canBuy > 1 ? "s" : ""})`;
+  }
+  /** Spend scrap across ready towers cheapest-first until broke; one shared CD after. */
   function autoLevelAllTowers() {
-    if (!state.towers.length) { toast("No towers yet"); return; }
-    let n = 0;
-    // Cheapest-first so scrap spreads.
-    const order = state.towers.map((t, i) => i).sort((a, b) => upgradeCost(state.towers[a]) - upgradeCost(state.towers[b]));
-    for (const i of order) {
+    if (!state.towers.length) { toast("No towers yet"); syncAutoLevelBtn(); return; }
+    const readyIdx = [];
+    for (let i = 0; i < state.towers.length; i++) {
+      if (towerLevelReady(state.towers[i])) readyIdx.push(i);
+    }
+    if (!readyIdx.length) {
+      const cd = maxTowerLevelCd();
+      toast(cd > 0 ? `Level cooldown ${Math.ceil(cd)}s` : "No towers ready");
+      syncAutoLevelBtn();
+      return;
+    }
+    let levels = 0;
+    let spent = 0;
+    const touched = new Set();
+    for (let guard = 0; guard < 200; guard++) {
+      let best = -1, bestCost = Infinity;
+      for (const i of readyIdx) {
+        const t = state.towers[i];
+        const c = upgradeCost(t);
+        if (state.scrap >= c && c < bestCost) { bestCost = c; best = i; }
+      }
+      if (best < 0) break;
+      const t = state.towers[best];
+      state.scrap -= bestCost;
+      t.level += 1;
+      applyTowerLevelStats(t);
+      spent += bestCost;
+      levels += 1;
+      touched.add(best);
+    }
+    if (!levels) {
+      const cheapest = Math.min(...readyIdx.map((i) => upgradeCost(state.towers[i])));
+      toast(`Need ${cheapest} scrap`);
+      syncAutoLevelBtn();
+      return;
+    }
+    for (const i of touched) {
       const t = state.towers[i];
-      if (!towerLevelReady(t)) continue;
-      if (!levelTower(t, { silent: true })) continue;
-      n += 1;
+      t.levelCd = BALANCE.levelCd;
       burstUpgrade(t.x, t.y, t.color);
     }
-    if (n) { sfx.upgrade(); toast(`Leveled ${n} tower${n > 1 ? "s" : ""}`); updateHUD(); saveRun(); }
-    else toast("On cooldown or need scrap");
+    sfx.upgrade();
+    const towersN = touched.size;
+    toast(
+      levels === 1
+        ? `+1 level · −${spent} scrap`
+        : `+${levels} levels on ${towersN} tower${towersN > 1 ? "s" : ""} · −${spent}`
+    );
+    updateHUD();
+    saveRun();
   }
   function elementCost(t) {
     return (t.elements && t.elements.length) ? ELEMENT_SECOND_COST : ELEMENTS.fire.cost;
@@ -1860,10 +1952,12 @@
     const upCost = upgradeCost(sel);
     els.btnUpgrade.disabled = !ready || state.scrap < upCost;
     els.btnUpgrade.textContent = !ready ? `Up ${Math.ceil(sel.levelCd || 0)}s` : `Up ${upCost}`;
-    if (els.btnAutoLevel) {
-      const anyReady = state.towers.some((t) => towerLevelReady(t) && state.scrap >= upgradeCost(t));
-      els.btnAutoLevel.disabled = !anyReady;
-    }
+    els.btnUpgrade.title = !ready
+      ? `Cooldown ${Math.ceil(sel.levelCd || 0)}s`
+      : state.scrap < upCost
+        ? `Need ${upCost} scrap`
+        : `Level up for ${upCost} scrap`;
+    syncAutoLevelBtn();
     document.querySelectorAll(".el-btn").forEach((btn) => {
       const el = btn.dataset.el;
       const def = ELEMENTS[el];
@@ -2068,8 +2162,9 @@
     }
     state.scrap -= stats.cost;
     state.towers.push({
+      ...stats,
       type, x, y, nx: x / state.w, ny: y / state.h,
-      level: 1, cooldown: 0, levelCd: 0, elements: [], ...stats,
+      level: 1, cooldown: 0, levelCd: 0, elements: [],
       aim: -Math.PI / 2, recoil: 0,
     });
     burstPlace(x, y, stats.color);
@@ -2579,7 +2674,8 @@
     }
 
     for (const tower of state.towers) {
-      if (tower.levelCd > 0) tower.levelCd = Math.max(0, tower.levelCd - step);
+      // Level CD is wall-clock so Up All isn't glued shut at 1× or trivial at 5×.
+      if (tower.levelCd > 0) tower.levelCd = Math.max(0, tower.levelCd - dt);
       if (tower.recoil > 0) tower.recoil = Math.max(0, tower.recoil - step * 4.5);
       const track = findTarget(tower, state.enemies);
       if (track) {

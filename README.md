@@ -8,7 +8,7 @@ Endless mobile-first tower defense along a molten rift. Static PWA — works off
 - Tap a tower (Turret / Mortar / Coil / Spire), then place anywhere off the road (rocks block builds).
 - Higher difficulties shrink path length and tighten layout (sharper bends, less prep space, worse angles)—not HP alone.
 - Select a placed tower to socket **Fire / Water / Earth / Wind / Arc / Frost** (max 2) for singles + combos — learn matchups in combat (△ weak · □ resist).
-- Four towers: **Turret**, **Mortar**, **Coil**, **Spire** (pierce). Level one tower or **Up All**; per-tower level has a short cooldown.
+- Four towers: **Turret**, **Mortar**, **Coil**, **Spire** (pierce). Level one tower or **Up All** (spends scrap cheapest-first across ready towers); short wall-clock level cooldown after.
 - Use the **speed** control (1× → 1.5× → 2× → 3× → 5×) to pace runs; preference saves locally.
 - **Settings** (hub or pause): volume + optional ambient music, screen shake Off/Low/Med/High (default Low), juice toggles, haptics, **Battery saver**, and **Large tap targets**. Mute and reduce-motion quiet feedback.
 - **Place towers** anywhere valid off the road; rocks and path clearance set the limits. Harder maps open more spawn gates and squeeze build space.
