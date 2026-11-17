@@ -17,21 +17,24 @@
   const MAX_FX_SAVER = 20;
 
   // layout*: KR/BTD lessons — harder = shorter path, more gates, less pad space (not HP-only).
+  // pathClear = road half-width (~outer berm 23) + tower footprint — keep towers fully off asphalt.
+  const ROAD_HALF_W = 24;
+  const TOWER_PLACE_R = 20;
   const DIFFICULTIES = {
     normal: {
       id: "normal", name: "Normal", hpMul: 1, speedMul: 1, countMul: 1, intervalMul: 1, rewardMul: 1, chipMul: 1,
-      edgeInset: 0.12, travel: 1.0, hairpin: 0.35, padOffset: 50, padClear: 30, pathClear: 28,
+      edgeInset: 0.12, travel: 1.0, hairpin: 0.35, padOffset: 50, padClear: 36, pathClear: ROAD_HALF_W + TOWER_PLACE_R,
       motifs: ["s-bend", "dual-merge", "y-merge"], unlock: null,
     },
     hard: {
       id: "hard", name: "Hard", hpMul: 1.42, speedMul: 1.1, countMul: 1.18, intervalMul: 0.9, rewardMul: 1.4, chipMul: 1.55,
-      edgeInset: 0.17, travel: 0.74, hairpin: 0.75, padOffset: 40, padClear: 26, pathClear: 26,
+      edgeInset: 0.17, travel: 0.74, hairpin: 0.75, padOffset: 40, padClear: 34, pathClear: ROAD_HALF_W + TOWER_PLACE_R,
       motifs: ["hairpin", "y-merge", "triple-funnel"],
       unlock: { kind: "wave", difficulty: "normal", wave: 10 },
     },
     nightmare: {
       id: "nightmare", name: "Nightmare", hpMul: 2.0, speedMul: 1.24, countMul: 1.35, intervalMul: 0.78, rewardMul: 1.85, chipMul: 2.35,
-      edgeInset: 0.21, travel: 0.52, hairpin: 1.0, padOffset: 34, padClear: 24, pathClear: 24,
+      edgeInset: 0.21, travel: 0.52, hairpin: 1.0, padOffset: 34, padClear: 32, pathClear: ROAD_HALF_W + TOWER_PLACE_R - 2,
       motifs: ["hairpin", "triple-funnel", "quad-squeeze"],
       unlock: { kind: "wave", difficulty: "hard", wave: 12 },
     },
@@ -936,7 +939,7 @@
       }
       unique.push(a);
     }
-    // Hint pads at bends/merges (visual only — placement is free anywhere valid).
+    // Pad anchors stay for obstacle spacing only — not drawn (free placement).
     const pads = buildPadsFromAnchors(unique, lanes, w, h, diff, rng);
     const exit = mainCorners[mainCorners.length - 1];
 
@@ -2289,6 +2292,12 @@
     }
     return false;
   }
+  function pathPlacementClear() {
+    const fromPath = state.path && state.path.pathClear;
+    const fromDiff = layoutForDifficulty(state.difficulty).pathClear;
+    // Always enforce road half-width + footprint so towers cannot sit on asphalt.
+    return Math.max(ROAD_HALF_W + TOWER_PLACE_R - 2, fromPath || 0, fromDiff || 0, 42);
+  }
   function placeTower(x, y) {
     const type = state.selectedTower;
     if (!type || !state.path) return;
@@ -2296,8 +2305,8 @@
     if (state.scrap < stats.cost) { toast("Not enough scrap"); return; }
     // Free placement: path clearance + obstacles + spacing — no pad-only slots.
     if (!placementOk(x, y)) {
-      if (hitsObstacle(x, y)) toast("Blocked by rock");
-      else if (distToPathNetwork(state.path, x, y) < ((state.path.pathClear) || 28)) toast("Too close to the road");
+      if (hitsObstacle(x, y, TOWER_PLACE_R)) toast("Blocked by rock");
+      else if (distToPathNetwork(state.path, x, y) < pathPlacementClear()) toast("Too close to the road");
       else toast("Invalid spot");
       return;
     }
@@ -3156,92 +3165,164 @@
     const len = Math.hypot(dx, dy) || 1;
     return { tx: dx / len, ty: dy / len, nx: -dy / len, ny: dx / len };
   }
-  /** Packed stone road with berm + cooled rift seam — terrain ribbon, not neon tube. */
-  function drawOneLane(pts, alphaMul, isMain) {
+  function laneWidths(isMain) {
+    return {
+      outer: isMain ? 46 : 40,
+      berm: isMain ? 38 : 34,
+      bed: isMain ? 28 : 24,
+      lane: isMain ? 18 : 15,
+    };
+  }
+  function nearMerge(x, y, merges, rad) {
+    if (!merges || !merges.length) return false;
+    for (const m of merges) {
+      if (Math.hypot(m.x - x, m.y - y) < rad) return true;
+    }
+    return false;
+  }
+  /**
+   * Layered road pass so overlapping lanes fuse into continuous asphalt
+   * instead of stacking full ribbons (double berms / seams at Y-joins).
+   * layer: shadow | berm | shoulder | bed | surface | detail
+   */
+  function drawLaneLayer(pts, alphaMul, isMain, layer, merges) {
     if (!pts || pts.length < 2) return;
     ctx.save();
     ctx.globalAlpha *= alphaMul;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
-    const outer = isMain ? 46 : 40;
-    const berm = isMain ? 38 : 34;
-    const bed = isMain ? 28 : 24;
-    const lane = isMain ? 18 : 15;
+    const w = laneWidths(isMain);
 
-    // Soft contact shadow
-    ctx.strokeStyle = "rgba(0,0,0,0.5)";
-    ctx.lineWidth = outer + 6;
-    strokePts(pts); ctx.stroke();
+    if (layer === "shadow") {
+      ctx.strokeStyle = "rgba(0,0,0,0.5)";
+      ctx.lineWidth = w.outer + 6;
+      strokePts(pts); ctx.stroke();
+    } else if (layer === "berm") {
+      ctx.strokeStyle = "#4a3c2e";
+      ctx.lineWidth = w.outer;
+      strokePts(pts); ctx.stroke();
+    } else if (layer === "shoulder") {
+      ctx.strokeStyle = "#2a2218";
+      ctx.lineWidth = w.berm;
+      strokePts(pts); ctx.stroke();
+    } else if (layer === "bed") {
+      const bedGrad = ctx.createLinearGradient(0, 0, 0, state.h);
+      bedGrad.addColorStop(0, "#6a5c4a");
+      bedGrad.addColorStop(0.4, "#4a3e32");
+      bedGrad.addColorStop(1, "#32281e");
+      ctx.strokeStyle = bedGrad;
+      ctx.lineWidth = w.bed;
+      strokePts(pts); ctx.stroke();
+    } else if (layer === "surface") {
+      ctx.strokeStyle = isMain ? "#4a4034" : "#42382e";
+      ctx.lineWidth = w.lane;
+      strokePts(pts); ctx.stroke();
+    } else if (layer === "detail") {
+      const mergeRad = 36;
+      const step = isMain ? 14 : 16;
+      let acc = 0;
+      for (let i = 1; i < pts.length; i++) {
+        const dx = pts[i].x - pts[i - 1].x;
+        const dy = pts[i].y - pts[i - 1].y;
+        const seg = Math.hypot(dx, dy);
+        acc += seg;
+        while (acc >= step) {
+          acc -= step;
+          const t = 1 - acc / seg;
+          const x = pts[i - 1].x + dx * t;
+          const y = pts[i - 1].y + dy * t;
+          if (nearMerge(x, y, merges, mergeRad)) continue;
+          const { nx, ny } = laneTangent(pts, i);
+          const side = ((i * 3) % 2 ? 1 : -1) * (3 + (i % 4));
+          ctx.globalAlpha = 0.22 * alphaMul;
+          ctx.fillStyle = i % 3 ? "#6a5a48" : "#2a2218";
+          ctx.beginPath();
+          ctx.ellipse(x + nx * side, y + ny * side, 2.4, 1.5, Math.atan2(dy, dx), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = alphaMul;
 
-    // Earthen berm
-    ctx.strokeStyle = "#4a3c2e";
-    ctx.lineWidth = outer;
-    strokePts(pts); ctx.stroke();
-
-    // Dark shoulder curb
-    ctx.strokeStyle = "#2a2218";
-    ctx.lineWidth = berm;
-    strokePts(pts); ctx.stroke();
-
-    // Road bed gradient
-    const bedGrad = ctx.createLinearGradient(0, 0, 0, state.h);
-    bedGrad.addColorStop(0, "#6a5c4a");
-    bedGrad.addColorStop(0.4, "#4a3e32");
-    bedGrad.addColorStop(1, "#32281e");
-    ctx.strokeStyle = bedGrad;
-    ctx.lineWidth = bed;
-    strokePts(pts); ctx.stroke();
-
-    // Packed ash lane
-    ctx.strokeStyle = isMain ? "#4a4034" : "#42382e";
-    ctx.lineWidth = lane;
-    strokePts(pts); ctx.stroke();
-
-    // Cobble flecks along the ribbon
-    const step = isMain ? 14 : 16;
-    let acc = 0;
-    for (let i = 1; i < pts.length; i++) {
-      const dx = pts[i].x - pts[i - 1].x;
-      const dy = pts[i].y - pts[i - 1].y;
-      const seg = Math.hypot(dx, dy);
-      acc += seg;
-      while (acc >= step) {
-        acc -= step;
-        const t = 1 - acc / seg;
-        const x = pts[i - 1].x + dx * t;
-        const y = pts[i - 1].y + dy * t;
-        const { nx, ny } = laneTangent(pts, i);
-        const side = ((i * 3) % 2 ? 1 : -1) * (3 + (i % 4));
-        ctx.globalAlpha = 0.22 * alphaMul;
-        ctx.fillStyle = i % 3 ? "#6a5a48" : "#2a2218";
-        ctx.beginPath();
-        ctx.ellipse(x + nx * side, y + ny * side, 2.4, 1.5, Math.atan2(dy, dx), 0, Math.PI * 2);
-        ctx.fill();
+      // Wear marks skip merge mouths so joins stay one continuous bed
+      const wearPts = [];
+      for (let i = 0; i < pts.length; i++) {
+        if (!nearMerge(pts[i].x, pts[i].y, merges, mergeRad - 6)) wearPts.push(pts[i]);
+        else if (wearPts.length >= 2) {
+          ctx.strokeStyle = "rgba(18,14,10,0.35)";
+          ctx.lineWidth = isMain ? 2.4 : 2;
+          ctx.setLineDash([10, 14]);
+          strokePts(wearPts); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.strokeStyle = isMain ? "rgba(140,56,28,0.4)" : "rgba(110,48,28,0.28)";
+          ctx.lineWidth = isMain ? 1.8 : 1.3;
+          strokePts(wearPts); ctx.stroke();
+          ctx.strokeStyle = isMain ? "rgba(200,120,60,0.12)" : "rgba(180,100,50,0.08)";
+          ctx.lineWidth = 0.8;
+          strokePts(wearPts); ctx.stroke();
+          ctx.strokeStyle = "rgba(220,200,170,0.2)";
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 9]);
+          strokePts(wearPts); ctx.stroke();
+          ctx.setLineDash([]);
+          wearPts.length = 0;
+        } else {
+          wearPts.length = 0;
+        }
+      }
+      if (wearPts.length >= 2) {
+        ctx.strokeStyle = "rgba(18,14,10,0.35)";
+        ctx.lineWidth = isMain ? 2.4 : 2;
+        ctx.setLineDash([10, 14]);
+        strokePts(wearPts); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = isMain ? "rgba(140,56,28,0.4)" : "rgba(110,48,28,0.28)";
+        ctx.lineWidth = isMain ? 1.8 : 1.3;
+        strokePts(wearPts); ctx.stroke();
+        ctx.strokeStyle = isMain ? "rgba(200,120,60,0.12)" : "rgba(180,100,50,0.08)";
+        ctx.lineWidth = 0.8;
+        strokePts(wearPts); ctx.stroke();
+        ctx.strokeStyle = "rgba(220,200,170,0.2)";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 9]);
+        strokePts(wearPts); ctx.stroke();
+        ctx.setLineDash([]);
       }
     }
-    ctx.globalAlpha = alphaMul;
-
-    // Twin wheel ruts
-    ctx.strokeStyle = "rgba(18,14,10,0.35)";
-    ctx.lineWidth = isMain ? 2.4 : 2;
-    ctx.setLineDash([10, 14]);
-    strokePts(pts); ctx.stroke();
-    ctx.setLineDash([]);
-
-    // Cooled magma center seam — quiet road wear, never a neon tube
-    ctx.strokeStyle = isMain ? "rgba(140,56,28,0.4)" : "rgba(110,48,28,0.28)";
-    ctx.lineWidth = isMain ? 1.8 : 1.3;
-    strokePts(pts); ctx.stroke();
-    ctx.strokeStyle = isMain ? "rgba(200,120,60,0.12)" : "rgba(180,100,50,0.08)";
-    ctx.lineWidth = 0.8;
-    strokePts(pts); ctx.stroke();
-
-    // Edge kerb highlights
-    ctx.strokeStyle = "rgba(220,200,170,0.2)";
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 9]);
-    strokePts(pts); ctx.stroke();
-    ctx.setLineDash([]);
+    ctx.restore();
+  }
+  /** Filled asphalt junction — blends Y-merges into one continuous road surface. */
+  function drawMergeJunction(m) {
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.fillStyle = "rgba(0,0,0,0.28)";
+    ctx.beginPath();
+    ctx.ellipse(0, 3, 28, 18, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const berm = ctx.createRadialGradient(0, 0, 4, 0, 0, 30);
+    berm.addColorStop(0, "#4a3c2e");
+    berm.addColorStop(0.55, "#3a3024");
+    berm.addColorStop(1, "rgba(42,34,24,0)");
+    ctx.fillStyle = berm;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 30, 20, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const bed = ctx.createRadialGradient(-2, -2, 2, 0, 0, 22);
+    bed.addColorStop(0, "#5a4e40");
+    bed.addColorStop(0.45, "#4a4034");
+    bed.addColorStop(1, "#32281e");
+    ctx.fillStyle = bed;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 22, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(18,14,10,0.22)";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 14, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(140,56,28,0.22)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 8, 5, 0, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.restore();
   }
   function drawSpawnPortal(p, index, total) {
@@ -3344,26 +3425,30 @@
     ctx.ellipse(0, -6, 9 + pulse * 1.5, 13 + pulse, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Outer halo for multi-spawn readability
+    // Color-ring + tiny numeric badge (no "GATE N" lettering)
     if (total > 1) {
       ctx.strokeStyle = col;
-      ctx.globalAlpha = 0.25 + pulse * 0.2;
+      ctx.globalAlpha = 0.28 + pulse * 0.22;
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.ellipse(0, 2, 28 + pulse * 2, 18 + pulse, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.globalAlpha = 1;
-      // Gate banner
-      ctx.fillStyle = "rgba(10,8,6,0.82)";
-      roundRect(-14, 20, 28, 16, 5); ctx.fill();
+      // Compact badge on the apron — icon-first, digit only
+      ctx.fillStyle = "rgba(10,8,6,0.78)";
+      ctx.beginPath();
+      ctx.arc(0, 22, 8, 0, Math.PI * 2);
+      ctx.fill();
       ctx.strokeStyle = col;
-      ctx.lineWidth = 1.5;
-      roundRect(-14, 20, 28, 16, 5); ctx.stroke();
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(0, 22, 8, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.fillStyle = col;
-      ctx.font = "800 12px Bricolage Grotesque, Avenir Next, sans-serif";
+      ctx.font = "800 11px Bricolage Grotesque, Avenir Next, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("GATE " + (index + 1), 0, 28);
+      ctx.fillText(String(index + 1), 0, 22.5);
       ctx.textBaseline = "alphabetic";
     }
     ctx.restore();
@@ -3424,7 +3509,7 @@
     ctx.closePath();
     ctx.fill();
 
-    // Shield crest
+    // Shield crest — base identity without spelled-out name
     ctx.fillStyle = "rgba(244,236,227,0.85)";
     ctx.beginPath();
     ctx.moveTo(0, -6);
@@ -3436,39 +3521,14 @@
     ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle = "rgba(10,8,6,0.75)";
-    roundRect(-20, 16, 40, 14, 5); ctx.fill();
-    ctx.fillStyle = "#ffb34a";
-    ctx.font = "800 10px Bricolage Grotesque, Avenir Next, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("WELLHEART", 0, 23);
-    ctx.textBaseline = "alphabetic";
-    ctx.restore();
-  }
-  function drawMergeMarker(m) {
-    ctx.save();
-    ctx.translate(m.x, m.y);
-    const pulse = 0.5 + 0.5 * Math.sin(state.time * 2 + m.x * 0.01);
-    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    // Ember hearth glow under the bastion (no text banner)
+    const hearth = ctx.createRadialGradient(0, 14, 1, 0, 16, 16);
+    hearth.addColorStop(0, `rgba(255,179,74,${0.45 + pulse * 0.2})`);
+    hearth.addColorStop(0.55, "rgba(232,90,42,0.22)");
+    hearth.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = hearth;
     ctx.beginPath();
-    ctx.ellipse(0, 4, 18, 8, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = `rgba(196,163,90,${0.35 + pulse * 0.25})`;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(0, 0, 14, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.strokeStyle = "rgba(196,163,90,0.2)";
-    ctx.lineWidth = 1.2;
-    ctx.setLineDash([3, 3]);
-    ctx.beginPath();
-    ctx.arc(0, 0, 9, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = "rgba(196,163,90,0.45)";
-    ctx.beginPath();
-    ctx.arc(0, 0, 2.5, 0, Math.PI * 2);
+    ctx.ellipse(0, 16, 16, 8, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -3477,12 +3537,18 @@
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     const lanes = (state.path.lanes && state.path.lanes.length) ? state.path.lanes : [state.path];
-    // Side lanes first; main on top.
-    for (let i = lanes.length - 1; i >= 0; i--) {
-      drawOneLane(lanes[i].points, i === 0 ? 1 : 0.85, i === 0);
+    const merges = state.path.merges || [];
+    // Paint every lane per layer so overlaps fuse (continuous asphalt at joins).
+    const layers = ["shadow", "berm", "shoulder", "bed", "surface"];
+    for (const layer of layers) {
+      for (let i = lanes.length - 1; i >= 0; i--) {
+        drawLaneLayer(lanes[i].points, i === 0 ? 1 : 0.92, i === 0, layer, merges);
+      }
     }
-    if (state.path.merges) {
-      for (const m of state.path.merges) drawMergeMarker(m);
+    // Asphalt junction plugs before wear marks
+    for (const m of merges) drawMergeJunction(m);
+    for (let i = lanes.length - 1; i >= 0; i--) {
+      drawLaneLayer(lanes[i].points, i === 0 ? 1 : 0.92, i === 0, "detail", merges);
     }
     // Unbuildable rocks — map constraint.
     if (state.path.obstacles) {
@@ -3521,26 +3587,7 @@
         ctx.restore();
       }
     }
-    // Soft bend hints only — free placement elsewhere.
-    if (state.path.pads) {
-      for (const pad of state.path.pads) {
-        ctx.save();
-        ctx.translate(pad.x, pad.y);
-        ctx.globalAlpha = 0.5;
-        ctx.strokeStyle = pad.merge ? "rgba(196,163,90,0.45)" : "rgba(232,136,58,0.3)";
-        ctx.lineWidth = 1.3;
-        ctx.setLineDash([3, 4]);
-        ctx.beginPath();
-        ctx.arc(0, 0, 13, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = "rgba(44,36,28,0.4)";
-        ctx.beginPath();
-        ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-    }
+    // Pads stay data-only for layout spacing — no dotted slot markers (free placement).
     const spawnPts = state.path.spawns || lanes.map((l) => l.points[0]);
     spawnPts.forEach((p, i) => drawSpawnPortal(p, i, spawnPts.length));
     const exit = state.path.exit || (lanes[0] && lanes[0].points[lanes[0].points.length - 1]);
@@ -3561,6 +3608,16 @@
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
+    // Footprint disk — red when overlapping road/rocks
+    ctx.save();
+    ctx.fillStyle = ok ? "rgba(255,179,74,0.12)" : "rgba(232,93,76,0.22)";
+    ctx.strokeStyle = ok ? "rgba(255,179,74,0.45)" : "rgba(232,93,76,0.85)";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(x, y, TOWER_PLACE_R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
     // Mini tower silhouette instead of flat disk
     ctx.save();
     ctx.globalAlpha = ok ? 0.55 : 0.35;
@@ -3573,7 +3630,7 @@
     ctx.restore();
     if (!ok) {
       ctx.save();
-      ctx.strokeStyle = "rgba(232,93,76,0.85)";
+      ctx.strokeStyle = "rgba(232,93,76,0.9)";
       ctx.lineWidth = 2.5;
       ctx.beginPath();
       ctx.moveTo(x - 10, y - 10);
@@ -4551,12 +4608,12 @@
   }
   function placementOk(x, y) {
     if (!state.path) return false;
-    const clear = (state.path && state.path.pathClear) || layoutForDifficulty(state.difficulty).pathClear || 28;
-    if (distToPathNetwork(state.path, x, y) < clear) return false;
-    if (hitsObstacle(x, y)) return false;
+    // Reject when the tower disk would overlap painted road (center clearance = roadHalf + footprint).
+    if (distToPathNetwork(state.path, x, y) < pathPlacementClear()) return false;
+    if (hitsObstacle(x, y, TOWER_PLACE_R)) return false;
     if (x < 16 || y < 16 || x > state.w - 16 || y > state.h - 16) return false;
     for (const t of state.towers) {
-      if (Math.hypot(t.x - x, t.y - y) < 36) return false;
+      if (Math.hypot(t.x - x, t.y - y) < TOWER_PLACE_R * 2) return false;
     }
     return true;
   }
