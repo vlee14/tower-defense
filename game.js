@@ -18,8 +18,8 @@
 
   // layout*: KR/BTD lessons — harder = shorter path, more gates, less pad space (not HP-only).
   // pathClear = road half-width (~outer berm 23) + tower footprint — keep towers fully off asphalt.
-  const ROAD_HALF_W = 24;
-  const TOWER_PLACE_R = 20;
+  const ROAD_HALF_W = 28;
+  const TOWER_PLACE_R = 22;
   const DIFFICULTIES = {
     normal: {
       id: "normal", name: "Normal", hpMul: 1, speedMul: 1, countMul: 1, intervalMul: 1, rewardMul: 1, chipMul: 1,
@@ -2296,7 +2296,7 @@
     const fromPath = state.path && state.path.pathClear;
     const fromDiff = layoutForDifficulty(state.difficulty).pathClear;
     // Always enforce road half-width + footprint so towers cannot sit on asphalt.
-    return Math.max(ROAD_HALF_W + TOWER_PLACE_R - 2, fromPath || 0, fromDiff || 0, 42);
+    return Math.max(ROAD_HALF_W + TOWER_PLACE_R, fromPath || 0, fromDiff || 0, 50);
   }
   function placeTower(x, y) {
     const type = state.selectedTower;
@@ -3180,6 +3180,29 @@
     }
     return false;
   }
+  /** Split a lane polyline into runs that skip merge mouths (avoids X-overlap berms). */
+  function laneRunsSkippingMerges(pts, merges, rad) {
+    const runs = [];
+    let run = [];
+    for (let i = 0; i < pts.length; i++) {
+      if (nearMerge(pts[i].x, pts[i].y, merges, rad)) {
+        if (run.length >= 2) runs.push(run);
+        run = [];
+      } else {
+        run.push(pts[i]);
+      }
+    }
+    if (run.length >= 2) runs.push(run);
+    return runs;
+  }
+  function strokeLaneRuns(pts, merges, rad, strokeFn) {
+    const gap = merges && merges.length ? rad : 0;
+    if (!gap) {
+      strokeFn(pts);
+      return;
+    }
+    for (const run of laneRunsSkippingMerges(pts, merges, gap)) strokeFn(run);
+  }
   /**
    * Layered road pass so overlapping lanes fuse into continuous asphalt
    * instead of stacking full ribbons (double berms / seams at Y-joins).
@@ -3192,19 +3215,20 @@
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     const w = laneWidths(isMain);
+    const mergeGap = 34;
 
     if (layer === "shadow") {
       ctx.strokeStyle = "rgba(0,0,0,0.5)";
       ctx.lineWidth = w.outer + 6;
-      strokePts(pts); ctx.stroke();
+      strokeLaneRuns(pts, merges, mergeGap, (run) => { strokePts(run); ctx.stroke(); });
     } else if (layer === "berm") {
       ctx.strokeStyle = "#4a3c2e";
       ctx.lineWidth = w.outer;
-      strokePts(pts); ctx.stroke();
+      strokeLaneRuns(pts, merges, mergeGap, (run) => { strokePts(run); ctx.stroke(); });
     } else if (layer === "shoulder") {
       ctx.strokeStyle = "#2a2218";
       ctx.lineWidth = w.berm;
-      strokePts(pts); ctx.stroke();
+      strokeLaneRuns(pts, merges, mergeGap, (run) => { strokePts(run); ctx.stroke(); });
     } else if (layer === "bed") {
       const bedGrad = ctx.createLinearGradient(0, 0, 0, state.h);
       bedGrad.addColorStop(0, "#6a5c4a");
@@ -3212,13 +3236,13 @@
       bedGrad.addColorStop(1, "#32281e");
       ctx.strokeStyle = bedGrad;
       ctx.lineWidth = w.bed;
-      strokePts(pts); ctx.stroke();
+      strokeLaneRuns(pts, merges, mergeGap, (run) => { strokePts(run); ctx.stroke(); });
     } else if (layer === "surface") {
       ctx.strokeStyle = isMain ? "#4a4034" : "#42382e";
       ctx.lineWidth = w.lane;
-      strokePts(pts); ctx.stroke();
+      strokeLaneRuns(pts, merges, mergeGap, (run) => { strokePts(run); ctx.stroke(); });
     } else if (layer === "detail") {
-      const mergeRad = 36;
+      const mergeRad = 38;
       const step = isMain ? 14 : 16;
       let acc = 0;
       for (let i = 1; i < pts.length; i++) {
@@ -3244,32 +3268,8 @@
       ctx.globalAlpha = alphaMul;
 
       // Wear marks skip merge mouths so joins stay one continuous bed
-      const wearPts = [];
-      for (let i = 0; i < pts.length; i++) {
-        if (!nearMerge(pts[i].x, pts[i].y, merges, mergeRad - 6)) wearPts.push(pts[i]);
-        else if (wearPts.length >= 2) {
-          ctx.strokeStyle = "rgba(18,14,10,0.35)";
-          ctx.lineWidth = isMain ? 2.4 : 2;
-          ctx.setLineDash([10, 14]);
-          strokePts(wearPts); ctx.stroke();
-          ctx.setLineDash([]);
-          ctx.strokeStyle = isMain ? "rgba(140,56,28,0.4)" : "rgba(110,48,28,0.28)";
-          ctx.lineWidth = isMain ? 1.8 : 1.3;
-          strokePts(wearPts); ctx.stroke();
-          ctx.strokeStyle = isMain ? "rgba(200,120,60,0.12)" : "rgba(180,100,50,0.08)";
-          ctx.lineWidth = 0.8;
-          strokePts(wearPts); ctx.stroke();
-          ctx.strokeStyle = "rgba(220,200,170,0.2)";
-          ctx.lineWidth = 1.5;
-          ctx.setLineDash([4, 9]);
-          strokePts(wearPts); ctx.stroke();
-          ctx.setLineDash([]);
-          wearPts.length = 0;
-        } else {
-          wearPts.length = 0;
-        }
-      }
-      if (wearPts.length >= 2) {
+      const wearRuns = laneRunsSkippingMerges(pts, merges, mergeRad - 4);
+      for (const wearPts of wearRuns) {
         ctx.strokeStyle = "rgba(18,14,10,0.35)";
         ctx.lineWidth = isMain ? 2.4 : 2;
         ctx.setLineDash([10, 14]);
@@ -3290,39 +3290,49 @@
     }
     ctx.restore();
   }
-  /** Filled asphalt junction — blends Y-merges into one continuous road surface. */
+  /** Soft asphalt junction — fills the gapped Y without a floating ring marker. */
   function drawMergeJunction(m) {
     ctx.save();
     ctx.translate(m.x, m.y);
-    ctx.fillStyle = "rgba(0,0,0,0.28)";
+    // Soft contact shadow
+    ctx.fillStyle = "rgba(0,0,0,0.32)";
     ctx.beginPath();
-    ctx.ellipse(0, 3, 28, 18, 0, 0, Math.PI * 2);
+    ctx.ellipse(1, 4, 36, 24, 0, 0, Math.PI * 2);
     ctx.fill();
-    const berm = ctx.createRadialGradient(0, 0, 4, 0, 0, 30);
+    // Earthen berm halo (fades out — no hard ring stroke)
+    const berm = ctx.createRadialGradient(0, 0, 8, 0, 0, 38);
     berm.addColorStop(0, "#4a3c2e");
     berm.addColorStop(0.55, "#3a3024");
+    berm.addColorStop(0.82, "rgba(42,34,24,0.55)");
     berm.addColorStop(1, "rgba(42,34,24,0)");
     ctx.fillStyle = berm;
     ctx.beginPath();
+    ctx.ellipse(0, 0, 38, 26, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Shoulder
+    const shoulder = ctx.createRadialGradient(0, 0, 4, 0, 0, 30);
+    shoulder.addColorStop(0, "#2a2218");
+    shoulder.addColorStop(0.7, "#241c14");
+    shoulder.addColorStop(1, "rgba(36,28,20,0)");
+    ctx.fillStyle = shoulder;
+    ctx.beginPath();
     ctx.ellipse(0, 0, 30, 20, 0, 0, Math.PI * 2);
     ctx.fill();
-    const bed = ctx.createRadialGradient(-2, -2, 2, 0, 0, 22);
+    // Packed road bed — continuous asphalt, no outline ring
+    const bed = ctx.createRadialGradient(-3, -2, 2, 0, 0, 24);
     bed.addColorStop(0, "#5a4e40");
-    bed.addColorStop(0.45, "#4a4034");
-    bed.addColorStop(1, "#32281e");
+    bed.addColorStop(0.4, "#4a4034");
+    bed.addColorStop(0.85, "#3a3228");
+    bed.addColorStop(1, "rgba(50,40,30,0)");
     ctx.fillStyle = bed;
     ctx.beginPath();
-    ctx.ellipse(0, 0, 22, 15, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, 24, 16, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "rgba(18,14,10,0.22)";
+    // Quiet wear, not a marker ring
+    ctx.fillStyle = "rgba(18,14,10,0.18)";
     ctx.beginPath();
-    ctx.ellipse(0, 0, 14, 9, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, 12, 7, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "rgba(140,56,28,0.22)";
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 8, 5, 0, 0, Math.PI * 2);
-    ctx.stroke();
     ctx.restore();
   }
   function drawSpawnPortal(p, index, total) {
