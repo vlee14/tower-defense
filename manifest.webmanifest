@@ -5,7 +5,7 @@
   "description": "Endless molten-rift tower defense. Play offline anywhere.",
   "lang": "en",
   "dir": "ltr",
-  "start_url": "./index.html?v=2.0.5",
+  "start_url": "./index.html?v=2.0.6",
   "scope": "./",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
@@ -14,7 +14,7 @@
   "theme_color": "#0b0908",
   "categories": ["games", "entertainment"],
   "prefer_related_applications": false,
-  "version": "2.0.5",
+  "version": "2.0.6",
   "icons": [
     {
       "src": "icons/icon-192.png",

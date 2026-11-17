@@ -3290,48 +3290,32 @@
     }
     ctx.restore();
   }
-  /** Soft asphalt junction — fills the gapped Y without a floating ring marker. */
+  /**
+   * Side lanes share the spine after the merge for gameplay — for drawing, trim
+   * them at the merge so round caps meet the main ribbon (no double spine / join disk).
+   */
+  function lanePointsForDraw(pts, laneIndex, merges) {
+    if (!pts || pts.length < 2) return pts;
+    if (laneIndex === 0 || !merges || !merges.length) return pts;
+    for (let i = 0; i < pts.length; i++) {
+      if (nearMerge(pts[i].x, pts[i].y, merges, 14)) {
+        // Keep a short nib past the mouth so the round cap seats into the spine.
+        return pts.slice(0, Math.min(pts.length, i + 2));
+      }
+    }
+    return pts;
+  }
+  /** Soft fill where a trimmed spur meets the spine — no ring, just asphalt continuity. */
   function drawMergeJunction(m) {
     ctx.save();
     ctx.translate(m.x, m.y);
-    // Soft contact shadow
-    ctx.fillStyle = "rgba(0,0,0,0.32)";
-    ctx.beginPath();
-    ctx.ellipse(1, 4, 36, 24, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // Earthen berm halo (fades out — no hard ring stroke)
-    const berm = ctx.createRadialGradient(0, 0, 8, 0, 0, 38);
-    berm.addColorStop(0, "#4a3c2e");
-    berm.addColorStop(0.55, "#3a3024");
-    berm.addColorStop(0.82, "rgba(42,34,24,0.55)");
-    berm.addColorStop(1, "rgba(42,34,24,0)");
-    ctx.fillStyle = berm;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 38, 26, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // Shoulder
-    const shoulder = ctx.createRadialGradient(0, 0, 4, 0, 0, 30);
-    shoulder.addColorStop(0, "#2a2218");
-    shoulder.addColorStop(0.7, "#241c14");
-    shoulder.addColorStop(1, "rgba(36,28,20,0)");
-    ctx.fillStyle = shoulder;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 30, 20, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // Packed road bed — continuous asphalt, no outline ring
-    const bed = ctx.createRadialGradient(-3, -2, 2, 0, 0, 24);
-    bed.addColorStop(0, "#5a4e40");
-    bed.addColorStop(0.4, "#4a4034");
-    bed.addColorStop(0.85, "#3a3228");
+    const bed = ctx.createRadialGradient(0, 0, 2, 0, 0, 22);
+    bed.addColorStop(0, "#4a4034");
+    bed.addColorStop(0.55, "#42382e");
     bed.addColorStop(1, "rgba(50,40,30,0)");
     ctx.fillStyle = bed;
     ctx.beginPath();
-    ctx.ellipse(0, 0, 24, 16, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // Quiet wear, not a marker ring
-    ctx.fillStyle = "rgba(18,14,10,0.18)";
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 12, 7, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, 22, 16, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -3548,17 +3532,20 @@
     ctx.lineCap = "round";
     const lanes = (state.path.lanes && state.path.lanes.length) ? state.path.lanes : [state.path];
     const merges = state.path.merges || [];
-    // Paint every lane per layer so overlaps fuse (continuous asphalt at joins).
+    // Trimmed draw polylines: main spine full; side spurs stop at merge (round-cap join).
+    const drawPts = lanes.map((lane, i) => lanePointsForDraw(lane.points, i, merges));
+    // Side spurs first, then main. Trimming (not stroke-gaps) makes the Y join.
     const layers = ["shadow", "berm", "shoulder", "bed", "surface"];
     for (const layer of layers) {
-      for (let i = lanes.length - 1; i >= 0; i--) {
-        drawLaneLayer(lanes[i].points, i === 0 ? 1 : 0.92, i === 0, layer, merges);
+      for (let i = drawPts.length - 1; i >= 0; i--) {
+        drawLaneLayer(drawPts[i], i === 0 ? 1 : 0.95, i === 0, layer, null);
       }
     }
-    // Asphalt junction plugs before wear marks
+    // Soft asphalt blend at mouths (no ring / join disk)
     for (const m of merges) drawMergeJunction(m);
-    for (let i = lanes.length - 1; i >= 0; i--) {
-      drawLaneLayer(lanes[i].points, i === 0 ? 1 : 0.92, i === 0, "detail", merges);
+    for (let i = drawPts.length - 1; i >= 0; i--) {
+      // Skip wear marks right at the mouth so seams stay quiet
+      drawLaneLayer(drawPts[i], i === 0 ? 1 : 0.95, i === 0, "detail", merges);
     }
     // Unbuildable rocks — map constraint.
     if (state.path.obstacles) {
