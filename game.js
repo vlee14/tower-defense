@@ -65,22 +65,39 @@
 
   // Internal balance ledger: cost-per-DPS / ability budget for tuning.
   // DPS ~ damage / fireRate (splash & pierce counted as ability multipliers).
+  // HP curve: soft early (W1–5 learnable), steeper mid/late, deep exponential climb.
+  // Daily applies DAILY.* muls on top of Normal + hard-layout path; hard-stops at waveCap.
+  const DAILY = {
+    waveCap: 100,
+    layout: "hard",
+    hpMul: 1.48,
+    speedMul: 1.14,
+    countMul: 1.25,
+    intervalMul: 0.82,
+    rewardMul: 0.88,
+    scrapWaveMul: 0.82,
+    armorBias: 0.12,
+    chipMul: 1.35,
+    clearBonus: 100,
+  };
   const BALANCE = {
     scrapStart: 105,
     scrapWaveBase: 16,
     scrapWavePer: 2.1,
-    scrapKillScale: 0.72,
+    scrapKillScale: 0.65,
     levelDmgPer: 0.22,
     levelDmgSoft: 0.035, // damp after L6
     levelRangePer: 0.08,
     levelRatePer: 0.04,
     levelCd: 1.25, // wall-clock seconds (not scaled by game speed)
-    hpEarly: 0.13,
-    hpMid: 0.2,
-    hpLate: 0.32,
-    hpDeepBase: 1.055, // exponential after wave 40
-    countCap: 58,
-    rewardDeepFade: 0.012, // reduce kill reward growth deep
+    hpEarly: 0.11, // W1–10: slightly gentler than before
+    hpMid: 0.26, // W11–22: clear step up
+    hpLate: 0.42, // W23–40: threatening
+    hpDeepBase: 1.068, // exponential after wave 40
+    countCap: 68,
+    countWaveEarly: 1.05, // W1–5 spawn growth
+    countWaveLate: 1.58, // denser mid/late packs
+    rewardDeepFade: 0.018, // scrap lags HP deep so economy can't outscale forever
     // CC: never hard-pin. Floor = always forward progress.
     moveFloor: 0.3,
     moveFloorArmored: 0.36,
@@ -463,7 +480,7 @@
     over: $("screen-over"), codex: $("screen-codex"), settings: $("screen-settings"),
     bestWave: $("best-wave"), bestScore: $("best-score"), chips: $("chips"), chipsUp: $("chips-up"),
     btnContinue: $("btn-continue"), upgradeList: $("upgrade-list"),
-    overSummary: $("over-summary"), overChips: $("over-chips"),
+    overTitle: $("over-title"), overSummary: $("over-summary"), overChips: $("over-chips"),
     btnMute: $("btn-mute"), btnPause: $("btn-pause"), btnSpeed: $("btn-speed"),
     speedLabel: $("speed-label"),
     btnSell: $("btn-sell"), btnUpgrade: $("btn-upgrade"), btnAutoLevel: $("btn-auto-level"),
@@ -1032,32 +1049,43 @@
     if (wave > 0 && wave % 10 === 0) {
       let n = 1 + Math.floor((wave - 10) / 10); // 10→1, 20→2, 30→3…
       if (wave >= 50) n += Math.floor((wave - 50) / 25);
+      if (runIsDaily && wave >= 30) n += 1;
       return Math.min(5, Math.max(1, n));
     }
-    // Late endless: occasional mid-cycle boss so packs can overlap across waves.
-    if (wave >= 28 && wave % 5 === 0 && rng() < 0.5) return 1;
-    if (wave >= 42 && rng() < 0.1) return 1;
+    // Mid/late: more mid-cycle bosses so pressure stacks across overlaps.
+    const midChance = runIsDaily ? 0.62 : 0.42;
+    if (wave >= 18 && wave % 5 === 0 && rng() < midChance) return 1;
+    if (wave >= 28 && wave % 5 === 0 && rng() < (runIsDaily ? 0.78 : 0.55)) return 1;
+    if (wave >= 35 && rng() < (runIsDaily ? 0.18 : 0.12)) return 1;
     return 0;
   }
 
   function wavePlan(seed, wave, diffId) {
     const diff = DIFFICULTIES[diffId] || DIFFICULTIES.normal;
-    const rng = mulberry32(hashSeed(seed + ":wave:" + wave + ":" + diff.id));
+    const daily = runIsDaily ? DAILY : null;
+    const rng = mulberry32(hashSeed(seed + ":wave:" + wave + ":" + diff.id + (daily ? ":daily" : "")));
     const early = Math.min(wave, 10);
     const mid = Math.max(0, Math.min(wave, 22) - 10);
     const late = Math.max(0, Math.min(wave, 40) - 22);
     const deep = Math.max(0, wave - 40);
-    // Steeper deep curve so endless is a real climb (cost-per-DPS tuned).
+    // Soft early → steep mid/late → deep exponential (Daily multiplies on top of Normal).
     const difficulty = (
       1 + early * BALANCE.hpEarly + mid * BALANCE.hpMid + late * BALANCE.hpLate
-    ) * Math.pow(BALANCE.hpDeepBase, deep) * diff.hpMul;
+    ) * Math.pow(BALANCE.hpDeepBase, deep) * diff.hpMul * (daily ? daily.hpMul : 1);
     const bossN = bossCountForWave(wave, rng);
     const isBoss = bossN > 0;
+    const countSlope = wave <= 5 ? BALANCE.countWaveEarly : BALANCE.countWaveLate;
     const count = Math.min(
       BALANCE.countCap,
-      Math.floor((7 + Math.floor(wave * 1.35 + rng() * 3) + deep * 0.15) * diff.countMul)
+      Math.floor(
+        (6 + Math.floor(wave * countSlope + rng() * 3) + deep * 0.4) *
+        diff.countMul * (daily ? daily.countMul : 1)
+      )
     );
-    const interval = Math.max(0.18, (0.9 - wave * 0.024 + (rng() - 0.5) * 0.1) * diff.intervalMul);
+    const interval = Math.max(
+      0.15,
+      (0.9 - wave * 0.026 + (rng() - 0.5) * 0.1) * diff.intervalMul * (daily ? daily.intervalMul : 1)
+    );
     const mix = [];
     const bossHpShare = bossN <= 1 ? 1 : (0.62 + 0.38 / bossN);
     const usedBosses = new Set();
@@ -1069,10 +1097,11 @@
       });
     }
     for (const b of bossPacks) mix.push(b);
+    const armorBias = (diff.id === "nightmare" ? 0.1 : 0) + (daily ? daily.armorBias : 0);
     const weights = {
-      drone: 0.4 + rng() * 0.15,
-      crawler: 0.28,
-      armor: Math.min(0.45, 0.1 + wave * 0.022 + (diff.id === "nightmare" ? 0.1 : 0)),
+      drone: 0.38 + rng() * 0.14,
+      crawler: 0.26,
+      armor: Math.min(0.55, 0.08 + wave * 0.028 + armorBias),
       swarm: wave >= 3 ? 0.24 + rng() * 0.12 : 0,
     };
     let left = Math.max(0, count - bossN);
@@ -1103,11 +1132,12 @@
       for (const f of fodder) mix.push(f);
     }
     const rewardFade = 1 / (1 + deep * BALANCE.rewardDeepFade);
+    const layoutId = daily ? daily.layout : diff.id;
     return {
       count, interval, mix, difficulty, isBoss, bossN,
-      speedMul: diff.speedMul * (1 + Math.min(0.35, deep * 0.002)),
-      rewardMul: diff.rewardMul * rewardFade * BALANCE.scrapKillScale,
-      spawnLanes: (state.path && state.path.spawnN) || spawnCountForDifficulty(diff.id),
+      speedMul: diff.speedMul * (1 + Math.min(0.42, deep * 0.003)) * (daily ? daily.speedMul : 1),
+      rewardMul: diff.rewardMul * rewardFade * BALANCE.scrapKillScale * (daily ? daily.rewardMul : 1),
+      spawnLanes: (state.path && state.path.spawnN) || spawnCountForDifficulty(layoutId),
     };
   }
 
@@ -1329,7 +1359,7 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     state.w = cssW; state.h = cssH;
     if (state.seed) {
-      state.path = generatePath(state.seed, state.w, state.h, state.difficulty);
+      state.path = generatePath(state.seed, state.w, state.h, runLayoutDiffId());
       for (const t of state.towers) {
         if (t.nx != null) { t.x = t.nx * state.w; t.y = t.ny * state.h; }
       }
@@ -1394,7 +1424,7 @@
       runIsDaily = !!data.isDaily;
       runDailyKey = data.dailyKey || (runIsDaily ? dailyKey() : null);
       meta.selectedDifficulty = state.difficulty;
-      state.path = generatePath(state.seed, state.w, state.h, state.difficulty);
+      state.path = generatePath(state.seed, state.w, state.h, runLayoutDiffId());
       state.hp = data.hp; state.scrap = data.scrap; state.score = data.score; state.wave = data.wave;
       state.betweenWaves = data.betweenWaves || 0;
       state.awaitingStart = data.awaitingStart != null
@@ -1460,6 +1490,10 @@
     }).join("");
   }
 
+  function runLayoutDiffId() {
+    if (runIsDaily) return DAILY.layout;
+    return state.difficulty || "normal";
+  }
   function startNewRun(opts = {}) {
     syncDifficultyUnlocks();
     runIsDaily = !!opts.daily;
@@ -1469,13 +1503,18 @@
       state.difficulty = meta.selectedDifficulty || "normal";
       state.seed = newRunSeed();
     } else {
+      // Meta tracks as Normal; wavePlan + layout use Daily modifiers / Hard path.
       state.difficulty = "normal";
       state.seed = dailySeedFor(runDailyKey || dailyKey());
     }
-    state.path = generatePath(state.seed, state.w, state.h, state.difficulty);
+    state.path = generatePath(state.seed, state.w, state.h, runLayoutDiffId());
     const diff = currentDiff();
-    state.hp = diff.id === "nightmare" ? 16 : diff.id === "hard" ? 18 : 20;
-    state.scrap = Math.floor(BALANCE.scrapStart * (diff.id === "nightmare" ? 0.85 : diff.id === "hard" ? 0.95 : 1));
+    state.hp = runIsDaily ? 18 : diff.id === "nightmare" ? 16 : diff.id === "hard" ? 18 : 20;
+    const scrapMul = runIsDaily ? 0.92
+      : diff.id === "nightmare" ? 0.85
+      : diff.id === "hard" ? 0.95
+      : 1;
+    state.scrap = Math.floor(BALANCE.scrapStart * scrapMul);
     state.score = 0; state.wave = 0;
     state.towers = []; state.enemies = []; state.projectiles = []; state.fx = []; state.particles = []; state.hazards = []; state.enemySeq = 0;
     state.spawnQueue = []; state.spawnTimer = 0; state.betweenWaves = 0;
@@ -1485,7 +1524,7 @@
     state.shake = 0; state.flash = 0;
     state.mode = "playing";
     showScreen(null);
-    showBanner("Prep · place towers");
+    showBanner(runIsDaily ? "Daily · 100 waves" : "Prep · place towers");
     ensureAudio();
     sfx.start();
     syncMusic();
@@ -1499,11 +1538,16 @@
     if (!loadRun()) { toast("No saved run"); return; }
     showScreen("pause"); updateHUD();
   }
-  function endRun(abandoned) {
+  function endRun(abandoned, opts = {}) {
     const wave = state.wave, score = state.score;
+    const victory = !!opts.victory && !abandoned;
     const diff = DIFFICULTIES[state.difficulty] || DIFFICULTIES.normal;
-    const dailyBonus = runIsDaily && !abandoned && wave >= 8 ? 18 : 0;
-    const chips = Math.floor((abandoned ? wave * 3 + score / 55 : wave * 6.5 + score / 26) * diff.chipMul) + dailyBonus;
+    const wasDaily = runIsDaily;
+    const dailyBonus = wasDaily && !abandoned
+      ? (wave >= 8 ? 18 : 0) + (victory ? DAILY.clearBonus : 0)
+      : 0;
+    const chipScale = diff.chipMul * (wasDaily ? DAILY.chipMul : 1);
+    const chips = Math.floor((abandoned ? wave * 3 + score / 55 : wave * 6.5 + score / 26) * chipScale) + dailyBonus;
     meta.chips += Math.max(0, chips);
     if (!meta.bestByDifficulty[diff.id]) meta.bestByDifficulty[diff.id] = { wave: 0, score: 0 };
     const rec = meta.bestByDifficulty[diff.id];
@@ -1516,7 +1560,7 @@
         newly.push(DIFFICULTIES[id].name);
       }
     }
-    if (runIsDaily && runDailyKey) {
+    if (wasDaily && runDailyKey) {
       if (meta.lastDailyKey !== runDailyKey) {
         meta.dailiesCompleted = (meta.dailiesCompleted || 0) + 1;
         meta.lastDailyKey = runDailyKey;
@@ -1532,21 +1576,27 @@
     if (wave > best.wave) best.wave = wave;
     if (score > best.score) best.score = score;
     saveJSON(STORAGE.best, best);
-    const wasDaily = runIsDaily;
     runIsDaily = false; runDailyKey = null;
     clearRun();
     state.mode = "over";
     hideCoach(false);
+    if (els.overTitle) {
+      els.overTitle.textContent = victory
+        ? "Rift Sealed"
+        : abandoned
+          ? "Run Abandoned"
+          : "Wellheart Breached";
+    }
     els.overSummary.textContent =
-      `${wasDaily ? "Daily · " : ""}${diff.name} · Wave ${wave} · Score ${formatCompact(score)}` +
-      (abandoned ? " (abandoned)" : "");
+      `${wasDaily ? "Daily · " : ""}${wasDaily ? "Rift" : diff.name} · Wave ${wave}${wasDaily ? "/" + DAILY.waveCap : ""} · Score ${formatCompact(score)}` +
+      (abandoned ? " (abandoned)" : victory ? " · clear" : "");
     els.overChips.textContent =
       `+${Math.max(0, chips)} chips` +
       (dailyBonus ? ` · daily +${dailyBonus}` : "") +
       (newly.length ? ` · ${newly.join(", ")}` : "");
     showScreen("over"); refreshHub();
     sfx.over();
-    addShake(1.1);
+    addShake(victory ? 0.55 : 1.1);
   }
 
   function showScreen(name) {
@@ -1597,8 +1647,8 @@
       if (hint) {
         const bestD = meta.lastDailyBest || { wave: 0, score: 0 };
         hint.textContent = doneToday
-          ? `Today’s best: W${bestD.wave || 0} · ${formatCompact(bestD.score || 0)} · ${meta.dailiesCompleted || 0} dailies`
-          : `Shared seed ${key} · clear W8 for bonus chips`;
+          ? `Today’s best: W${bestD.wave || 0}/${DAILY.waveCap} · ${formatCompact(bestD.score || 0)} · ${meta.dailiesCompleted || 0} dailies`
+          : `Shared seed ${key} · ${DAILY.waveCap} waves · harder than Normal`;
       }
     }
     refreshMilestonesUI();
@@ -1797,16 +1847,23 @@
     const score = Math.floor(state.score);
     els.scrap.textContent = formatCompact(scrap);
     els.scrap.title = String(scrap);
-    const dShort = ({ normal: "N", hard: "H", nightmare: "NM" })[state.difficulty] || "N";
+    const dShort = runIsDaily
+      ? "D"
+      : ({ normal: "N", hard: "H", nightmare: "NM" })[state.difficulty] || "N";
+    const waveN = Math.max(1, state.wave);
     els.wave.textContent = state.awaitingStart
       ? `${dShort} · Prep`
-      : `${dShort} · W${Math.max(1, state.wave)}`;
+      : runIsDaily
+        ? `${dShort} · W${waveN}/${DAILY.waveCap}`
+        : `${dShort} · W${waveN}`;
     els.score.textContent = formatCompact(score);
     els.score.title = String(score);
     if (els.wave && els.wave.parentElement) {
       els.wave.parentElement.title = state.awaitingStart
         ? `${dShort} · Prep — tap Start when ready`
-        : `${dShort} · Wave ${Math.max(1, state.wave)} · Score ${score}`;
+        : runIsDaily
+          ? `Daily · Wave ${waveN} of ${DAILY.waveCap} · Score ${score}`
+          : `${dShort} · Wave ${waveN} · Score ${score}`;
     }
     refreshTowerButtons();
     updateInspect();
@@ -2138,6 +2195,7 @@
   }
 
   function beginWave() {
+    if (runIsDaily && state.wave >= DAILY.waveCap) return;
     state.wave += 1;
     const plan = wavePlan(state.seed, state.wave, state.difficulty);
     state.spawnQueue = [];
@@ -2168,6 +2226,7 @@
       banner = `${((b && ENEMY[b.type]) || {}).label || "Boss"} · W${state.wave}`;
     }
     if (livingBossCount() > 0 && plan.isBoss) banner = `Overlap · ${banner}`;
+    if (runIsDaily && state.wave >= DAILY.waveCap) banner = `Final · ${banner}`;
     showBanner(banner);
     sfx.wave();
     saveRun();
@@ -2294,7 +2353,7 @@
   }
   function pathPlacementClear() {
     const fromPath = state.path && state.path.pathClear;
-    const fromDiff = layoutForDifficulty(state.difficulty).pathClear;
+    const fromDiff = layoutForDifficulty(runLayoutDiffId()).pathClear;
     // Always enforce road half-width + footprint so towers cannot sit on asphalt.
     return Math.max(ROAD_HALF_W + TOWER_PLACE_R, fromPath || 0, fromDiff || 0, 50);
   }
@@ -2781,11 +2840,21 @@
           }
         }
       } else if (state.betweenWaves <= 0 && state.wave > 0) {
-        // Timer advance: next wave starts even if foes remain (overlaps OK).
         state.enemies = state.enemies.filter((e) => e.alive);
-        state.betweenWaves = nextWaveDelay();
-        state.scrap += Math.floor(BALANCE.scrapWaveBase + state.wave * BALANCE.scrapWavePer);
-        saveRun();
+        // Daily hard-stops at waveCap: wait for a clear field, then victory.
+        if (runIsDaily && state.wave >= DAILY.waveCap) {
+          if (livingEnemyCount() === 0) {
+            endRun(false, { victory: true });
+            return;
+          }
+          // Hold — do not schedule wave 101.
+        } else {
+          // Timer advance: next wave starts even if foes remain (overlaps OK).
+          state.betweenWaves = nextWaveDelay();
+          const scrapWave = Math.floor(BALANCE.scrapWaveBase + state.wave * BALANCE.scrapWavePer);
+          state.scrap += Math.floor(scrapWave * (runIsDaily ? DAILY.scrapWaveMul : 1));
+          saveRun();
+        }
       }
     }
 
@@ -4928,5 +4997,8 @@
     setTimeout(() => toast("Updated to v" + APP_VERSION), 400);
   }
   kickFrame();
-  window.__RD = { state, startNewRun, saveRun, loadRun, generatePath, wavePlan, ELEMENTS, settings, sfx };
+  window.__RD = {
+    state, startNewRun, saveRun, loadRun, generatePath, wavePlan, beginWave, endRun,
+    ELEMENTS, settings, sfx, DAILY, BALANCE, DIFFICULTIES,
+  };
 })();
