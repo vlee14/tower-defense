@@ -14,10 +14,10 @@ Endless mobile-first tower defense along a molten rift. Stone roads, gate portal
 - **Place towers** anywhere valid off the road; rocks and path clearance set the limits. Harder maps open more spawn gates and squeeze build space.
 - Waves advance on a short timer after spawning finishes — clearing the field is not required; overlaps are normal.
 - Boss roster: **Behemoth**, **Emberwyrm**, **Shellwarden**, **Broodmother**, **Galeheart** (distinct silhouettes, resists, abilities). Decade packs can mix several.
-- Survive endless waves, earn scrap in-run and chips between runs.
+- Survive endless waves on Normal/Hard/Nightmare; earn scrap in-run and chips between runs.
 - Spend chips in the hub **Forge** (Offense / Economy / Defense / Elements / Utility) and per-tower trees — branch picks matter; deep ranks cost more.
 - Unlock **Hard** (wave 10 on Normal) and **Nightmare** (wave 12 on Hard).
-- **Daily Rift** uses a shared UTC date seed; milestones pay chips for wave goals.
+- **Daily Rift** uses a shared UTC date seed, runs harder than Normal, and hard-stops at wave **100** (rift sealed on clear).
 - Toggle **damage numbers** in Settings. Pause anytime; progress saves locally.
 
 ## Offline & versioning
@@ -32,7 +32,7 @@ Service worker caches the shell and assets on first visit. No CDN/API calls at r
 - [ ] Offline: load once online, toggle airplane mode, reload still plays
 - [ ] Install: Add to Home Screen / Install banner; opens standalone with icon
 - [ ] Settings: Battery saver + Large taps persist; reduce-motion quiets shake/haptics
-- [ ] Daily Rift seed stable for the UTC day; milestones claim chips
+- [ ] Daily Rift seed stable for the UTC day; harder than Normal; ends at wave 100; milestones claim chips
 - [ ] Version badge shows current `APP_VERSION` on hub + Settings
 
 ## Procedural runs
