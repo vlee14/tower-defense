@@ -27,13 +27,13 @@
       motifs: ["s-bend", "dual-merge", "y-merge"], unlock: null,
     },
     hard: {
-      id: "hard", name: "Hard", hpMul: 1.42, speedMul: 1.1, countMul: 1.18, intervalMul: 0.9, rewardMul: 1.4, chipMul: 1.55,
+      id: "hard", name: "Hard", hpMul: 1.42, speedMul: 1.1, countMul: 1.18, intervalMul: 0.9, rewardMul: 1.4, chipMul: 1.35,
       edgeInset: 0.17, travel: 0.74, hairpin: 0.75, padOffset: 40, padClear: 34, pathClear: ROAD_HALF_W + TOWER_PLACE_R,
       motifs: ["hairpin", "y-merge", "triple-funnel"],
       unlock: { kind: "wave", difficulty: "normal", wave: 10 },
     },
     nightmare: {
-      id: "nightmare", name: "Nightmare", hpMul: 2.0, speedMul: 1.24, countMul: 1.35, intervalMul: 0.78, rewardMul: 1.85, chipMul: 2.35,
+      id: "nightmare", name: "Nightmare", hpMul: 2.0, speedMul: 1.24, countMul: 1.35, intervalMul: 0.78, rewardMul: 1.85, chipMul: 1.85,
       edgeInset: 0.21, travel: 0.52, hairpin: 1.0, padOffset: 34, padClear: 32, pathClear: ROAD_HALF_W + TOWER_PLACE_R - 2,
       motifs: ["hairpin", "triple-funnel", "quad-squeeze"],
       unlock: { kind: "wave", difficulty: "hard", wave: 12 },
@@ -157,70 +157,150 @@
   };
 
   // Multi-rank hub trees. col/row drive the visual tree; effect stacks per rank.
+  // exclusive: only one node in the group may be purchased (real branch choice).
+  // path: forge lane tint (offense / economy / defense / elements / utility).
   function upNode(partial) {
     return {
-      max: 1, cost: 24, costGrow: 1.48, req: null, reqRank: 1, col: 0, row: 0, icon: "star",
+      max: 1, cost: 36, costGrow: 1.58, req: null, reqRank: 1, col: 0, row: 0, icon: "star",
+      exclusive: null, path: null, tip: null,
       ...partial,
     };
   }
+  const FORGE_PATHS = [
+    { id: "offense", label: "Offense" },
+    { id: "economy", label: "Economy" },
+    { id: "defense", label: "Defense" },
+    { id: "elements", label: "Elements" },
+    { id: "utility", label: "Utility" },
+  ];
   const UPGRADE_TREES = {
+    // Global forge — distinct paths with tradeoffs; towers keep their own offense trees.
+    forge: [
+      // Offense
+      upNode({ id: "f_edge", name: "Ember Edge", desc: "+6% all tower damage / rank", icon: "dmg", path: "offense", max: 4, cost: 32, col: 0, row: 0, effect: { globalDmg: 1.06 } }),
+      upNode({ id: "f_keen", name: "Keen Ember", desc: "+4% crit chance / rank", icon: "crit", path: "offense", max: 3, cost: 78, req: "f_edge", reqRank: 2, col: 0, row: 1, effect: { globalCritAdd: 0.04 } }),
+      upNode({ id: "f_tyrant", name: "Tyrant Brand", desc: "+7% vs bosses / rank", icon: "special", path: "offense", max: 3, cost: 130, req: "f_keen", reqRank: 1, col: 0, row: 2, effect: { globalBoss: 0.07 } }),
+      upNode({ id: "f_blood", name: "Bloodrush", desc: "+9% dmg & rate · −10% sell", icon: "special", path: "offense", max: 2, cost: 240, costGrow: 1.65, req: "f_tyrant", reqRank: 1, col: 0, row: 3, exclusive: "f_finisher", effect: { globalDmg: 1.09, globalFireRate: 0.94, sellMul: 0.9 } }),
+      upNode({ id: "f_steady", name: "Steady Aim", desc: "+10% all range · −6% rate", icon: "rng", path: "offense", max: 2, cost: 240, costGrow: 1.65, req: "f_tyrant", reqRank: 1, col: 0, row: 4, exclusive: "f_finisher", effect: { globalRange: 1.1, globalFireRate: 1.06 } }),
+      upNode({ id: "f_apex", name: "Apex Ember", desc: "+8% damage / rank", icon: "star", path: "offense", max: 2, cost: 480, costGrow: 1.7, req: "f_blood", reqRank: 1, col: 0, row: 5, effect: { globalDmg: 1.08 } }),
+
+      // Economy
+      upNode({ id: "f_cache", name: "Starter Cache", desc: "+14 start scrap / rank", icon: "star", path: "economy", max: 4, cost: 28, col: 1, row: 0, effect: { scrapStartAdd: 14 } }),
+      upNode({ id: "f_salvage", name: "Salvage Rights", desc: "+9% kill scrap / rank", icon: "special", path: "economy", max: 4, cost: 72, req: "f_cache", reqRank: 2, col: 1, row: 1, effect: { scrapKillMul: 1.09 } }),
+      upNode({ id: "f_tithe", name: "Wave Tithe", desc: "+5 wave scrap / rank", icon: "spd", path: "economy", max: 3, cost: 110, req: "f_salvage", reqRank: 1, col: 1, row: 2, effect: { scrapWaveAdd: 5 } }),
+      upNode({ id: "f_merchant", name: "Merchant's Cut", desc: "+12% sell value / rank", icon: "star", path: "economy", max: 3, cost: 175, req: "f_tithe", reqRank: 1, col: 1, row: 3, effect: { sellMul: 1.12 } }),
+      upNode({ id: "f_vault", name: "Vault Crown", desc: "+22 start scrap · +6% kills", icon: "star", path: "economy", max: 2, cost: 420, costGrow: 1.7, req: "f_merchant", reqRank: 2, col: 1, row: 5, effect: { scrapStartAdd: 22, scrapKillMul: 1.06 } }),
+
+      // Defense
+      upNode({ id: "f_heart", name: "Stone Heart", desc: "+1 Wellheart / rank", icon: "earth", path: "defense", max: 3, cost: 36, col: 2, row: 0, effect: { baseHpAdd: 1 } }),
+      upNode({ id: "f_soft", name: "Soft Landing", desc: "−1 leak dmg (min 1) / rank", icon: "earth", path: "defense", max: 2, cost: 95, req: "f_heart", reqRank: 1, col: 2, row: 1, effect: { leakReduce: 1 } }),
+      upNode({ id: "f_wall", name: "Bastion Wall", desc: "+2 Wellheart / rank", icon: "earth", path: "defense", max: 2, cost: 155, req: "f_soft", reqRank: 1, col: 2, row: 2, effect: { baseHpAdd: 2 } }),
+      upNode({ id: "f_gate", name: "Iron Gate", desc: "−1 boss leak / rank", icon: "special", path: "defense", max: 2, cost: 230, req: "f_wall", reqRank: 1, col: 2, row: 3, exclusive: "f_bastion", effect: { bossLeakReduce: 1 } }),
+      upNode({ id: "f_rally", name: "Rally Banner", desc: "+2 HP · +8 start scrap", icon: "star", path: "defense", max: 2, cost: 230, req: "f_wall", reqRank: 1, col: 2, row: 4, exclusive: "f_bastion", effect: { baseHpAdd: 2, scrapStartAdd: 8 } }),
+      upNode({ id: "f_citadel", name: "Citadel", desc: "+3 Wellheart / rank", icon: "star", path: "defense", max: 1, cost: 460, req: "f_gate", reqRank: 1, col: 2, row: 5, effect: { baseHpAdd: 3 } }),
+
+      // Elements
+      upNode({ id: "f_attune", name: "Attune Spark", desc: "−10% socket cost / rank", icon: "burn", path: "elements", max: 3, cost: 30, col: 3, row: 0, effect: { elementCostMul: 0.9 } }),
+      upNode({ id: "f_twin", name: "Twin Channel", desc: "−14% 2nd socket / rank", icon: "chain", path: "elements", max: 2, cost: 85, req: "f_attune", reqRank: 2, col: 3, row: 1, effect: { elementSecondMul: 0.86 } }),
+      upNode({ id: "f_focus", name: "Element Focus", desc: "+9% dmg when socketed", icon: "burn", path: "elements", max: 3, cost: 125, req: "f_twin", reqRank: 1, col: 3, row: 2, effect: { elementDmgMul: 1.09 } }),
+      upNode({ id: "f_rift", name: "Rift Conduct", desc: "Sockets punch resists harder", icon: "special", path: "elements", max: 2, cost: 210, req: "f_focus", reqRank: 1, col: 3, row: 3, exclusive: "f_attune_deep", effect: { resistPierce: 0.12 } }),
+      upNode({ id: "f_prism", name: "Prism Bloom", desc: "+12% dual-socket damage", icon: "star", path: "elements", max: 2, cost: 210, req: "f_focus", reqRank: 1, col: 3, row: 4, exclusive: "f_attune_deep", effect: { dualSocketDmg: 1.12 } }),
+      upNode({ id: "f_prism_crown", name: "Prism Crown", desc: "+10% socketed dmg / rank", icon: "star", path: "elements", max: 2, cost: 440, costGrow: 1.7, req: "f_rift", reqRank: 1, col: 3, row: 5, effect: { elementDmgMul: 1.1 } }),
+
+      // Utility
+      upNode({ id: "f_hands", name: "Quick Hands", desc: "−10% level cooldown / rank", icon: "spd", path: "utility", max: 3, cost: 30, col: 4, row: 0, effect: { levelCdMul: 0.9 } }),
+      upNode({ id: "f_bulk", name: "Bulk Order", desc: "−5% tower cost / rank", icon: "special", path: "utility", max: 3, cost: 75, req: "f_hands", reqRank: 1, col: 4, row: 1, effect: { towerCostMul: 0.95 } }),
+      upNode({ id: "f_kit", name: "Field Kit", desc: "+8% sell value / rank", icon: "star", path: "utility", max: 2, cost: 115, req: "f_bulk", reqRank: 1, col: 4, row: 2, effect: { sellMul: 1.08 } }),
+      upNode({ id: "f_smith", name: "Autosmith", desc: "−14% level CD / rank", icon: "spd", path: "utility", max: 2, cost: 195, req: "f_kit", reqRank: 1, col: 4, row: 3, exclusive: "f_tools", effect: { levelCdMul: 0.86 } }),
+      upNode({ id: "f_ledger", name: "Ledger Mark", desc: "−7% tower cost / rank", icon: "special", path: "utility", max: 2, cost: 195, req: "f_kit", reqRank: 1, col: 4, row: 4, exclusive: "f_tools", effect: { towerCostMul: 0.93 } }),
+      upNode({ id: "f_logistics", name: "Logistics Crown", desc: "−6% cost & CD / rank", icon: "star", path: "utility", max: 2, cost: 400, costGrow: 1.7, req: "f_smith", reqRank: 1, col: 4, row: 5, effect: { towerCostMul: 0.94, levelCdMul: 0.94 } }),
+    ],
     turret: [
-      upNode({ id: "t_dmg", name: "Hot Rounds", desc: "+16% damage / rank", icon: "dmg", max: 5, cost: 22, col: 0, row: 0, effect: { damage: 1.16 } }),
-      upNode({ id: "t_spd", name: "Servo Drive", desc: "+12% fire rate / rank", icon: "spd", max: 4, cost: 24, col: 1, row: 0, effect: { fireRate: 0.88 } }),
-      upNode({ id: "t_rng", name: "Long Barrel", desc: "+10% range / rank", icon: "rng", max: 4, cost: 20, col: 2, row: 0, effect: { range: 1.1 } }),
-      upNode({ id: "t_ap", name: "AP Core", desc: "+14% damage / rank", icon: "dmg", max: 4, cost: 36, req: "t_dmg", reqRank: 2, col: 0, row: 1, effect: { damage: 1.14 } }),
-      upNode({ id: "t_burst", name: "Burst Mag", desc: "+11% fire rate / rank", icon: "spd", max: 3, cost: 40, req: "t_spd", reqRank: 2, col: 1, row: 1, effect: { fireRate: 0.89 } }),
-      upNode({ id: "t_spot", name: "Spotter Link", desc: "+12% range / rank", icon: "rng", max: 3, cost: 34, req: "t_rng", reqRank: 2, col: 2, row: 1, effect: { range: 1.12 } }),
-      upNode({ id: "t_crit", name: "Crit Optics", desc: "+7% crit / rank (×2 dmg)", icon: "crit", max: 4, cost: 48, req: "t_ap", reqRank: 1, col: 0, row: 2, effect: { critAdd: 0.07 } }),
-      upNode({ id: "t_focus", name: "Focus Latch", desc: "+8% vs bosses / rank", icon: "special", max: 3, cost: 52, req: "t_burst", reqRank: 1, col: 1, row: 2, effect: { bossBonus: 0.08 } }),
-      upNode({ id: "t_air", name: "Flak Tips", desc: "+10% vs air / rank", icon: "air", max: 3, cost: 44, req: "t_spot", reqRank: 1, col: 2, row: 2, effect: { airBonusAdd: 0.1 } }),
-      upNode({ id: "t_over", name: "Overdrive", desc: "+9% dmg & rate / rank", icon: "special", max: 3, cost: 70, req: "t_crit", reqRank: 2, col: 0, row: 3, effect: { damage: 1.09, fireRate: 0.93 } }),
-      upNode({ id: "t_rail", name: "Rail Sync", desc: "+15% range / rank", icon: "rng", max: 2, cost: 75, req: "t_focus", reqRank: 1, col: 1, row: 3, effect: { range: 1.15 } }),
-      upNode({ id: "t_master", name: "Masterwork", desc: "+12% all combat / rank", icon: "star", max: 2, cost: 95, req: "t_over", reqRank: 1, col: 1, row: 4, effect: { damage: 1.12, fireRate: 0.94, range: 1.06 } }),
+      upNode({ id: "t_dmg", name: "Hot Rounds", desc: "+12% damage / rank", icon: "dmg", path: "offense", max: 4, cost: 34, col: 0, row: 0, effect: { damage: 1.12 } }),
+      upNode({ id: "t_spd", name: "Servo Drive", desc: "+10% fire rate / rank", icon: "spd", path: "offense", max: 4, cost: 36, col: 1, row: 0, effect: { fireRate: 0.9 } }),
+      upNode({ id: "t_rng", name: "Long Barrel", desc: "+9% range / rank", icon: "rng", path: "offense", max: 4, cost: 32, col: 2, row: 0, effect: { range: 1.09 } }),
+      upNode({ id: "t_kit", name: "Spare Mag", desc: "−4% tower cost / rank", icon: "special", path: "utility", max: 3, cost: 40, col: 3, row: 0, effect: { towerCostSelf: 0.96 } }),
+      upNode({ id: "t_ap", name: "AP Core", desc: "+11% damage / rank", icon: "dmg", path: "offense", max: 3, cost: 78, req: "t_dmg", reqRank: 2, col: 0, row: 1, effect: { damage: 1.11 } }),
+      upNode({ id: "t_burst", name: "Burst Mag", desc: "+9% fire rate / rank", icon: "spd", path: "offense", max: 3, cost: 82, req: "t_spd", reqRank: 2, col: 1, row: 1, effect: { fireRate: 0.91 } }),
+      upNode({ id: "t_spot", name: "Spotter Link", desc: "+10% range / rank", icon: "rng", path: "offense", max: 3, cost: 74, req: "t_rng", reqRank: 2, col: 2, row: 1, effect: { range: 1.1 } }),
+      upNode({ id: "t_scrap", name: "Brass Recycle", desc: "+6% kill scrap near turret", icon: "star", path: "economy", max: 2, cost: 88, req: "t_kit", reqRank: 1, col: 3, row: 1, effect: { killScrapAura: 0.06 } }),
+      upNode({ id: "t_crit", name: "Crit Optics", desc: "+6% crit / rank (×2 dmg)", icon: "crit", path: "offense", max: 3, cost: 120, req: "t_ap", reqRank: 1, col: 0, row: 2, effect: { critAdd: 0.06 } }),
+      upNode({ id: "t_focus", name: "Focus Latch", desc: "+7% vs bosses / rank", icon: "special", path: "offense", max: 3, cost: 125, req: "t_burst", reqRank: 1, col: 1, row: 2, effect: { bossBonus: 0.07 } }),
+      upNode({ id: "t_air", name: "Flak Tips", desc: "+9% vs air / rank", icon: "air", path: "offense", max: 3, cost: 118, req: "t_spot", reqRank: 1, col: 2, row: 2, effect: { airBonusAdd: 0.09 } }),
+      upNode({ id: "t_socket", name: "Socket Rail", desc: "−8% element cost on turret", icon: "burn", path: "elements", max: 2, cost: 130, req: "t_scrap", reqRank: 1, col: 3, row: 2, effect: { elementCostSelf: 0.92 } }),
+      upNode({ id: "t_glass", name: "Glass Bore", desc: "+16% dmg · −8% range", icon: "dmg", path: "offense", max: 2, cost: 210, costGrow: 1.62, req: "t_crit", reqRank: 2, col: 0, row: 3, exclusive: "t_mid", effect: { damage: 1.16, range: 0.92 } }),
+      upNode({ id: "t_tempo", name: "Tempo Latch", desc: "+12% rate · −6% dmg", icon: "spd", path: "offense", max: 2, cost: 210, costGrow: 1.62, req: "t_focus", reqRank: 1, col: 1, row: 3, exclusive: "t_mid", effect: { fireRate: 0.88, damage: 0.94 } }),
+      upNode({ id: "t_rail", name: "Rail Sync", desc: "+12% range · +air", icon: "rng", path: "offense", max: 2, cost: 200, req: "t_air", reqRank: 1, col: 2, row: 3, exclusive: "t_mid", effect: { range: 1.12, airBonusAdd: 0.08 } }),
+      upNode({ id: "t_over", name: "Overdrive", desc: "+8% dmg & rate / rank", icon: "special", path: "offense", max: 2, cost: 280, costGrow: 1.65, req: "t_glass", reqRank: 1, col: 0, row: 4, effect: { damage: 1.08, fireRate: 0.94 } }),
+      upNode({ id: "t_sentinel", name: "Sentinel Kit", desc: "+HP aura soft · +sell", icon: "earth", path: "defense", max: 2, cost: 260, req: "t_socket", reqRank: 1, col: 3, row: 4, effect: { sellSelf: 1.15, leakGuardNear: 1 } }),
+      upNode({ id: "t_master", name: "Masterwork", desc: "+10% combat / rank", icon: "star", path: "offense", max: 2, cost: 460, costGrow: 1.72, req: "t_glass", reqRank: 1, col: 1, row: 5, effect: { damage: 1.1, fireRate: 0.95, range: 1.05 } }),
     ],
     mortar: [
-      upNode({ id: "m_dmg", name: "HE Shells", desc: "+16% damage / rank", icon: "dmg", max: 5, cost: 24, col: 0, row: 0, effect: { damage: 1.16 } }),
-      upNode({ id: "m_splash", name: "Wider Blast", desc: "+14% splash / rank", icon: "splash", max: 4, cost: 26, col: 1, row: 0, effect: { splash: 1.14 } }),
-      upNode({ id: "m_rng", name: "Arc Sight", desc: "+9% range / rank", icon: "rng", max: 4, cost: 22, col: 2, row: 0, effect: { range: 1.09 } }),
-      upNode({ id: "m_he2", name: "Cluster Core", desc: "+13% damage / rank", icon: "dmg", max: 4, cost: 38, req: "m_dmg", reqRank: 2, col: 0, row: 1, effect: { damage: 1.13 } }),
-      upNode({ id: "m_cluster", name: "Cluster Cap", desc: "+16% splash / rank", icon: "splash", max: 3, cost: 42, req: "m_splash", reqRank: 2, col: 1, row: 1, effect: { splash: 1.16 } }),
-      upNode({ id: "m_loader", name: "Fast Loader", desc: "+10% fire rate / rank", icon: "spd", max: 4, cost: 30, req: "m_rng", reqRank: 1, col: 2, row: 1, effect: { fireRate: 0.9 } }),
-      upNode({ id: "m_burn", name: "Incendiary", desc: "+4 burn / rank", icon: "burn", max: 4, cost: 48, req: "m_he2", reqRank: 1, col: 0, row: 2, effect: { burnAdd: 4 } }),
-      upNode({ id: "m_quake", name: "Quake Fuse", desc: "+8% vs armor / rank", icon: "earth", max: 3, cost: 50, req: "m_cluster", reqRank: 1, col: 1, row: 2, effect: { armorBonusAdd: 0.08 } }),
-      upNode({ id: "m_sky", name: "Sky Hook", desc: "Unlock air hits · +6% air / rank", icon: "air", max: 2, cost: 85, req: "m_loader", reqRank: 2, col: 2, row: 2, effect: { hitsAir: true, airBonusAdd: 0.06 } }),
-      upNode({ id: "m_napalm", name: "Napalm Nest", desc: "+5 burn & +8% splash / rank", icon: "burn", max: 3, cost: 72, req: "m_burn", reqRank: 2, col: 0, row: 3, effect: { burnAdd: 5, splash: 1.08 } }),
-      upNode({ id: "m_siege", name: "Siege Cadence", desc: "+11% dmg & rate / rank", icon: "special", max: 3, cost: 78, req: "m_quake", reqRank: 1, col: 1, row: 3, effect: { damage: 1.11, fireRate: 0.92 } }),
-      upNode({ id: "m_master", name: "Barrage Crown", desc: "+12% combat / rank", icon: "star", max: 2, cost: 100, req: "m_siege", reqRank: 1, col: 1, row: 4, effect: { damage: 1.12, splash: 1.1, range: 1.05 } }),
+      upNode({ id: "m_dmg", name: "HE Shells", desc: "+12% damage / rank", icon: "dmg", path: "offense", max: 4, cost: 36, col: 0, row: 0, effect: { damage: 1.12 } }),
+      upNode({ id: "m_splash", name: "Wider Blast", desc: "+12% splash / rank", icon: "splash", path: "offense", max: 4, cost: 38, col: 1, row: 0, effect: { splash: 1.12 } }),
+      upNode({ id: "m_rng", name: "Arc Sight", desc: "+8% range / rank", icon: "rng", path: "offense", max: 4, cost: 34, col: 2, row: 0, effect: { range: 1.08 } }),
+      upNode({ id: "m_kit", name: "Shell Cache", desc: "+10 start scrap / rank", icon: "star", path: "economy", max: 3, cost: 42, col: 3, row: 0, effect: { scrapStartAdd: 10 } }),
+      upNode({ id: "m_he2", name: "Cluster Core", desc: "+10% damage / rank", icon: "dmg", path: "offense", max: 3, cost: 82, req: "m_dmg", reqRank: 2, col: 0, row: 1, effect: { damage: 1.1 } }),
+      upNode({ id: "m_cluster", name: "Cluster Cap", desc: "+13% splash / rank", icon: "splash", path: "offense", max: 3, cost: 88, req: "m_splash", reqRank: 2, col: 1, row: 1, effect: { splash: 1.13 } }),
+      upNode({ id: "m_loader", name: "Fast Loader", desc: "+9% fire rate / rank", icon: "spd", path: "offense", max: 3, cost: 76, req: "m_rng", reqRank: 1, col: 2, row: 1, effect: { fireRate: 0.91 } }),
+      upNode({ id: "m_pay", name: "War Bonds", desc: "+5% kill scrap / rank", icon: "special", path: "economy", max: 2, cost: 90, req: "m_kit", reqRank: 1, col: 3, row: 1, effect: { scrapKillMul: 1.05 } }),
+      upNode({ id: "m_burn", name: "Incendiary", desc: "+3 burn / rank", icon: "burn", path: "elements", max: 3, cost: 125, req: "m_he2", reqRank: 1, col: 0, row: 2, effect: { burnAdd: 3 } }),
+      upNode({ id: "m_quake", name: "Quake Fuse", desc: "+8% vs armor / rank", icon: "earth", path: "offense", max: 3, cost: 128, req: "m_cluster", reqRank: 1, col: 1, row: 2, effect: { armorBonusAdd: 0.08 } }),
+      upNode({ id: "m_sky", name: "Sky Hook", desc: "Unlock air · +5% air / rank", icon: "air", path: "offense", max: 2, cost: 195, req: "m_loader", reqRank: 2, col: 2, row: 2, effect: { hitsAir: true, airBonusAdd: 0.05 } }),
+      upNode({ id: "m_attune", name: "Fuse Attune", desc: "−8% socket cost", icon: "burn", path: "elements", max: 2, cost: 135, req: "m_pay", reqRank: 1, col: 3, row: 2, effect: { elementCostSelf: 0.92 } }),
+      upNode({ id: "m_napalm", name: "Napalm Nest", desc: "+4 burn · +7% splash", icon: "burn", path: "elements", max: 2, cost: 230, costGrow: 1.62, req: "m_burn", reqRank: 2, col: 0, row: 3, exclusive: "m_mid", effect: { burnAdd: 4, splash: 1.07 } }),
+      upNode({ id: "m_siege", name: "Siege Cadence", desc: "+10% dmg & rate", icon: "special", path: "offense", max: 2, cost: 230, costGrow: 1.62, req: "m_quake", reqRank: 1, col: 1, row: 3, exclusive: "m_mid", effect: { damage: 1.1, fireRate: 0.93 } }),
+      upNode({ id: "m_carpet", name: "Carpet Arc", desc: "+14% splash · −8% dmg", icon: "splash", path: "offense", max: 2, cost: 220, req: "m_sky", reqRank: 1, col: 2, row: 3, exclusive: "m_mid", effect: { splash: 1.14, damage: 0.92 } }),
+      upNode({ id: "m_bunker", name: "Bunker Stock", desc: "+1 HP · +sell", icon: "earth", path: "defense", max: 2, cost: 250, req: "m_attune", reqRank: 1, col: 3, row: 4, effect: { baseHpAdd: 1, sellSelf: 1.12 } }),
+      upNode({ id: "m_master", name: "Barrage Crown", desc: "+10% combat / rank", icon: "star", path: "offense", max: 2, cost: 480, costGrow: 1.72, req: "m_napalm", reqRank: 1, col: 1, row: 5, effect: { damage: 1.1, splash: 1.08, range: 1.04 } }),
     ],
     coil: [
-      upNode({ id: "c_dmg", name: "Amp Coil", desc: "+17% damage / rank", icon: "dmg", max: 5, cost: 22, col: 0, row: 0, effect: { damage: 1.17 } }),
-      upNode({ id: "c_slow", name: "Deep Freeze", desc: "Stronger slow / rank", icon: "slow", max: 4, cost: 26, col: 1, row: 0, effect: { slowStep: 0.06 } }),
-      upNode({ id: "c_rng", name: "Field Expand", desc: "+10% range / rank", icon: "rng", max: 4, cost: 22, col: 2, row: 0, effect: { range: 1.1 } }),
-      upNode({ id: "c_amp2", name: "Resonance", desc: "+14% damage / rank", icon: "dmg", max: 4, cost: 36, req: "c_dmg", reqRank: 2, col: 0, row: 1, effect: { damage: 1.14 } }),
-      upNode({ id: "c_hold", name: "Cryo Hold", desc: "+18% slow duration / rank", icon: "slow", max: 3, cost: 34, req: "c_slow", reqRank: 2, col: 1, row: 1, effect: { slowDur: 1.18 } }),
-      upNode({ id: "c_pulse", name: "Pulse Sync", desc: "+12% fire rate / rank", icon: "spd", max: 4, cost: 28, req: "c_rng", reqRank: 1, col: 2, row: 1, effect: { fireRate: 0.88 } }),
-      upNode({ id: "c_chain", name: "Arc Jump", desc: "+1 chain target / rank", icon: "chain", max: 2, cost: 55, req: "c_amp2", reqRank: 1, col: 0, row: 2, effect: { chainAdd: 1 } }),
-      upNode({ id: "c_air", name: "Sky Latch", desc: "+12% air bonus / rank", icon: "air", max: 3, cost: 40, req: "c_hold", reqRank: 1, col: 1, row: 2, effect: { airBonusAdd: 0.12 } }),
-      upNode({ id: "c_armor", name: "Breach Coil", desc: "Less armor penalty / rank", icon: "earth", max: 3, cost: 46, req: "c_pulse", reqRank: 1, col: 2, row: 2, effect: { armorPenStep: 0.08 } }),
-      upNode({ id: "c_storm", name: "Storm Lattice", desc: "+10% dmg & chain potency", icon: "special", max: 3, cost: 70, req: "c_chain", reqRank: 1, col: 0, row: 3, effect: { damage: 1.1, fireRate: 0.94 } }),
-      upNode({ id: "c_glare", name: "Glare Field", desc: "+12% range & slow / rank", icon: "slow", max: 2, cost: 74, req: "c_air", reqRank: 1, col: 1, row: 3, effect: { range: 1.12, slowStep: 0.04 } }),
-      upNode({ id: "c_master", name: "Singularity", desc: "+12% combat / rank", icon: "star", max: 2, cost: 98, req: "c_storm", reqRank: 1, col: 1, row: 4, effect: { damage: 1.12, range: 1.06, slowDur: 1.1 } }),
+      upNode({ id: "c_dmg", name: "Amp Coil", desc: "+13% damage / rank", icon: "dmg", path: "offense", max: 4, cost: 34, col: 0, row: 0, effect: { damage: 1.13 } }),
+      upNode({ id: "c_slow", name: "Deep Freeze", desc: "Stronger slow / rank", icon: "slow", path: "offense", max: 4, cost: 38, col: 1, row: 0, effect: { slowStep: 0.05 } }),
+      upNode({ id: "c_rng", name: "Field Expand", desc: "+9% range / rank", icon: "rng", path: "offense", max: 4, cost: 34, col: 2, row: 0, effect: { range: 1.09 } }),
+      upNode({ id: "c_kit", name: "Coolant Loop", desc: "−8% level CD / rank", icon: "spd", path: "utility", max: 3, cost: 40, col: 3, row: 0, effect: { levelCdSelf: 0.92 } }),
+      upNode({ id: "c_amp2", name: "Resonance", desc: "+11% damage / rank", icon: "dmg", path: "offense", max: 3, cost: 80, req: "c_dmg", reqRank: 2, col: 0, row: 1, effect: { damage: 1.11 } }),
+      upNode({ id: "c_hold", name: "Cryo Hold", desc: "+15% slow duration / rank", icon: "slow", path: "offense", max: 3, cost: 84, req: "c_slow", reqRank: 2, col: 1, row: 1, effect: { slowDur: 1.15 } }),
+      upNode({ id: "c_pulse", name: "Pulse Sync", desc: "+10% fire rate / rank", icon: "spd", path: "offense", max: 3, cost: 76, req: "c_rng", reqRank: 1, col: 2, row: 1, effect: { fireRate: 0.9 } }),
+      upNode({ id: "c_scrap", name: "Arc Tax", desc: "+5% kill scrap / rank", icon: "star", path: "economy", max: 2, cost: 88, req: "c_kit", reqRank: 1, col: 3, row: 1, effect: { scrapKillMul: 1.05 } }),
+      upNode({ id: "c_chain", name: "Arc Jump", desc: "+1 chain target / rank", icon: "chain", path: "elements", max: 2, cost: 145, req: "c_amp2", reqRank: 1, col: 0, row: 2, effect: { chainAdd: 1 } }),
+      upNode({ id: "c_air", name: "Sky Latch", desc: "+10% air bonus / rank", icon: "air", path: "offense", max: 3, cost: 120, req: "c_hold", reqRank: 1, col: 1, row: 2, effect: { airBonusAdd: 0.1 } }),
+      upNode({ id: "c_armor", name: "Breach Coil", desc: "Less armor penalty / rank", icon: "earth", path: "offense", max: 3, cost: 125, req: "c_pulse", reqRank: 1, col: 2, row: 2, effect: { armorPenStep: 0.07 } }),
+      upNode({ id: "c_attune", name: "Frost Attune", desc: "−8% socket cost", icon: "slow", path: "elements", max: 2, cost: 130, req: "c_scrap", reqRank: 1, col: 3, row: 2, effect: { elementCostSelf: 0.92 } }),
+      upNode({ id: "c_storm", name: "Storm Lattice", desc: "+9% dmg · keep chains", icon: "special", path: "offense", max: 2, cost: 225, costGrow: 1.62, req: "c_chain", reqRank: 1, col: 0, row: 3, exclusive: "c_mid", effect: { damage: 1.09, fireRate: 0.95 } }),
+      upNode({ id: "c_glare", name: "Glare Field", desc: "+10% range & slow", icon: "slow", path: "offense", max: 2, cost: 225, costGrow: 1.62, req: "c_air", reqRank: 1, col: 1, row: 3, exclusive: "c_mid", effect: { range: 1.1, slowStep: 0.035 } }),
+      upNode({ id: "c_breach", name: "Hard Breach", desc: "Armor pen · −6% air", icon: "earth", path: "offense", max: 2, cost: 215, req: "c_armor", reqRank: 1, col: 2, row: 3, exclusive: "c_mid", effect: { armorPenStep: 0.1, airBonusAdd: -0.06 } }),
+      upNode({ id: "c_guard", name: "Coil Ward", desc: "+1 HP · +sell", icon: "earth", path: "defense", max: 2, cost: 245, req: "c_attune", reqRank: 1, col: 3, row: 4, effect: { baseHpAdd: 1, sellSelf: 1.12 } }),
+      upNode({ id: "c_master", name: "Singularity", desc: "+10% combat / rank", icon: "star", path: "offense", max: 2, cost: 460, costGrow: 1.72, req: "c_storm", reqRank: 1, col: 1, row: 5, effect: { damage: 1.1, range: 1.05, slowDur: 1.08 } }), // sibling unlock via c_mid
     ],
     spire: [
-      upNode({ id: "s_dmg", name: "Focus Lens", desc: "+15% damage / rank", icon: "dmg", max: 5, cost: 28, col: 0, row: 0, effect: { damage: 1.15 } }),
-      upNode({ id: "s_pierce", name: "Rift Bore", desc: "+1 pierce / rank", icon: "pierce", max: 3, cost: 34, col: 1, row: 0, effect: { pierceAdd: 1 } }),
-      upNode({ id: "s_rng", name: "Sky Spire", desc: "+11% range / rank", icon: "rng", max: 4, cost: 26, col: 2, row: 0, effect: { range: 1.11 } }),
-      upNode({ id: "s_core", name: "Magma Core", desc: "+13% damage / rank", icon: "dmg", max: 4, cost: 42, req: "s_dmg", reqRank: 2, col: 0, row: 1, effect: { damage: 1.13 } }),
-      upNode({ id: "s_shaft", name: "Deep Shaft", desc: "+1 pierce / rank", icon: "pierce", max: 2, cost: 55, req: "s_pierce", reqRank: 1, col: 1, row: 1, effect: { pierceAdd: 1 } }),
-      upNode({ id: "s_servo", name: "Gyro Mount", desc: "+10% fire rate / rank", icon: "spd", max: 4, cost: 32, req: "s_rng", reqRank: 1, col: 2, row: 1, effect: { fireRate: 0.9 } }),
-      upNode({ id: "s_boss", name: "Tyrant Mark", desc: "+10% vs bosses / rank", icon: "special", max: 3, cost: 58, req: "s_core", reqRank: 1, col: 0, row: 2, effect: { bossBonus: 0.1 } }),
-      upNode({ id: "s_armor", name: "Sunder Tip", desc: "+10% vs armor / rank", icon: "earth", max: 3, cost: 52, req: "s_shaft", reqRank: 1, col: 1, row: 2, effect: { armorBonusAdd: 0.1 } }),
-      upNode({ id: "s_seek", name: "Seeking Beam", desc: "+9% range & rate / rank", icon: "rng", max: 3, cost: 56, req: "s_servo", reqRank: 2, col: 2, row: 2, effect: { range: 1.09, fireRate: 0.93 } }),
-      upNode({ id: "s_crit", name: "Eclipse Crit", desc: "+8% crit / rank", icon: "crit", max: 3, cost: 72, req: "s_boss", reqRank: 1, col: 0, row: 3, effect: { critAdd: 0.08 } }),
-      upNode({ id: "s_line", name: "Line Storm", desc: "+12% pierce damage / rank", icon: "pierce", max: 3, cost: 76, req: "s_armor", reqRank: 1, col: 1, row: 3, effect: { damage: 1.12 } }),
-      upNode({ id: "s_master", name: "Apex Spire", desc: "+12% combat / rank", icon: "star", max: 2, cost: 110, req: "s_crit", reqRank: 1, col: 1, row: 4, effect: { damage: 1.12, range: 1.08, fireRate: 0.94 } }),
+      upNode({ id: "s_dmg", name: "Focus Lens", desc: "+11% damage / rank", icon: "dmg", path: "offense", max: 4, cost: 40, col: 0, row: 0, effect: { damage: 1.11 } }),
+      upNode({ id: "s_pierce", name: "Rift Bore", desc: "+1 pierce / rank", icon: "pierce", path: "offense", max: 3, cost: 48, col: 1, row: 0, effect: { pierceAdd: 1 } }),
+      upNode({ id: "s_rng", name: "Sky Spire", desc: "+9% range / rank", icon: "rng", path: "offense", max: 4, cost: 38, col: 2, row: 0, effect: { range: 1.09 } }),
+      upNode({ id: "s_kit", name: "Lens Polish", desc: "−5% tower cost / rank", icon: "special", path: "utility", max: 3, cost: 44, col: 3, row: 0, effect: { towerCostSelf: 0.95 } }),
+      upNode({ id: "s_core", name: "Magma Core", desc: "+10% damage / rank", icon: "dmg", path: "offense", max: 3, cost: 90, req: "s_dmg", reqRank: 2, col: 0, row: 1, effect: { damage: 1.1 } }),
+      upNode({ id: "s_shaft", name: "Deep Shaft", desc: "+1 pierce / rank", icon: "pierce", path: "offense", max: 2, cost: 140, req: "s_pierce", reqRank: 1, col: 1, row: 1, effect: { pierceAdd: 1 } }),
+      upNode({ id: "s_servo", name: "Gyro Mount", desc: "+9% fire rate / rank", icon: "spd", path: "offense", max: 3, cost: 82, req: "s_rng", reqRank: 1, col: 2, row: 1, effect: { fireRate: 0.91 } }),
+      upNode({ id: "s_tithe", name: "Beacon Tithe", desc: "+4 wave scrap / rank", icon: "star", path: "economy", max: 2, cost: 95, req: "s_kit", reqRank: 1, col: 3, row: 1, effect: { scrapWaveAdd: 4 } }),
+      upNode({ id: "s_boss", name: "Tyrant Mark", desc: "+9% vs bosses / rank", icon: "special", path: "offense", max: 3, cost: 135, req: "s_core", reqRank: 1, col: 0, row: 2, effect: { bossBonus: 0.09 } }),
+      upNode({ id: "s_armor", name: "Sunder Tip", desc: "+9% vs armor / rank", icon: "earth", path: "offense", max: 3, cost: 130, req: "s_shaft", reqRank: 1, col: 1, row: 2, effect: { armorBonusAdd: 0.09 } }),
+      upNode({ id: "s_seek", name: "Seeking Beam", desc: "+8% range & rate / rank", icon: "rng", path: "offense", max: 3, cost: 128, req: "s_servo", reqRank: 2, col: 2, row: 2, effect: { range: 1.08, fireRate: 0.94 } }),
+      upNode({ id: "s_attune", name: "Rift Attune", desc: "−8% socket cost", icon: "burn", path: "elements", max: 2, cost: 140, req: "s_tithe", reqRank: 1, col: 3, row: 2, effect: { elementCostSelf: 0.92 } }),
+      upNode({ id: "s_crit", name: "Eclipse Crit", desc: "+7% crit / rank", icon: "crit", path: "offense", max: 2, cost: 240, costGrow: 1.62, req: "s_boss", reqRank: 1, col: 0, row: 3, exclusive: "s_mid", effect: { critAdd: 0.07 } }),
+      upNode({ id: "s_line", name: "Line Storm", desc: "+11% pierce damage", icon: "pierce", path: "offense", max: 2, cost: 240, costGrow: 1.62, req: "s_armor", reqRank: 1, col: 1, row: 3, exclusive: "s_mid", effect: { damage: 1.11 } }),
+      upNode({ id: "s_horizon", name: "Horizon Rail", desc: "+14% range · −7% dmg", icon: "rng", path: "offense", max: 2, cost: 230, req: "s_seek", reqRank: 1, col: 2, row: 3, exclusive: "s_mid", effect: { range: 1.14, damage: 0.93 } }),
+      upNode({ id: "s_ward", name: "Spire Ward", desc: "+1 HP · +sell", icon: "earth", path: "defense", max: 2, cost: 255, req: "s_attune", reqRank: 1, col: 3, row: 4, effect: { baseHpAdd: 1, sellSelf: 1.12 } }),
+      upNode({ id: "s_master", name: "Apex Spire", desc: "+10% combat / rank", icon: "star", path: "offense", max: 2, cost: 520, costGrow: 1.72, req: "s_crit", reqRank: 1, col: 1, row: 5, effect: { damage: 1.1, range: 1.06, fireRate: 0.95 } }), // sibling unlock via s_mid
     ],
   };
+
+  // Capstone wiring: allow either exclusive mid-branch to unlock the crown when req is one sibling.
+  function unlockViaExclusiveSibling(u, tree) {
+    if (!u.req) return false;
+    const reqNode = tree.find((p) => p.id === u.req);
+    if (!reqNode || !reqNode.exclusive) return false;
+    return tree.some((p) => p.exclusive === reqNode.exclusive && ownedRank(p.id) >= (u.reqRank || 1));
+  }
 
   // resist: <1 resists that element, >1 is weak. Applied per socketed element on hit.
   // Learn via pips (□ resist / △ weak) + WEAK/RESIST hit text — no wiki needed.
@@ -314,6 +394,9 @@
     }
     // Soften dual-socket extremes so mixed sockets stay readable.
     if (elsArr.length > 1) m = Math.pow(m, 0.78);
+    // Rift Conduct: pull resists toward 1 (sockets punch through).
+    const pierce = metaBonuses().resistPierce || 0;
+    if (pierce > 0 && m < 1) m = 1 - (1 - m) * Math.max(0, 1 - pierce);
     return m;
   }
   function formatResistLine(resist) {
@@ -360,11 +443,11 @@
   }
 
   const MILESTONES = [
-    { id: "w5", label: "Wave 5", kind: "wave", difficulty: "normal", wave: 5, chips: 12 },
-    { id: "w10", label: "Wave 10", kind: "wave", difficulty: "normal", wave: 10, chips: 24 },
-    { id: "w20", label: "Wave 20", kind: "wave", difficulty: "normal", wave: 20, chips: 48 },
-    { id: "hard", label: "Hard clear 8", kind: "wave", difficulty: "hard", wave: 8, chips: 36 },
-    { id: "daily3", label: "3 Dailies", kind: "dailies", count: 3, chips: 30 },
+    { id: "w5", label: "Wave 5", kind: "wave", difficulty: "normal", wave: 5, chips: 8 },
+    { id: "w10", label: "Wave 10", kind: "wave", difficulty: "normal", wave: 10, chips: 14 },
+    { id: "w20", label: "Wave 20", kind: "wave", difficulty: "normal", wave: 20, chips: 28 },
+    { id: "hard", label: "Hard clear 8", kind: "wave", difficulty: "hard", wave: 8, chips: 22 },
+    { id: "daily3", label: "3 Dailies", kind: "dailies", count: 3, chips: 16 },
   ];
 
   const defaultMeta = () => ({
@@ -596,11 +679,31 @@
     return Math.max(0, Math.floor(n));
   }
   function upgradeCostAt(u, nextRank) {
-    return Math.floor(u.cost * Math.pow(u.costGrow || 1.45, Math.max(0, nextRank - 1)));
+    return Math.floor(u.cost * Math.pow(u.costGrow || 1.58, Math.max(0, nextRank - 1)));
   }
-  function reqSatisfied(u) {
+  function findUpgradeNode(id) {
+    for (const tree of Object.values(UPGRADE_TREES)) {
+      const hit = tree.find((u) => u.id === id);
+      if (hit) return hit;
+    }
+    return null;
+  }
+  function treeForNode(u) {
+    for (const tree of Object.values(UPGRADE_TREES)) {
+      if (tree.includes(u) || tree.some((n) => n.id === u.id)) return tree;
+    }
+    return [];
+  }
+  function exclusiveBlocked(u, tree) {
+    if (!u.exclusive) return false;
+    if (ownedRank(u.id) > 0) return false;
+    const list = tree || treeForNode(u);
+    return list.some((o) => o.exclusive === u.exclusive && o.id !== u.id && ownedRank(o.id) > 0);
+  }
+  function reqSatisfied(u, tree) {
     if (!u.req) return true;
-    return ownedRank(u.req) >= (u.reqRank || 1);
+    if (ownedRank(u.req) >= (u.reqRank || 1)) return true;
+    return unlockViaExclusiveSibling(u, tree || treeForNode(u));
   }
   function applyUpgradeEffect(base, e, ranks) {
     if (!e || ranks <= 0) return;
@@ -624,8 +727,62 @@
       if (e.armorPenStep) base.armorPenalty = Math.min(1, (base.armorPenalty == null ? 1 : base.armorPenalty) + e.armorPenStep);
       if (e.slowStep) base.slow = Math.max(0.2, (base.slow == null ? 0.7 : base.slow) - e.slowStep);
       if (e.hitsAir) base.hitsAir = true;
+      if (e.towerCostSelf) base.cost = Math.max(12, Math.floor(base.cost * e.towerCostSelf));
+      if (e.sellSelf) base.sell = Math.floor((base.sell || 20) * e.sellSelf);
+      if (e.elementCostSelf) base.elementCostMul = (base.elementCostMul || 1) * e.elementCostSelf;
+      if (e.levelCdSelf) base.levelCdMul = (base.levelCdMul || 1) * e.levelCdSelf;
+      if (e.killScrapAura) base.killScrapAura = (base.killScrapAura || 0) + e.killScrapAura;
     }
   }
+  function emptyMetaBonuses() {
+    return {
+      scrapStartAdd: 0, scrapKillMul: 1, scrapWaveAdd: 0,
+      baseHpAdd: 0, leakReduce: 0, bossLeakReduce: 0,
+      elementCostMul: 1, elementSecondMul: 1, elementDmgMul: 1,
+      resistPierce: 0, dualSocketDmg: 1,
+      sellMul: 1, levelCdMul: 1, towerCostMul: 1,
+      globalDmg: 1, globalFireRate: 1, globalRange: 1,
+      globalCritAdd: 0, globalBoss: 0,
+    };
+  }
+  function applyMetaEffect(b, e, ranks) {
+    if (!e || ranks <= 0) return;
+    for (let i = 0; i < ranks; i++) {
+      if (e.scrapStartAdd) b.scrapStartAdd += e.scrapStartAdd;
+      if (e.scrapKillMul) b.scrapKillMul *= e.scrapKillMul;
+      if (e.scrapWaveAdd) b.scrapWaveAdd += e.scrapWaveAdd;
+      if (e.baseHpAdd) b.baseHpAdd += e.baseHpAdd;
+      if (e.leakReduce) b.leakReduce += e.leakReduce;
+      if (e.bossLeakReduce) b.bossLeakReduce += e.bossLeakReduce;
+      if (e.elementCostMul) b.elementCostMul *= e.elementCostMul;
+      if (e.elementSecondMul) b.elementSecondMul *= e.elementSecondMul;
+      if (e.elementDmgMul) b.elementDmgMul *= e.elementDmgMul;
+      if (e.resistPierce) b.resistPierce += e.resistPierce;
+      if (e.dualSocketDmg) b.dualSocketDmg *= e.dualSocketDmg;
+      if (e.sellMul) b.sellMul *= e.sellMul;
+      if (e.levelCdMul) b.levelCdMul *= e.levelCdMul;
+      if (e.towerCostMul) b.towerCostMul *= e.towerCostMul;
+      if (e.globalDmg) b.globalDmg *= e.globalDmg;
+      if (e.globalFireRate) b.globalFireRate *= e.globalFireRate;
+      if (e.globalRange) b.globalRange *= e.globalRange;
+      if (e.globalCritAdd) b.globalCritAdd += e.globalCritAdd;
+      if (e.globalBoss) b.globalBoss += e.globalBoss;
+    }
+  }
+  let _metaBonusCache = null;
+  let _metaBonusKey = "";
+  function metaBonuses() {
+    const key = JSON.stringify(meta.owned || {});
+    if (_metaBonusCache && _metaBonusKey === key) return _metaBonusCache;
+    const b = emptyMetaBonuses();
+    for (const tree of Object.values(UPGRADE_TREES)) {
+      for (const u of tree) applyMetaEffect(b, u.effect, ownedRank(u.id));
+    }
+    _metaBonusCache = b;
+    _metaBonusKey = key;
+    return b;
+  }
+  function invalidateMetaBonuses() { _metaBonusCache = null; _metaBonusKey = ""; }
   function clampTowerRange(type, range) {
     const cap = (BASE_TOWER[type] && BASE_TOWER[type].maxRange) || 200;
     return Math.min(cap, range);
@@ -634,6 +791,14 @@
     const base = { ...BASE_TOWER[type] };
     const tree = UPGRADE_TREES[type] || [];
     for (const u of tree) applyUpgradeEffect(base, u.effect, ownedRank(u.id));
+    const mb = metaBonuses();
+    base.damage *= mb.globalDmg;
+    base.fireRate *= mb.globalFireRate;
+    base.range *= mb.globalRange;
+    base.cost = Math.max(12, Math.floor(base.cost * mb.towerCostMul));
+    // sellMul applied at sell-time so mid-run forge buys still count.
+    if (mb.globalCritAdd) base.crit = (base.crit || 0) + mb.globalCritAdd;
+    if (mb.globalBoss) base.bossBonus = (base.bossBonus || 0) + mb.globalBoss;
     base.range = clampTowerRange(type, base.range);
     return base;
   }
@@ -1474,8 +1639,12 @@
     }
     state.path = generatePath(state.seed, state.w, state.h, state.difficulty);
     const diff = currentDiff();
-    state.hp = diff.id === "nightmare" ? 16 : diff.id === "hard" ? 18 : 20;
-    state.scrap = Math.floor(BALANCE.scrapStart * (diff.id === "nightmare" ? 0.85 : diff.id === "hard" ? 0.95 : 1));
+    const mb = metaBonuses();
+    const baseHp = diff.id === "nightmare" ? 16 : diff.id === "hard" ? 18 : 20;
+    state.hp = baseHp + mb.baseHpAdd;
+    state.scrap = Math.floor(
+      (BALANCE.scrapStart * (diff.id === "nightmare" ? 0.85 : diff.id === "hard" ? 0.95 : 1)) + mb.scrapStartAdd
+    );
     state.score = 0; state.wave = 0;
     state.towers = []; state.enemies = []; state.projectiles = []; state.fx = []; state.particles = []; state.hazards = []; state.enemySeq = 0;
     state.spawnQueue = []; state.spawnTimer = 0; state.betweenWaves = 0;
@@ -1502,8 +1671,9 @@
   function endRun(abandoned) {
     const wave = state.wave, score = state.score;
     const diff = DIFFICULTIES[state.difficulty] || DIFFICULTIES.normal;
-    const dailyBonus = runIsDaily && !abandoned && wave >= 8 ? 18 : 0;
-    const chips = Math.floor((abandoned ? wave * 3 + score / 55 : wave * 6.5 + score / 26) * diff.chipMul) + dailyBonus;
+    const dailyBonus = runIsDaily && !abandoned && wave >= 8 ? 12 : 0;
+    // Tuned so early roots stay buyable, but deep forge/tower nodes stay expensive.
+    const chips = Math.floor((abandoned ? wave * 2.2 + score / 70 : wave * 4.0 + score / 48) * diff.chipMul) + dailyBonus;
     meta.chips += Math.max(0, chips);
     if (!meta.bestByDifficulty[diff.id]) meta.bestByDifficulty[diff.id] = { wave: 0, score: 0 };
     const rec = meta.bestByDifficulty[diff.id];
@@ -1879,7 +2049,10 @@
     if (state.scrap < cost) return false;
     state.scrap -= cost;
     t.level += 1;
-    if (!opts.skipCd) t.levelCd = BALANCE.levelCd;
+    if (!opts.skipCd) {
+      const selfMul = t.levelCdMul || 1;
+      t.levelCd = BALANCE.levelCd * metaBonuses().levelCdMul * selfMul;
+    }
     applyTowerLevelStats(t);
     if (!opts.silent) {
       burstUpgrade(t.x, t.y, t.color);
@@ -1955,7 +2128,8 @@
     }
     for (const i of touched) {
       const t = state.towers[i];
-      t.levelCd = BALANCE.levelCd;
+      const selfMul = t.levelCdMul || 1;
+      t.levelCd = BALANCE.levelCd * metaBonuses().levelCdMul * selfMul;
       burstUpgrade(t.x, t.y, t.color);
     }
     sfx.upgrade();
@@ -1969,7 +2143,12 @@
     saveRun();
   }
   function elementCost(t) {
-    return (t.elements && t.elements.length) ? ELEMENT_SECOND_COST : ELEMENTS.fire.cost;
+    const mb = metaBonuses();
+    const second = !!(t.elements && t.elements.length);
+    const base = second ? ELEMENT_SECOND_COST : ELEMENTS.fire.cost;
+    const selfMul = t.elementCostMul || 1;
+    const pathMul = second ? mb.elementCostMul * mb.elementSecondMul : mb.elementCostMul;
+    return Math.max(8, Math.floor(base * pathMul * selfMul));
   }
 
   function updateInspect() {
@@ -2037,26 +2216,76 @@
     }, 1400);
   }
 
-  let upgradeTab = "turret";
+  let upgradeTab = "forge";
+  function nodeReveal(u, tree) {
+    if (ownedRank(u.id) > 0 || !u.req) return "open";
+    if (reqSatisfied(u, tree)) return "open";
+    if (ownedRank(u.req) > 0) return "near";
+    // Also near if an exclusive sibling of the req is owned (branch fork).
+    const reqNode = tree.find((p) => p.id === u.req);
+    if (reqNode && reqNode.exclusive) {
+      const sibOwned = tree.some((p) => p.exclusive === reqNode.exclusive && ownedRank(p.id) > 0);
+      if (sibOwned) return "near";
+    }
+    return "fog";
+  }
+  function nodeCopy(u, tree) {
+    const reveal = nodeReveal(u, tree);
+    if (reveal === "fog") return { name: "???", desc: "Locked", fog: true };
+    if (reveal === "near" && !reqSatisfied(u, tree)) {
+      const parent = tree.find((p) => p.id === u.req) || findUpgradeNode(u.req);
+      const need = u.reqRank || 1;
+      const pname = parent ? parent.name : "prior node";
+      return { name: u.name, desc: `Needs ${pname} ×${need}`, fog: false };
+    }
+    let desc = u.desc;
+    if (u.exclusive) desc = `Pick one · ${desc}`;
+    return { name: u.name, desc, fog: false };
+  }
   function renderUpgrades() {
     meta = loadJSON(STORAGE.meta, defaultMeta());
+    invalidateMetaBonuses();
     els.chipsUp.textContent = `${formatCompact(meta.chips)} chips`;
     if (els.chipsUp) els.chipsUp.title = `${meta.chips} chips`;
-    document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === upgradeTab));
+    document.querySelectorAll("#screen-upgrades .tab").forEach((tab) => {
+      tab.classList.toggle("active", tab.dataset.tab === upgradeTab);
+    });
     const list = els.upgradeList;
     list.innerHTML = "";
-    list.className = "upgrade-tree";
+    list.className = "upgrade-tree" + (upgradeTab === "forge" ? " upgrade-tree-forge" : "");
     const tree = UPGRADE_TREES[upgradeTab] || [];
     const maxRow = tree.reduce((m, u) => Math.max(m, u.row || 0), 0);
     const maxCol = tree.reduce((m, u) => Math.max(m, u.col || 0), 0);
     const cols = maxCol + 1;
     const rows = maxRow + 1;
+
+    if (upgradeTab !== "forge") {
+      const hint = document.createElement("p");
+      hint.className = "up-tree-hint";
+      hint.textContent = "Branch picks are permanent · deep ranks cost more";
+      list.appendChild(hint);
+    }
+
+    const scroller = document.createElement("div");
+    scroller.className = "up-tree-scroll";
+    if (upgradeTab === "forge") {
+      const lanes = document.createElement("div");
+      lanes.className = "up-path-lanes";
+      lanes.style.setProperty("--up-cols", String(cols));
+      for (const p of FORGE_PATHS) {
+        const chip = document.createElement("span");
+        chip.className = `up-path-chip path-${p.id}`;
+        chip.textContent = p.label;
+        lanes.appendChild(chip);
+      }
+      scroller.appendChild(lanes);
+    }
     const grid = document.createElement("div");
     grid.className = "up-tree-grid";
     grid.style.setProperty("--up-cols", String(cols));
     grid.style.setProperty("--up-rows", String(rows));
+    if (upgradeTab === "forge") grid.classList.add("up-tree-grid-forge");
 
-    // Connected skill tree: curved branches + hub nodes in grid space.
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "up-tree-svg");
     svg.setAttribute("viewBox", `0 0 ${cols} ${rows}`);
@@ -2067,19 +2296,14 @@
       if (!u.req) continue;
       const parent = tree.find((p) => p.id === u.req);
       if (!parent) continue;
-      const lit = ownedRank(u.req) >= (u.reqRank || 1);
+      const lit = ownedRank(u.req) >= (u.reqRank || 1) || unlockViaExclusiveSibling(u, tree);
       const x1 = (parent.col || 0) + 0.5;
       const y1 = (parent.row || 0) + 0.88;
       const x2 = (u.col || 0) + 0.5;
       const y2 = (u.row || 0) + 0.12;
       const midY = (y1 + y2) / 2;
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      // Smooth S-curve when columns differ; vertical otherwise.
-      if (Math.abs(x1 - x2) < 0.05) {
-        path.setAttribute("d", `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`);
-      } else {
-        path.setAttribute("d", `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`);
-      }
+      path.setAttribute("d", `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`);
       path.setAttribute("class", "up-branch" + (lit ? " lit" : ""));
       svg.appendChild(path);
       const hk = `${parent.col},${parent.row}`;
@@ -2088,14 +2312,14 @@
         const hub = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         hub.setAttribute("cx", String(x1));
         hub.setAttribute("cy", String(y1));
-        hub.setAttribute("r", "0.07");
+        hub.setAttribute("r", "0.06");
         hub.setAttribute("class", "up-hub" + (lit ? " lit" : ""));
         svg.appendChild(hub);
       }
       const leaf = document.createElementNS("http://www.w3.org/2000/svg", "circle");
       leaf.setAttribute("cx", String(x2));
       leaf.setAttribute("cy", String(y2));
-      leaf.setAttribute("r", "0.06");
+      leaf.setAttribute("r", "0.05");
       leaf.setAttribute("class", "up-hub" + (ownedRank(u.id) > 0 ? " lit" : ""));
       svg.appendChild(leaf);
     }
@@ -2105,36 +2329,50 @@
       const rank = ownedRank(u.id);
       const max = u.max || 1;
       const full = rank >= max;
-      const reqOk = reqSatisfied(u);
+      const reqOk = reqSatisfied(u, tree);
+      const blocked = exclusiveBlocked(u, tree);
       const nextCost = full ? 0 : upgradeCostAt(u, rank + 1);
+      const copy = nodeCopy(u, tree);
       const node = document.createElement("button");
       node.type = "button";
-      node.className = "up-node" + (rank ? " owned" : "") + (full ? " maxed" : "") + (!reqOk && !rank ? " locked" : "");
+      node.className = "up-node"
+        + (rank ? " owned" : "")
+        + (full ? " maxed" : "")
+        + ((!reqOk || blocked) && !rank ? " locked" : "")
+        + (copy.fog ? " fog" : "")
+        + (u.exclusive ? " choice" : "")
+        + (u.path ? ` path-${u.path}` : "");
       node.style.gridColumn = String((u.col || 0) + 1);
       node.style.gridRow = String((u.row || 0) + 1);
-      // Vertical stack: icon+name, desc, rank/cost footer — no overlapping cost pill.
       node.innerHTML =
-        `<span class="up-top"><span class="up-ico up-ico-${u.icon || "star"}" aria-hidden="true"></span>` +
-        `<span class="up-name">${u.name}</span></span>` +
-        `<span class="up-desc">${u.desc}</span>` +
-        `<span class="up-foot"><span class="up-rank">${rank}/${max}</span>` +
-        `<span class="up-cost">${full ? "MAX" : nextCost}</span></span>`;
-      node.disabled = full || !reqOk || meta.chips < nextCost;
-      if (!full && reqOk) {
+        `<span class="up-top"><span class="up-ico up-ico-${copy.fog ? "star" : (u.icon || "star")}" aria-hidden="true"></span>` +
+        `<span class="up-name">${copy.name}</span></span>` +
+        `<span class="up-desc">${copy.desc}</span>` +
+        `<span class="up-foot"><span class="up-rank">${copy.fog ? "—" : `${rank}/${max}`}</span>` +
+        `<span class="up-cost">${full ? "MAX" : blocked ? "ALT" : copy.fog ? "—" : nextCost}</span></span>`;
+      const canBuy = !full && reqOk && !blocked && !copy.fog && meta.chips >= nextCost;
+      node.disabled = full || blocked || copy.fog || !reqOk || meta.chips < nextCost;
+      if (blocked) node.title = "Other branch already chosen";
+      else if (!reqOk && !copy.fog) node.title = copy.desc;
+      else if (!full && meta.chips < nextCost) node.title = `Need ${nextCost} chips`;
+      else node.title = u.desc || u.name;
+      if (canBuy || (!full && reqOk && !blocked && !copy.fog)) {
         node.addEventListener("click", () => {
           const r = ownedRank(u.id);
-          if (r >= (u.max || 1) || !reqSatisfied(u)) return;
+          if (r >= (u.max || 1) || !reqSatisfied(u, tree) || exclusiveBlocked(u, tree)) return;
           const cost = upgradeCostAt(u, r + 1);
-          if (meta.chips < cost) return;
+          if (meta.chips < cost) { toast(`Need ${cost} chips`); return; }
           meta.chips -= cost;
           meta.owned[u.id] = r + 1;
+          invalidateMetaBonuses();
           saveJSON(STORAGE.meta, meta); sfx.buy();
           renderUpgrades(); refreshHub();
         });
       }
       grid.appendChild(node);
     }
-    list.appendChild(grid);
+    scroller.appendChild(grid);
+    list.appendChild(scroller);
   }
 
   function beginWave() {
@@ -2380,6 +2618,12 @@
     // Per-enemy elemental resists / weaknesses (matchups).
     mul *= elementResistMul(enemy, elsArr);
 
+    const mb = metaBonuses();
+    if (elsArr.length) {
+      mul *= mb.elementDmgMul;
+      if (elsArr.length >= 2) mul *= mb.dualSocketDmg;
+    }
+
     if (enemy.shred > 0) mul *= 1 + Math.min(0.5, enemy.shred);
     if (key === "water+wind" && enemy.chillT > 0) mul *= 1.75;
     return mul;
@@ -2581,7 +2825,12 @@
     if (!e.alive) return;
     e.alive = false;
     const p = enemyPos(e);
-    state.scrap += e.reward;
+    let scrapGain = e.reward * metaBonuses().scrapKillMul;
+    // Soft aura: owned kill-scrap nodes on any placed tower add a little.
+    let aura = 0;
+    for (const t of state.towers) aura = Math.max(aura, t.killScrapAura || 0);
+    if (aura) scrapGain *= 1 + aura;
+    state.scrap += Math.max(1, Math.floor(scrapGain));
     state.score += e.reward * 2 + Math.floor(state.wave);
     pushCombatFx({ kind: "pop", x: p.x, y: p.y, t: 0.4, color: e.color });
     spawnParticles(p.x, p.y, e.color, isBossEnemy(e) ? 28 : 12, isBossEnemy(e) ? 140 : 90);
@@ -2784,7 +3033,9 @@
         // Timer advance: next wave starts even if foes remain (overlaps OK).
         state.enemies = state.enemies.filter((e) => e.alive);
         state.betweenWaves = nextWaveDelay();
-        state.scrap += Math.floor(BALANCE.scrapWaveBase + state.wave * BALANCE.scrapWavePer);
+        state.scrap += Math.floor(
+          BALANCE.scrapWaveBase + state.wave * BALANCE.scrapWavePer + metaBonuses().scrapWaveAdd
+        );
         saveRun();
       }
     }
@@ -2855,7 +3106,11 @@
       }
       if (e.dist >= enemyPathTotal(e)) {
         e.alive = false;
-        state.hp -= isBossEnemy(e) ? 5 : 1;
+        {
+          const mb = metaBonuses();
+          const raw = isBossEnemy(e) ? 5 - mb.bossLeakReduce : 1 - mb.leakReduce;
+          state.hp -= Math.max(1, raw);
+        }
         pushCombatFx({ kind: "leak", t: 0.5 });
         triggerScreenFlash(0.18);
         addShake(0.95);
@@ -4758,7 +5013,8 @@
     if (state.selectedBuilt == null) return;
     const t = state.towers[state.selectedBuilt];
     const elBonus = (t.elements || []).length * 15;
-    state.scrap += Math.floor((t.sell || 30) * (0.7 + t.level * 0.15) + elBonus * 0.5);
+    const sellBase = Math.floor((t.sell || 30) * (0.7 + t.level * 0.15) + elBonus * 0.5);
+    state.scrap += Math.max(1, Math.floor(sellBase * metaBonuses().sellMul));
     spawnParticles(t.x, t.y, t.color, 10, 70);
     state.towers.splice(state.selectedBuilt, 1);
     state.selectedBuilt = null; updateHUD(); saveRun();
