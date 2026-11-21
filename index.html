@@ -11,13 +11,13 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="application-name" content="Emberwell" />
   <meta name="description" content="Endless molten-rift tower defense. Play offline anywhere." />
-  <link rel="manifest" href="manifest.webmanifest?v=2.1.0" />
+  <link rel="manifest" href="manifest.webmanifest?v=2.2.0" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icons/icon-512.png" sizes="512x512" />
   <title>Emberwell</title>
-  <script src="version.js?v=2.1.0"></script>
-  <link rel="stylesheet" href="styles.css?v=2.1.0" />
+  <script src="version.js?v=2.2.0"></script>
+  <link rel="stylesheet" href="styles.css?v=2.2.0" />
 </head>
 <body>
   <div id="app" data-ui="hub">
@@ -143,7 +143,7 @@
           <button type="button" id="btn-play" class="primary">New Run</button>
           <button type="button" id="btn-daily" class="secondary">Daily Rift</button>
           <button type="button" id="btn-continue" class="secondary hidden">Continue</button>
-          <button type="button" id="btn-upgrades" class="secondary">Upgrade Trees</button>
+          <button type="button" id="btn-upgrades" class="secondary">Forge & Trees</button>
           <button type="button" id="btn-settings" class="secondary">Settings</button>
         </div>
         <p id="daily-hint" class="daily-hint"></p>
@@ -209,11 +209,12 @@
       <div class="panel upgrades-panel">
         <header class="panel-head">
           <button type="button" id="btn-upgrades-back" class="text-btn">← Hub</button>
-          <h2>Upgrade Trees</h2>
+          <h2>Forge</h2>
           <span id="chips-up" class="chips-pill">0 chips</span>
         </header>
         <div class="tower-tabs" role="tablist">
-          <button type="button" class="tab active" data-tab="turret">Turret</button>
+          <button type="button" class="tab active" data-tab="forge">Forge</button>
+          <button type="button" class="tab" data-tab="turret">Turret</button>
           <button type="button" class="tab" data-tab="mortar">Mortar</button>
           <button type="button" class="tab" data-tab="coil">Coil</button>
           <button type="button" class="tab" data-tab="spire">Spire</button>
@@ -290,10 +291,10 @@
       </div>
     </section>
   </div>
-  <script src="game.js?v=2.1.0" defer></script>
+  <script src="game.js?v=2.2.0" defer></script>
   <script>
     (function () {
-      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "2.1.0";
+      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "2.2.0";
       var el = document.getElementById("app-version");
       if (el) el.textContent = "v" + ver;
       var sv = document.getElementById("settings-version");

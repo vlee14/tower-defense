@@ -15,7 +15,7 @@ Endless mobile-first tower defense along a molten rift. Stone roads, gate portal
 - Waves advance on a short timer after spawning finishes — clearing the field is not required; overlaps are normal.
 - Boss roster: **Behemoth**, **Emberwyrm**, **Shellwarden**, **Broodmother**, **Galeheart** (distinct silhouettes, resists, abilities). Decade packs can mix several.
 - Survive endless waves on Normal/Hard/Nightmare; earn scrap in-run and chips between runs.
-- Spend chips on per-tower upgrade trees in the hub.
+- Spend chips in the hub **Forge** (Offense / Economy / Defense / Elements / Utility) and per-tower trees — branch picks matter; deep ranks cost more.
 - Unlock **Hard** (wave 10 on Normal) and **Nightmare** (wave 12 on Hard).
 - **Daily Rift** uses a shared UTC date seed, runs harder than Normal, and hard-stops at wave **100** (rift sealed on clear).
 - Toggle **damage numbers** in Settings. Pause anytime; progress saves locally.
