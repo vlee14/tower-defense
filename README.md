@@ -1,43 +1,25 @@
 # Emberwell
 
-Endless mobile-first tower defense along a molten rift. Stone roads, gate portals, and lit tower models on a basalt field. Static PWA — works offline after first load.
+Endless mobile-first tower defense along a molten rift. Baked basalt terrain, sculpted stone roads, elemental combos, roguelite Rift Relics, and active powers. Static PWA — works offline after first load.
 
 ## Play
 
-- New runs open in **prep** — place towers freely, then tap **Start** (waves never auto-begin).
-- Tap a tower (Turret / Mortar / Coil / Spire), then place anywhere off the road (rocks block builds).
-- Higher difficulties shrink path length and tighten layout (sharper bends, less prep space, worse angles)—not HP alone.
-- Select a placed tower to socket **Fire / Water / Earth / Wind / Arc / Frost** (max 2) for singles + combos — learn matchups in combat (△ weak · □ resist).
-- Four towers: **Turret**, **Mortar**, **Coil**, **Spire** (pierce). Level one tower or **Up All** (spends scrap cheapest-first across ready towers); short wall-clock level cooldown after.
-- Use the **speed** control (1× → 1.5× → 2× → 3× → 5×) to pace runs; preference saves locally.
-- **Settings** (hub or pause): volume + optional ambient music, screen shake Off/Low/Med/High (default Low), juice toggles, haptics, **Battery saver**, and **Large tap targets**. Mute and reduce-motion quiet feedback.
-- **Place towers** anywhere valid off the road; rocks and path clearance set the limits. Harder maps open more spawn gates and squeeze build space.
-- Waves advance on a short timer after spawning finishes — clearing the field is not required; overlaps are normal.
-- Boss roster: **Behemoth**, **Emberwyrm**, **Shellwarden**, **Broodmother**, **Galeheart** (distinct silhouettes, resists, abilities). Decade packs can mix several.
-- Survive endless waves on Normal/Hard/Nightmare; earn scrap in-run and chips between runs.
-- Spend chips in the hub **Forge** (Offense / Economy / Defense / Elements / Utility) and per-tower trees — branch picks matter; deep ranks cost more.
-- Unlock **Hard** (wave 10 on Normal) and **Nightmare** (wave 12 on Hard).
-- **Daily Rift** uses a shared UTC date seed, runs harder than Normal, and hard-stops at wave **100** (rift sealed on clear).
-- Toggle **damage numbers** in Settings. Pause anytime; progress saves locally.
+- New runs open in **prep** — place towers freely anywhere off the road (rocks block builds), then tap **Start Wave**.
+- Four towers: **Turret** (rapid DPS), **Mortar** (AoE blast), **Coil** (arc slow & anti-air), **Spire** (piercing rail).
+- Tap any placed tower to set **targeting priority** (`First` / `Strong` / `Close` / `Weak`), **socket elements** (`Fire / Water / Earth / Wind / Arc / Frost`, max 2 — live combo previews show on the buttons), level up, or **Up All**.
+- **Active Rift Powers**: unleash **Meteor** (tap battlefield to drop an explosive magma crater) and **Ember Surge** (+55% attack speed & bonus crit across all towers). Slaying enemies charges both abilities faster.
+- **Rift Relics**: pick 1 of 3 run-defining roguelite relics after milestone waves (W3, W6, W10, W15, …) to forge wild synergies each run.
+- **Call Next Wave Early**: tap the early-wave button between spawns for instant bonus scrap, and chain rapid kills for **Kill Streak** scrap bursts.
+- Open the **Field Manual** (hub or pause) anytime to browse all 15 elemental combos, tower stats, and boss resistances/abilities.
+- **Forge & Trees**: spend chips across 5 Forge lanes and per-tower trees, with 100% chip-refund **Respec** anytime.
+- **Settings**: audio volume, ambient music, screen shake, visual FX toggles, haptics, Battery saver, Large tap targets, and **Reset All Progress** (with confirmation).
+- **Daily Rift**: shared UTC date seed, harder layout & scaling, hard-stops at wave **100**.
 
 ## Offline & versioning
 
-Service worker caches the shell and assets on first visit. No CDN/API calls at runtime. Chrome/Edge show an in-app **Install** banner when installable; iOS uses Share → Add to Home Screen. Updates toast `Updated to vX` after a SW reload.
+Service worker caches the shell and assets on first visit. No CDN/API calls at runtime.
 
-**Bump on every deploy:** `./bump-version.sh x.y.z` (or edit `APP_VERSION` in `version.js` and matching `?v=` queries). The service worker names its cache `emberwell-<version>`, deletes older caches on activate, and uses network-first for navigations so updates install cleanly.
-
-## Soft launch checklist
-
-- [ ] Fresh load on phone: hub → New Run → place → socket → speed → pause → hub resume
-- [ ] Offline: load once online, toggle airplane mode, reload still plays
-- [ ] Install: Add to Home Screen / Install banner; opens standalone with icon
-- [ ] Settings: Battery saver + Large taps persist; reduce-motion quiets shake/haptics
-- [ ] Daily Rift seed stable for the UTC day; harder than Normal; ends at wave 100; milestones claim chips
-- [ ] Version badge shows current `APP_VERSION` on hub + Settings
-
-## Procedural runs
-
-Each run gets a seed that drives path layout, spawn timing, and enemy mixes. The seed is stored with mid-run saves so resume stays consistent.
+**Bump on every deploy:** `./bump-version.sh x.y.z` (updates `version.js`, `sw.js`, `manifest.webmanifest`, and `index.html`).
 
 ## Stack
 
