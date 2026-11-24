@@ -17,24 +17,24 @@
   const MAX_FX_SAVER = 20;
 
   // layout*: KR/BTD lessons — harder = shorter path, more gates, less pad space (not HP-only).
-  // pathClear = road half-width (~outer berm 23) + tower footprint — keep towers fully off asphalt.
-  const ROAD_HALF_W = 28;
-  const TOWER_PLACE_R = 22;
+  // pathClear = road bed+edge (16) + tower footprint (14) = 30px — fits snugly inside bends and V-junctions off asphalt.
+  const ROAD_HALF_W = 16;
+  const TOWER_PLACE_R = 14;
   const DIFFICULTIES = {
     normal: {
       id: "normal", name: "Normal", hpMul: 1, speedMul: 1, countMul: 1, intervalMul: 1, rewardMul: 1, chipMul: 1,
-      edgeInset: 0.12, travel: 1.0, hairpin: 0.35, padOffset: 50, padClear: 36, pathClear: ROAD_HALF_W + TOWER_PLACE_R,
+      edgeInset: 0.12, travel: 1.0, hairpin: 0.35, padOffset: 38, padClear: 30, pathClear: ROAD_HALF_W + TOWER_PLACE_R,
       motifs: ["s-bend", "dual-merge", "y-merge"], unlock: null,
     },
     hard: {
       id: "hard", name: "Hard", hpMul: 1.42, speedMul: 1.1, countMul: 1.18, intervalMul: 0.9, rewardMul: 1.4, chipMul: 1.35,
-      edgeInset: 0.17, travel: 0.74, hairpin: 0.75, padOffset: 40, padClear: 34, pathClear: ROAD_HALF_W + TOWER_PLACE_R,
+      edgeInset: 0.17, travel: 0.74, hairpin: 0.75, padOffset: 35, padClear: 30, pathClear: ROAD_HALF_W + TOWER_PLACE_R,
       motifs: ["hairpin", "y-merge", "triple-funnel"],
       unlock: { kind: "wave", difficulty: "normal", wave: 10 },
     },
     nightmare: {
       id: "nightmare", name: "Nightmare", hpMul: 2.0, speedMul: 1.24, countMul: 1.35, intervalMul: 0.78, rewardMul: 1.85, chipMul: 1.85,
-      edgeInset: 0.21, travel: 0.52, hairpin: 1.0, padOffset: 34, padClear: 32, pathClear: ROAD_HALF_W + TOWER_PLACE_R - 2,
+      edgeInset: 0.21, travel: 0.52, hairpin: 1.0, padOffset: 32, padClear: 29, pathClear: ROAD_HALF_W + TOWER_PLACE_R - 1,
       motifs: ["hairpin", "triple-funnel", "quad-squeeze"],
       unlock: { kind: "wave", difficulty: "hard", wave: 12 },
     },
@@ -962,8 +962,8 @@
     let goingRight = rng() > 0.5;
     const inset = Math.max(36, w * (0.13 + (1 - travel) * 0.08));
     const reach = (w * 0.5 - inset) * travel;
-    // Keep vertical switchback spacing generous (~122px) so buildable islands always exist between lanes.
-    const maxFlips = Math.max(1, Math.min(3, Math.floor((toY - fromY) / 118)));
+    // Keep vertical switchback bands generous (>=98px between centerlines) so towers always fit comfortably inside turns.
+    const maxFlips = Math.max(1, Math.min(3, Math.floor((toY - fromY) / 98) - 1));
     const safeFlips = Math.max(1, Math.min(flips, maxFlips));
     for (let i = 1; i <= safeFlips; i++) {
       const t = i / (safeFlips + 1);
@@ -989,9 +989,9 @@
   function composeMotif(motif, w, h, spawnN, diff, rng) {
     const travel = Math.max(0.45, Math.min(1, diff.travel));
     const hairpin = diff.hairpin;
-    // Safe top & bottom margins so portal arches and Wellheart bastion never clip against canvas frame.
-    const top = Math.max(48, h * 0.092);
-    const exitY = Math.min(h - 42, h * (0.885 - (1 - travel) * 0.02));
+    // Safe top & bottom margins so portal arches stay below banner and Wellheart stays above Start Wave button.
+    const top = Math.max(66, h * 0.112);
+    const exitY = Math.min(h - 68, h * (0.855 - (1 - travel) * 0.015));
     const midBand = h * (0.29 + (1 - travel) * 0.07);
     const funnelY = h * (0.38 + (1 - travel) * 0.08);
     const inset = Math.max(46, w * diff.edgeInset);
@@ -1060,18 +1060,19 @@
       const merge = pt(w * 0.5, midBand * 0.85, w, h);
       merges.push(merge);
       spine.push(merge);
-      const corridor = travel * 0.55;
-      const flips = 2 + Math.floor(hairpin * 2);
+      const corridor = Math.max(0.62, travel * 0.72);
+      const maxFlips = Math.max(1, Math.min(3, Math.floor((exitY - merge.y) / 104) - 1));
+      const flips = Math.max(1, Math.min(maxFlips, 2 + Math.floor(hairpin * 1.5)));
       let x = merge.x;
       let y = merge.y;
       let side = rng() > 0.5 ? 1 : -1;
       for (let i = 0; i < flips; i++) {
         y += (exitY - merge.y) / (flips + 1);
         const outer = w * 0.5 + side * (w * 0.5 - inset) * corridor;
-        spine.push(pt(outer, y - h * 0.02, w, h));
-        spine.push(pt(outer, y + h * 0.01, w, h));
-        x = w * 0.5 - side * (w * 0.5 - inset) * corridor * 0.35;
-        spine.push(pt(x, y + h * 0.02, w, h));
+        spine.push(pt(outer, y - h * 0.008, w, h));
+        spine.push(pt(outer, y + h * 0.008, w, h));
+        x = w * 0.5 - side * (w * 0.5 - inset) * corridor * 0.45;
+        spine.push(pt(x, y + h * 0.01, w, h));
         side *= -1;
       }
       spine.push(pt(w * 0.5 + (rng() - 0.5) * 24, exitY, w, h));
@@ -1091,10 +1092,10 @@
       spine.push(pt(x, exitY, w, h));
     }
 
-    // Keep all spawn portals comfortably inside canvas edges so arches and rings never clip.
+    // Keep all spawn portals comfortably inside canvas edges and below top banner.
     for (const s of spawns) {
       s.x = clampMap(s.x, 44, w - 44);
-      s.y = clampMap(s.y, 48, h - 48);
+      s.y = clampMap(s.y, 64, h - 72);
     }
     // Ensure exit is last spine point.
     if (!spine.length || spine[spine.length - 1].y < exitY - 8) {
@@ -2110,6 +2111,10 @@
     state.fx = []; state.particles = []; state.hazards = [];
     state.relics = []; state.selectedBuilt = null; state.selectedTower = null;
     state.armedAbility = null;
+    treeScrollMemory.clear();
+    upgradeTab = "forge";
+    forgeLane = "offense";
+    upgradeTreeState.key = null;
     const confirmBox = $("reset-confirm-box");
     if (confirmBox) confirmBox.classList.add("hidden");
     refreshHub();
@@ -2731,168 +2736,659 @@
   }
 
   let upgradeTab = "forge";
-  function nodeCopy(u, tree) {
-    if (!reqSatisfied(u, tree) && ownedRank(u.id) === 0) {
-      const parent = tree.find((p) => p.id === u.req) || findUpgradeNode(u.req);
-      const need = u.reqRank || 1;
-      const pname = parent ? parent.name : "prior node";
-      return { name: u.name, desc: `Needs ${pname} ×${need} · ${u.desc}` };
+  let forgeLane = "offense";
+  const TOWER_PILLARS = {
+    turret: ["Damage", "Fire Rate", "Range"],
+    mortar: ["Payload", "Blast", "Ordnance"],
+    coil: ["Voltage", "Cryo", "Pulse"],
+    spire: ["Focus", "Pierce", "Range"],
+  };
+  const treeScrollMemory = new Map();
+  const upgradeTreeState = {
+    key: null,
+    scroller: null,
+    sections: [],
+    nodes: new Map(),
+    laneBtns: new Map(),
+    supportBadge: null,
+    ro: null,
+    connectorRaf: 0,
+  };
+
+  function treeHasAffordable(nodes, fullTree) {
+    for (const u of nodes) {
+      const r = ownedRank(u.id);
+      if (r >= (u.max || 1)) continue;
+      if (!reqSatisfied(u, fullTree) || exclusiveBlocked(u, fullTree)) continue;
+      if (meta.chips >= upgradeCostAt(u, r + 1)) return true;
     }
-    return { name: u.name, desc: u.desc };
+    return false;
   }
-  function drawTreeConnectors(grid, svg, tree, nodeMap) {
-    if (!grid || !svg) return;
-    const w = grid.scrollWidth || grid.offsetWidth;
-    const h = grid.scrollHeight || grid.offsetHeight;
+
+  function treeRankTotals(nodes) {
+    let owned = 0;
+    let max = 0;
+    for (const u of nodes) {
+      owned += ownedRank(u.id);
+      max += (u.max || 1);
+    }
+    return { owned, max };
+  }
+
+  function nodeRequirementText(u, tree) {
+    if (!u.req) return "";
+    if (reqSatisfied(u, tree) || ownedRank(u.id) > 0) return "";
+    const parent = tree.find((p) => p.id === u.req) || findUpgradeNode(u.req);
+    const need = u.reqRank || 1;
+    if (parent && parent.exclusive) return `Needs 1 Specialization`;
+    const pname = parent ? parent.name : "prior node";
+    return `Needs ${pname} ×${need}`;
+  }
+
+  function updateUpgradeTabBadges() {
+    document.querySelectorAll("#screen-upgrades .tab").forEach((tab) => {
+      const id = tab.dataset.tab;
+      const tree = UPGRADE_TREES[id] || [];
+      tab.classList.toggle("active", id === upgradeTab);
+      tab.classList.toggle("has-afford", treeHasAffordable(tree, tree));
+      let badge = tab.querySelector(".tab-rank");
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "tab-rank";
+        tab.appendChild(badge);
+      }
+      const { owned } = treeRankTotals(tree);
+      badge.textContent = owned > 0 ? String(owned) : "";
+      badge.classList.toggle("hidden", owned <= 0);
+    });
+  }
+
+  function updateForgeLaneBadges() {
+    if (!upgradeTreeState.laneBtns.size) return;
+    const forgeTree = UPGRADE_TREES.forge || [];
+    for (const p of FORGE_PATHS) {
+      const btn = upgradeTreeState.laneBtns.get(p.id);
+      if (!btn) continue;
+      const laneNodes = forgeTree.filter((u) => u.path === p.id);
+      const { owned, max } = treeRankTotals(laneNodes);
+      btn.classList.toggle("active", forgeLane === p.id);
+      btn.classList.toggle("has-afford", treeHasAffordable(laneNodes, forgeTree));
+      const countEl = btn.querySelector(".lane-count");
+      if (countEl) countEl.textContent = `${owned}/${max}`;
+    }
+  }
+
+  function drawSectionConnectors(section) {
+    const { container, svg, edges } = section;
+    if (!container || !svg) return;
+    const cRect = container.getBoundingClientRect();
+    const w = Math.round(container.scrollWidth || cRect.width);
+    const h = Math.round(container.scrollHeight || cRect.height);
     if (w < 10 || h < 10) return;
     svg.setAttribute("width", String(w));
     svg.setAttribute("height", String(h));
     svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
     svg.innerHTML = "";
-    const hubKeys = new Set();
-    for (const u of tree) {
-      if (!u.req) continue;
-      const parent = tree.find((p) => p.id === u.req);
-      if (!parent) continue;
-      const pEl = nodeMap.get(parent.id);
-      const cEl = nodeMap.get(u.id);
-      if (!pEl || !cEl) continue;
-      const lit = ownedRank(u.req) >= (u.reqRank || 1) || unlockViaExclusiveSibling(u, tree);
-      const x1 = pEl.offsetLeft + pEl.offsetWidth / 2;
-      const y1 = pEl.offsetTop + pEl.offsetHeight;
-      const x2 = cEl.offsetLeft + cEl.offsetWidth / 2;
-      const y2 = cEl.offsetTop;
-      const midY = (y1 + y2) / 2;
-      const isBypass = Math.abs(x1 - x2) < 4 && (y2 - y1) > 48;
+
+    const relRect = (el) => {
+      const r = el.getBoundingClientRect();
+      return {
+        left: r.left - cRect.left + container.scrollLeft,
+        right: r.right - cRect.left + container.scrollLeft,
+        top: r.top - cRect.top + container.scrollTop,
+        bottom: r.bottom - cRect.top + container.scrollTop,
+        cx: r.left - cRect.left + container.scrollLeft + r.width / 2,
+        cy: r.top - cRect.top + container.scrollTop + r.height / 2,
+      };
+    };
+
+    const addPath = (d, lit, dim) => {
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      if (isBypass) {
-        const gutterX = pEl.offsetLeft + pEl.offsetWidth + 7;
-        path.setAttribute(
-          "d",
-          `M ${x1} ${y1} C ${x1} ${y1 + 14}, ${gutterX} ${y1 + 8}, ${gutterX} ${y1 + 24} L ${gutterX} ${y2 - 24} C ${gutterX} ${y2 - 8}, ${x2} ${y2 - 14}, ${x2} ${y2}`
-        );
-      } else {
-        path.setAttribute("d", `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`);
-      }
-      path.setAttribute("class", "up-branch" + (lit ? " lit" : ""));
+      path.setAttribute("d", d);
+      path.setAttribute("class", "up-branch" + (lit ? " lit" : "") + (dim ? " dim" : ""));
       svg.appendChild(path);
-      const hk = `${parent.id}`;
-      if (!hubKeys.has(hk)) {
-        hubKeys.add(hk);
-        const hub = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        hub.setAttribute("cx", String(x1));
-        hub.setAttribute("cy", String(y1));
-        hub.setAttribute("r", "4");
-        hub.setAttribute("class", "up-hub" + (lit ? " lit" : ""));
-        svg.appendChild(hub);
+    };
+
+    const addDot = (x, y, r, lit) => {
+      const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      dot.setAttribute("cx", String(x));
+      dot.setAttribute("cy", String(y));
+      dot.setAttribute("r", String(r));
+      dot.setAttribute("class", "up-hub" + (lit ? " lit" : ""));
+      svg.appendChild(dot);
+    };
+
+    for (const edge of edges) {
+      if (edge.type === "chain") {
+        const a = relRect(edge.fromEl);
+        const b = relRect(edge.toEl);
+        const lit = ownedRank(edge.fromId) >= (edge.reqRank || 1);
+        const blocked = exclusiveBlocked(edge.toNode, edge.tree);
+        const horiz = b.left > a.right - 4 && Math.abs(b.cy - a.cy) < 40;
+        if (horiz) {
+          const x1 = a.right;
+          const y1 = a.cy;
+          const x2 = b.left;
+          const y2 = b.cy;
+          addPath(`M ${x1} ${y1} L ${x2} ${y2}`, lit, blocked);
+          addDot(x1, y1, 3.5, lit);
+          addDot(x2, y2, 3.5, ownedRank(edge.toId) > 0);
+        } else {
+          const x1 = a.cx;
+          const y1 = a.bottom;
+          const x2 = b.cx;
+          const y2 = b.top;
+          const midY = (y1 + y2) / 2;
+          addPath(`M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`, lit, blocked);
+          addDot(x1, y1, 3.5, lit);
+          addDot(x2, y2, 3.5, ownedRank(edge.toId) > 0);
+        }
+      } else if (edge.type === "bus") {
+        const fromRects = edge.fromEls.map(relRect);
+        const toRects = edge.toEls.map(relRect);
+        if (!fromRects.length || !toRects.length) continue;
+        const maxBottom = Math.max(...fromRects.map((r) => r.bottom));
+        const minTop = Math.min(...toRects.map((r) => r.top));
+        const busY = maxBottom + Math.max(10, (minTop - maxBottom) * 0.5);
+        const anyLit = edge.fromIds.some((id) => ownedRank(id) >= (edge.reqRank || 1));
+
+        const minFromX = Math.min(...fromRects.map((r) => r.cx));
+        const maxFromX = Math.max(...fromRects.map((r) => r.cx));
+        const minToX = Math.min(...toRects.map((r) => r.cx));
+        const maxToX = Math.max(...toRects.map((r) => r.cx));
+        const busLeft = Math.min(minFromX, minToX);
+        const busRight = Math.max(maxFromX, maxToX);
+
+        // Unlit base rail across all sources
+        addPath(`M ${busLeft} ${busY} L ${busRight} ${busY}`, false, false);
+
+        // Stems from each specialization option into the collector bus
+        fromRects.forEach((fr, idx) => {
+          const id = edge.fromIds[idx];
+          const lit = ownedRank(id) >= (edge.reqRank || 1);
+          const dim = anyLit && !lit;
+          addPath(`M ${fr.cx} ${fr.bottom} L ${fr.cx} ${busY}`, lit, dim);
+          addDot(fr.cx, fr.bottom, 3.5, lit);
+          // Highlight lit horizontal segment from chosen branch toward each target
+          if (lit) {
+            toRects.forEach((tr) => {
+              addPath(`M ${fr.cx} ${busY} L ${tr.cx} ${busY}`, true, false);
+            });
+          }
+        });
+
+        // Drops from collector bus into capstone card(s)
+        toRects.forEach((tr, idx) => {
+          const toId = edge.toIds[idx];
+          addPath(`M ${tr.cx} ${busY} L ${tr.cx} ${tr.top}`, anyLit, false);
+          addDot(tr.cx, tr.top, 3.8, ownedRank(toId) > 0 || anyLit);
+        });
       }
-      const leaf = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      leaf.setAttribute("cx", String(x2));
-      leaf.setAttribute("cy", String(y2));
-      leaf.setAttribute("r", "3.5");
-      leaf.setAttribute("class", "up-hub" + (ownedRank(u.id) > 0 ? " lit" : ""));
-      svg.appendChild(leaf);
     }
   }
-  function renderUpgrades() {
-    meta = loadJSON(STORAGE.meta, defaultMeta());
-    invalidateMetaBonuses();
+
+  function scheduleTreeConnectors() {
+    if (upgradeTreeState.connectorRaf) cancelAnimationFrame(upgradeTreeState.connectorRaf);
+    upgradeTreeState.connectorRaf = requestAnimationFrame(() => {
+      upgradeTreeState.connectorRaf = 0;
+      for (const sec of upgradeTreeState.sections) drawSectionConnectors(sec);
+    });
+  }
+
+  function createUpgradeNodeCard(u, tree, extraClass) {
+    const node = document.createElement("button");
+    node.type = "button";
+    node.dataset.nodeId = u.id;
+    node.className = "up-node" + (extraClass ? ` ${extraClass}` : "") + (u.path ? ` path-${u.path}` : "");
+
+    const max = u.max || 1;
+    let pipsHtml = "";
+    for (let i = 0; i < max; i++) pipsHtml += `<span class="up-pip"></span>`;
+
+    node.innerHTML =
+      `<span class="up-top">` +
+        `<span class="up-ico up-ico-${u.icon || "star"}" aria-hidden="true"></span>` +
+        `<span class="up-name">${u.name}</span>` +
+      `</span>` +
+      `<span class="up-req hidden"></span>` +
+      `<span class="up-desc">${u.desc}</span>` +
+      `<span class="up-foot">` +
+        `<span class="up-progress"><span class="up-pips">${pipsHtml}</span><span class="up-rank">0/${max}</span></span>` +
+        `<span class="up-cost">0</span>` +
+      `</span>`;
+
+    const ref = {
+      el: node,
+      u,
+      tree,
+      reqEl: node.querySelector(".up-req"),
+      pips: Array.from(node.querySelectorAll(".up-pip")),
+      rankEl: node.querySelector(".up-rank"),
+      costEl: node.querySelector(".up-cost"),
+    };
+
+    node.addEventListener("click", () => {
+      const r = ownedRank(u.id);
+      if (r >= (u.max || 1) || !reqSatisfied(u, tree) || exclusiveBlocked(u, tree)) return;
+      const cost = upgradeCostAt(u, r + 1);
+      if (meta.chips < cost) {
+        sfx.cancel();
+        node.classList.remove("shake");
+        void node.offsetWidth;
+        node.classList.add("shake");
+        toast(`Need ${cost} chips`);
+        return;
+      }
+      meta.chips -= cost;
+      meta.owned[u.id] = r + 1;
+      invalidateMetaBonuses();
+      saveJSON(STORAGE.meta, meta);
+      sfx.buy();
+      renderUpgrades({ justBoughtId: u.id });
+      refreshHub();
+    });
+
+    upgradeTreeState.nodes.set(u.id, ref);
+    return ref;
+  }
+
+  function syncUpgradeNodes(justBoughtId) {
     els.chipsUp.textContent = `${formatCompact(meta.chips)} chips`;
     if (els.chipsUp) els.chipsUp.title = `${meta.chips} chips`;
-    document.querySelectorAll("#screen-upgrades .tab").forEach((tab) => {
-      tab.classList.toggle("active", tab.dataset.tab === upgradeTab);
-    });
-    const list = els.upgradeList;
-    list.innerHTML = "";
-    list.className = "upgrade-tree" + (upgradeTab === "forge" ? " upgrade-tree-forge" : "");
-    const tree = UPGRADE_TREES[upgradeTab] || [];
-    const maxCol = tree.reduce((m, u) => Math.max(m, u.col || 0), 0);
-    const cols = maxCol + 1;
-    const rowOffset = upgradeTab === "forge" ? 2 : 1;
+    updateUpgradeTabBadges();
+    updateForgeLaneBadges();
 
-    const hint = document.createElement("p");
-    hint.className = "up-tree-hint";
-    hint.textContent = upgradeTab === "forge"
-      ? "Swipe sideways to browse all 5 Forge lanes · Respec refunds 100%"
-      : "OR nodes pick one branch · Respec anytime for a full refund";
-    list.appendChild(hint);
-
-    const scroller = document.createElement("div");
-    scroller.className = "up-tree-scroll";
-    const grid = document.createElement("div");
-    grid.className = "up-tree-grid";
-    grid.style.setProperty("--up-cols", String(cols));
-    if (upgradeTab === "forge") grid.classList.add("up-tree-grid-forge");
-
-    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("class", "up-tree-svg");
-    svg.setAttribute("aria-hidden", "true");
-    grid.appendChild(svg);
-
-    // Put Forge lane headers directly inside Row 1 of the grid so alignment is always 100% exact.
-    if (upgradeTab === "forge") {
-      FORGE_PATHS.forEach((p, i) => {
-        const chip = document.createElement("span");
-        chip.className = `up-path-chip path-${p.id}`;
-        chip.textContent = p.label;
-        chip.style.gridColumn = String(i + 1);
-        chip.style.gridRow = "1";
-        grid.appendChild(chip);
-      });
-    }
-
-    const nodeMap = new Map();
-    for (const u of tree) {
+    for (const ref of upgradeTreeState.nodes.values()) {
+      const { el, u, tree, reqEl, pips, rankEl, costEl } = ref;
       const rank = ownedRank(u.id);
       const max = u.max || 1;
       const full = rank >= max;
       const reqOk = reqSatisfied(u, tree);
       const blocked = exclusiveBlocked(u, tree);
       const nextCost = full ? 0 : upgradeCostAt(u, rank + 1);
-      const copy = nodeCopy(u, tree);
-      const node = document.createElement("button");
-      node.type = "button";
-      node.className = "up-node"
-        + (rank ? " owned" : "")
-        + (full ? " maxed" : "")
-        + ((!reqOk || blocked) && !rank ? " locked" : "")
-        + (blocked ? " blocked-alt" : "")
-        + (u.exclusive ? " choice" : "")
-        + (u.path ? ` path-${u.path}` : "");
-      node.style.gridColumn = String((u.col || 0) + 1);
-      node.style.gridRow = String((u.row || 0) + rowOffset);
-      node.innerHTML =
-        `<span class="up-top"><span class="up-ico up-ico-${u.icon || "star"}" aria-hidden="true"></span>` +
-        `<span class="up-name">${copy.name}</span></span>` +
-        `<span class="up-desc">${copy.desc}</span>` +
-        `<span class="up-foot"><span class="up-rank">${rank}/${max}</span>` +
-        `<span class="up-cost">${full ? "MAX" : blocked ? "ALT" : nextCost}</span></span>`;
-      const canBuy = !full && reqOk && !blocked && meta.chips >= nextCost;
-      node.disabled = full || blocked || !reqOk || meta.chips < nextCost;
-      if (blocked) node.title = "Other branch chosen (Respec to change)";
-      else if (!reqOk) node.title = copy.desc;
-      else if (!full && meta.chips < nextCost) node.title = `Need ${nextCost} chips`;
-      else node.title = u.desc || u.name;
-      if (canBuy || (!full && reqOk && !blocked)) {
-        node.addEventListener("click", () => {
-          const r = ownedRank(u.id);
-          if (r >= (u.max || 1) || !reqSatisfied(u, tree) || exclusiveBlocked(u, tree)) return;
-          const cost = upgradeCostAt(u, r + 1);
-          if (meta.chips < cost) { toast(`Need ${cost} chips`); return; }
-          meta.chips -= cost;
-          meta.owned[u.id] = r + 1;
-          invalidateMetaBonuses();
-          saveJSON(STORAGE.meta, meta); sfx.buy();
-          renderUpgrades(); refreshHub();
+      const affordable = !full && reqOk && !blocked && meta.chips >= nextCost;
+      const cantAfford = !full && reqOk && !blocked && meta.chips < nextCost;
+      const locked = (!reqOk || blocked) && !rank;
+
+      el.classList.toggle("owned", rank > 0);
+      el.classList.toggle("maxed", full);
+      el.classList.toggle("affordable", affordable);
+      el.classList.toggle("cant-afford", cantAfford);
+      el.classList.toggle("locked", locked);
+      el.classList.toggle("blocked-alt", blocked);
+      el.classList.toggle("choice", !!u.exclusive);
+
+      // Keep unlocked-but-unaffordable buttons clickable so tapping gives clear feedback.
+      el.disabled = full || blocked || !reqOk;
+
+      const reqText = blocked ? "Other branch chosen" : nodeRequirementText(u, tree);
+      reqEl.textContent = reqText;
+      reqEl.classList.toggle("hidden", !reqText);
+
+      pips.forEach((pip, idx) => pip.classList.toggle("filled", idx < rank));
+      rankEl.textContent = `${rank}/${max}`;
+      costEl.textContent = full ? "MAX" : blocked ? "LOCKED" : String(nextCost);
+
+      if (blocked) el.title = "Other branch chosen (Respec to change)";
+      else if (!reqOk) el.title = `${reqText} · ${u.desc}`;
+      else if (cantAfford) el.title = `Need ${nextCost} chips`;
+      else el.title = u.desc || u.name;
+
+      if (justBoughtId && u.id === justBoughtId) {
+        el.classList.remove("just-bought");
+        void el.offsetWidth;
+        el.classList.add("just-bought");
+      }
+    }
+
+    if (upgradeTreeState.supportBadge && upgradeTab !== "forge") {
+      const supportNodes = (UPGRADE_TREES[upgradeTab] || []).filter((u) => u.col === 3);
+      const { owned, max } = treeRankTotals(supportNodes);
+      upgradeTreeState.supportBadge.textContent = `${owned}/${max}`;
+    }
+
+    scheduleTreeConnectors();
+  }
+
+  function buildUpgradeTree(key) {
+    // Save previous scroll position before switching tabs/lanes.
+    if (upgradeTreeState.key && upgradeTreeState.scroller) {
+      treeScrollMemory.set(upgradeTreeState.key, {
+        top: upgradeTreeState.scroller.scrollTop,
+        left: upgradeTreeState.scroller.scrollLeft,
+      });
+    }
+    if (upgradeTreeState.ro) {
+      upgradeTreeState.ro.disconnect();
+      upgradeTreeState.ro = null;
+    }
+
+    const list = els.upgradeList;
+    list.innerHTML = "";
+    list.className = "upgrade-tree" + (upgradeTab === "forge" ? " upgrade-tree-forge" : " upgrade-tree-tower");
+    upgradeTreeState.key = key;
+    upgradeTreeState.sections = [];
+    upgradeTreeState.nodes = new Map();
+    upgradeTreeState.laneBtns = new Map();
+    upgradeTreeState.supportBadge = null;
+
+    const tree = UPGRADE_TREES[upgradeTab] || [];
+
+    // Forge lane selector bar (zero awkward horizontal scrolling!)
+    if (upgradeTab === "forge") {
+      const laneBar = document.createElement("div");
+      laneBar.className = "forge-lane-bar";
+      laneBar.setAttribute("role", "tablist");
+      for (const p of FORGE_PATHS) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `forge-lane-btn path-${p.id}`;
+        btn.innerHTML = `<span class="lane-dot" aria-hidden="true"></span><span class="lane-name">${p.label}</span><span class="lane-count">0/0</span>`;
+        btn.addEventListener("click", () => {
+          if (forgeLane === p.id) return;
+          forgeLane = p.id;
+          sfx.ui();
+          renderUpgrades();
+        });
+        upgradeTreeState.laneBtns.set(p.id, btn);
+        laneBar.appendChild(btn);
+      }
+      list.appendChild(laneBar);
+    }
+
+    const scroller = document.createElement("div");
+    scroller.className = "up-tree-scroll";
+    upgradeTreeState.scroller = scroller;
+
+    if (upgradeTab === "forge") {
+      const laneNodes = tree.filter((u) => u.path === forgeLane);
+      const preFork = laneNodes.filter((u) => !u.exclusive && u.row < 3).sort((a, b) => a.row - b.row);
+      const fork = laneNodes.filter((u) => u.exclusive).sort((a, b) => a.row - b.row);
+      const postFork = laneNodes.filter((u) => !u.exclusive && u.row >= 3).sort((a, b) => a.row - b.row);
+
+      const stage = document.createElement("div");
+      stage.className = `up-forge-stage path-${forgeLane}`;
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("class", "up-tree-svg");
+      svg.setAttribute("aria-hidden", "true");
+      stage.appendChild(svg);
+
+      const edges = [];
+      const refById = new Map();
+
+      preFork.forEach((u) => {
+        const ref = createUpgradeNodeCard(u, tree, "up-node-spine");
+        refById.set(u.id, ref);
+        stage.appendChild(ref.el);
+      });
+
+      for (let i = 0; i < preFork.length - 1; i++) {
+        edges.push({
+          type: "chain",
+          fromEl: refById.get(preFork[i].id).el,
+          toEl: refById.get(preFork[i + 1].id).el,
+          fromId: preFork[i].id,
+          toId: preFork[i + 1].id,
+          toNode: preFork[i + 1],
+          reqRank: preFork[i + 1].reqRank || 1,
+          tree,
         });
       }
-      nodeMap.set(u.id, node);
-      grid.appendChild(node);
+
+      if (fork.length) {
+        const div = document.createElement("div");
+        div.className = "up-tier-divider";
+        div.innerHTML = `<span>Choose 1 Specialization</span>`;
+        stage.appendChild(div);
+
+        const forkRow = document.createElement("div");
+        forkRow.className = "up-fork-pair";
+        fork.forEach((u) => {
+          const ref = createUpgradeNodeCard(u, tree, "up-node-fork");
+          refById.set(u.id, ref);
+          forkRow.appendChild(ref.el);
+          const parentRef = u.req && refById.get(u.req);
+          if (parentRef) {
+            edges.push({
+              type: "chain",
+              fromEl: parentRef.el,
+              toEl: ref.el,
+              fromId: u.req,
+              toId: u.id,
+              toNode: u,
+              reqRank: u.reqRank || 1,
+              tree,
+            });
+          }
+        });
+        stage.appendChild(forkRow);
+      }
+
+      postFork.forEach((u, idx) => {
+        const isCapstone = idx === postFork.length - 1;
+        const ref = createUpgradeNodeCard(u, tree, "up-node-spine" + (isCapstone ? " up-node-capstone" : ""));
+        refById.set(u.id, ref);
+        stage.appendChild(ref.el);
+
+        if (idx === 0 && fork.length) {
+          edges.push({
+            type: "bus",
+            fromIds: fork.map((f) => f.id),
+            fromEls: fork.map((f) => refById.get(f.id).el),
+            toIds: [u.id],
+            toEls: [ref.el],
+            reqRank: u.reqRank || 1,
+            tree,
+          });
+        } else {
+          const parentRef = u.req && refById.get(u.req);
+          if (parentRef) {
+            edges.push({
+              type: "chain",
+              fromEl: parentRef.el,
+              toEl: ref.el,
+              fromId: u.req,
+              toId: u.id,
+              toNode: u,
+              reqRank: u.reqRank || 1,
+              tree,
+            });
+          }
+        }
+      });
+
+      upgradeTreeState.sections.push({ container: stage, svg, edges });
+      scroller.appendChild(stage);
+    } else {
+      // Tower tree: 3-column Combat Tree + dedicated Support Track (zero horizontal scroll!)
+      const combatSec = document.createElement("div");
+      combatSec.className = "up-section up-tower-combat";
+
+      const heads = document.createElement("div");
+      heads.className = "up-pillar-heads";
+      (TOWER_PILLARS[upgradeTab] || ["Pillar 1", "Pillar 2", "Pillar 3"]).forEach((label) => {
+        const chip = document.createElement("span");
+        chip.className = "up-pillar-head";
+        chip.textContent = label;
+        heads.appendChild(chip);
+      });
+      combatSec.appendChild(heads);
+
+      const combatStage = document.createElement("div");
+      combatStage.className = "up-combat-stage";
+      const combatSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      combatSvg.setAttribute("class", "up-tree-svg");
+      combatSvg.setAttribute("aria-hidden", "true");
+      combatStage.appendChild(combatSvg);
+
+      const coreGrid = document.createElement("div");
+      coreGrid.className = "up-combat-grid";
+      const refById = new Map();
+      const combatEdges = [];
+
+      const coreNodes = tree.filter((u) => u.col < 3 && !u.exclusive && u.row < 3);
+      coreNodes.forEach((u) => {
+        const ref = createUpgradeNodeCard(u, tree, "up-node-compact");
+        ref.el.style.gridColumn = String(u.col + 1);
+        ref.el.style.gridRow = String(u.row + 1);
+        refById.set(u.id, ref);
+        coreGrid.appendChild(ref.el);
+      });
+      combatStage.appendChild(coreGrid);
+
+      coreNodes.forEach((u) => {
+        if (!u.req) return;
+        const pRef = refById.get(u.req);
+        const cRef = refById.get(u.id);
+        if (pRef && cRef) {
+          combatEdges.push({
+            type: "chain",
+            fromEl: pRef.el,
+            toEl: cRef.el,
+            fromId: u.req,
+            toId: u.id,
+            toNode: u,
+            reqRank: u.reqRank || 1,
+            tree,
+          });
+        }
+      });
+
+      const specNodes = tree.filter((u) => u.col < 3 && u.exclusive).sort((a, b) => a.col - b.col);
+      if (specNodes.length) {
+        const div = document.createElement("div");
+        div.className = "up-tier-divider";
+        div.innerHTML = `<span>Choose 1 Specialization</span>`;
+        combatStage.appendChild(div);
+
+        const specGrid = document.createElement("div");
+        specGrid.className = "up-spec-grid";
+        specNodes.forEach((u) => {
+          const ref = createUpgradeNodeCard(u, tree, "up-node-compact");
+          refById.set(u.id, ref);
+          specGrid.appendChild(ref.el);
+          const pRef = u.req && refById.get(u.req);
+          if (pRef) {
+            combatEdges.push({
+              type: "chain",
+              fromEl: pRef.el,
+              toEl: ref.el,
+              fromId: u.req,
+              toId: u.id,
+              toNode: u,
+              reqRank: u.reqRank || 1,
+              tree,
+            });
+          }
+        });
+        combatStage.appendChild(specGrid);
+      }
+
+      const capNodes = tree.filter((u) => u.col < 3 && !u.exclusive && u.row >= 3).sort((a, b) => a.row - b.row);
+      if (capNodes.length) {
+        const capRow = document.createElement("div");
+        capRow.className = "up-capstone-row" + (capNodes.length > 1 ? " multi" : "");
+        capNodes.forEach((u) => {
+          const ref = createUpgradeNodeCard(u, tree, "up-node-capstone");
+          refById.set(u.id, ref);
+          capRow.appendChild(ref.el);
+        });
+        combatStage.appendChild(capRow);
+
+        if (specNodes.length) {
+          combatEdges.push({
+            type: "bus",
+            fromIds: specNodes.map((s) => s.id),
+            fromEls: specNodes.map((s) => refById.get(s.id).el),
+            toIds: capNodes.map((c) => c.id),
+            toEls: capNodes.map((c) => refById.get(c.id).el),
+            reqRank: 1,
+            tree,
+          });
+        }
+      }
+
+      combatSec.appendChild(combatStage);
+      upgradeTreeState.sections.push({ container: combatStage, svg: combatSvg, edges: combatEdges });
+      scroller.appendChild(combatSec);
+
+      // Section 2: Support Track (col === 3)
+      const supportNodes = tree.filter((u) => u.col === 3).sort((a, b) => a.row - b.row);
+      if (supportNodes.length) {
+        const supSec = document.createElement("div");
+        supSec.className = "up-section up-tower-support";
+        const supHead = document.createElement("div");
+        supHead.className = "up-support-head";
+        const supTitle = document.createElement("span");
+        supTitle.textContent = "Support Track";
+        const supBadge = document.createElement("span");
+        supBadge.className = "up-support-badge";
+        supHead.appendChild(supTitle);
+        supHead.appendChild(supBadge);
+        supSec.appendChild(supHead);
+        upgradeTreeState.supportBadge = supBadge;
+
+        const supStage = document.createElement("div");
+        supStage.className = "up-support-stage";
+        const supSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        supSvg.setAttribute("class", "up-tree-svg");
+        supSvg.setAttribute("aria-hidden", "true");
+        supStage.appendChild(supSvg);
+
+        const supGrid = document.createElement("div");
+        supGrid.className = "up-support-grid";
+        const supEdges = [];
+        const supRefs = supportNodes.map((u) => {
+          const ref = createUpgradeNodeCard(u, tree, "up-node-support");
+          supGrid.appendChild(ref.el);
+          return ref;
+        });
+        for (let i = 0; i < supRefs.length - 1; i++) {
+          supEdges.push({
+            type: "chain",
+            fromEl: supRefs[i].el,
+            toEl: supRefs[i + 1].el,
+            fromId: supportNodes[i].id,
+            toId: supportNodes[i + 1].id,
+            toNode: supportNodes[i + 1],
+            reqRank: supportNodes[i + 1].reqRank || 1,
+            tree,
+          });
+        }
+        supStage.appendChild(supGrid);
+        supSec.appendChild(supStage);
+        upgradeTreeState.sections.push({ container: supStage, svg: supSvg, edges: supEdges });
+        scroller.appendChild(supSec);
+      }
     }
-    scroller.appendChild(grid);
+
     list.appendChild(scroller);
-    // Measure actual DOM bounds on next frame to draw pixel-accurate connectors (never stretched!).
-    requestAnimationFrame(() => drawTreeConnectors(grid, svg, tree, nodeMap));
+
+    // Restore saved scroll offset for this tab/lane (if previously visited).
+    const saved = treeScrollMemory.get(key);
+    if (saved) {
+      scroller.scrollTop = saved.top;
+      scroller.scrollLeft = saved.left;
+    }
+
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(() => scheduleTreeConnectors());
+      ro.observe(scroller);
+      upgradeTreeState.ro = ro;
+    }
+  }
+
+  function renderUpgrades(opts) {
+    const { rebuild = false, justBoughtId = null } = opts || {};
+    meta = loadJSON(STORAGE.meta, defaultMeta());
+    invalidateMetaBonuses();
+    const key = upgradeTab === "forge" ? `forge:${forgeLane}` : upgradeTab;
+    const sameView = !rebuild
+      && upgradeTreeState.key === key
+      && upgradeTreeState.scroller
+      && els.upgradeList.contains(upgradeTreeState.scroller);
+    if (!sameView) buildUpgradeTree(key);
+    syncUpgradeNodes(justBoughtId);
   }
 
   function beginWave() {
@@ -3055,8 +3551,8 @@
   function pathPlacementClear() {
     const fromPath = state.path && state.path.pathClear;
     const fromDiff = layoutForDifficulty(runLayoutDiffId()).pathClear;
-    // Always enforce road half-width + footprint so towers cannot sit on asphalt.
-    return Math.max(ROAD_HALF_W + TOWER_PLACE_R, fromPath || 0, fromDiff || 0, 50);
+    // Enforce road shoulder half-width + tower footprint so towers sit snug beside the road without touching asphalt.
+    return Math.max(ROAD_HALF_W + TOWER_PLACE_R, fromPath || 0, fromDiff || 0);
   }
   function placeTower(x, y) {
     const type = state.selectedTower;
@@ -4049,10 +4545,10 @@
   }
   function laneWidths(isMain) {
     return {
-      outer: isMain ? 46 : 40,
-      berm: isMain ? 38 : 34,
-      bed: isMain ? 28 : 24,
-      lane: isMain ? 18 : 15,
+      outer: isMain ? 40 : 36,
+      berm: isMain ? 34 : 30,
+      bed: isMain ? 26 : 22,
+      lane: isMain ? 17 : 14,
     };
   }
   function nearMerge(x, y, merges, rad) {
@@ -4656,7 +5152,7 @@
     const idle = Math.sin(state.time * 2.4 + t.x * 0.04) * 0.5;
     const attack = recoil > 0.08;
     ctx.translate(0, idle * 0.2);
-    ctx.scale(1.3, 1.3);
+    ctx.scale(1.12, 1.12);
 
     if (state.surgeT > 0) {
       ctx.strokeStyle = `rgba(255, 206, 94, ${0.42 + pulse * 0.35})`;
@@ -5683,7 +6179,32 @@
     return true;
   }
 
-  const TOWER_HIT_R = 28;
+  // Gentle magnetic nudge so placing inside road turns or beside towers nestles into the nearest valid pocket.
+  function resolvePlacement(x, y) {
+    if (placementOk(x, y)) return { x, y, ok: true };
+    const radii = [5, 10, 15];
+    const steps = 12;
+    for (const r of radii) {
+      let best = null;
+      let bestDist = Infinity;
+      for (let i = 0; i < steps; i++) {
+        const a = (i / steps) * Math.PI * 2;
+        const nx = x + Math.cos(a) * r;
+        const ny = y + Math.sin(a) * r;
+        if (placementOk(nx, ny)) {
+          const d = Math.hypot(nx - x, ny - y);
+          if (d < bestDist) {
+            bestDist = d;
+            best = { x: nx, y: ny, ok: true };
+          }
+        }
+      }
+      if (best) return best;
+    }
+    return { x, y, ok: false };
+  }
+
+  const TOWER_HIT_R = 22;
 
   function onCanvasPointerDown(evt) {
     if (state.mode !== "playing") return;
@@ -5699,9 +6220,10 @@
       return;
     }
 
+    const hitR = state.selectedTower ? 14 : TOWER_HIT_R;
     for (let i = state.towers.length - 1; i >= 0; i--) {
       const t = state.towers[i];
-      if (Math.hypot(t.x - x, t.y - y) < TOWER_HIT_R) {
+      if (Math.hypot(t.x - x, t.y - y) < hitR) {
         state.selectedBuilt = i;
         state.selectedTower = null;
         state.ghost = null;
@@ -5713,13 +6235,14 @@
     }
 
     if (state.selectedTower) {
+      const snap = resolvePlacement(x, y);
       placePtr = {
         id: evt.pointerId,
         x0: clientX, y0: clientY,
-        x, y,
+        x: snap.x, y: snap.y,
         dragged: false,
       };
-      state.ghost = { x, y, ok: placementOk(x, y) };
+      state.ghost = snap;
       state.selectedBuilt = null;
       try { canvas.setPointerCapture(evt.pointerId); } catch { /* */ }
       updateHUD();
@@ -5735,11 +6258,13 @@
     if (placePtr && placePtr.id === evt.pointerId) {
       const { x, y, clientX, clientY } = canvasPos(evt);
       if (Math.hypot(clientX - placePtr.x0, clientY - placePtr.y0) > 10) placePtr.dragged = true;
-      placePtr.x = x; placePtr.y = y;
       if (placePtr.ability === "meteor") {
+        placePtr.x = x; placePtr.y = y;
         state.ghost = { x, y, ok: true };
       } else if (state.selectedTower) {
-        state.ghost = { x, y, ok: placementOk(x, y) };
+        const snap = resolvePlacement(x, y);
+        placePtr.x = snap.x; placePtr.y = snap.y;
+        state.ghost = snap;
       }
       return;
     }
@@ -5753,7 +6278,7 @@
     if (!state.selectedTower) { state.ghost = null; return; }
     if (evt.pointerType === "mouse") {
       const { x, y } = canvasPos(evt);
-      state.ghost = { x, y, ok: placementOk(x, y) };
+      state.ghost = resolvePlacement(x, y);
     }
   }
 
@@ -5772,9 +6297,9 @@
       updateHUD();
       return;
     }
-    const ok = !canceled && state.selectedTower && placementOk(x, y);
-    if (ok) {
-      placeTower(x, y);
+    const snap = !canceled && state.selectedTower ? resolvePlacement(x, y) : { x, y, ok: false };
+    if (snap.ok) {
+      placeTower(snap.x, snap.y);
       state.ghost = null;
     } else if (state.selectedTower) {
       state.ghost = null;
@@ -6005,6 +6530,7 @@
   window.addEventListener("resize", () => {
     resize();
     if (state.mode === "playing" || state.mode === "paused") updateHUD();
+    if (els.screens.upgrades && !els.screens.upgrades.classList.contains("hidden")) scheduleTreeConnectors();
   });
 
   let last = performance.now();
