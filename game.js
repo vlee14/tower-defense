@@ -81,10 +81,10 @@
     clearBonus: 100,
   };
   const BALANCE = {
-    scrapStart: 105,
-    scrapWaveBase: 16,
-    scrapWavePer: 2.1,
-    scrapKillScale: 0.65,
+    scrapStart: 130,
+    scrapWaveBase: 18,
+    scrapWavePer: 2.3,
+    scrapKillScale: 0.68,
     levelDmgPer: 0.22,
     levelDmgSoft: 0.035, // damp after L6
     levelRangePer: 0.08,
@@ -145,12 +145,12 @@
   );
 
   const ELEMENTS = {
-    fire: { id: "fire", name: "Fire", color: "#e85d4c", cost: 28, tip: "Burn DoT" },
-    water: { id: "water", name: "Water", color: "#4db8c4", cost: 28, tip: "Chill slow" },
-    earth: { id: "earth", name: "Earth", color: "#c4a35a", cost: 28, tip: "Vs armor + shred" },
-    wind: { id: "wind", name: "Wind", color: "#7ec9a0", cost: 28, tip: "Vs air + shove" },
-    arc: { id: "arc", name: "Arc", color: "#d4b84a", cost: 32, tip: "Shock interrupt (ICD)" },
-    frost: { id: "frost", name: "Frost", color: "#8ec8e8", cost: 32, tip: "Chill — never full stop" },
+    fire: { id: "fire", name: "Fire", color: "#ee6450", cost: 28, tip: "Burn DoT" },
+    water: { id: "water", name: "Water", color: "#50c2cf", cost: 28, tip: "Chill slow" },
+    earth: { id: "earth", name: "Earth", color: "#cca95c", cost: 28, tip: "Vs armor + shred" },
+    wind: { id: "wind", name: "Wind", color: "#7ed0a2", cost: 28, tip: "Vs air + shove" },
+    arc: { id: "arc", name: "Arc", color: "#e0c354", cost: 32, tip: "Shock interrupt (ICD)" },
+    frost: { id: "frost", name: "Frost", color: "#92cef0", cost: 32, tip: "Heavy chill slow" },
   };
   const ELEMENT_IDS = Object.keys(ELEMENTS);
   const ELEMENT_SECOND_COST = 48;
@@ -172,6 +172,30 @@
     "earth+frost": "SPIKE",
     "frost+wind": "WHITEOUT",
   };
+
+  const TARGET_MODES = ["first", "strong", "close", "weak"];
+  const TARGET_LABELS = { first: "First", strong: "Strong", close: "Close", weak: "Weak" };
+
+  const ABILITY_DEF = {
+    meteor: { cd: 20, radius: 68, dmgBase: 155, dmgWave: 34, poolDur: 4.5 },
+    surge: { cd: 26, dur: 6.2, rateMul: 0.64, critAdd: 0.22 },
+  };
+
+  const RELICS = [
+    { id: "volatile", name: "Volatile Core", tag: "On-Kill", glyph: "✦", desc: "Slain foes erupt for 18% max HP splash damage." },
+    { id: "combo_amp", name: "Resonant Matrix", tag: "Combos", glyph: "◈", desc: "Dual-socket towers deal +24% dmg & stronger combo blasts." },
+    { id: "cryo_vuln", name: "Brittle Chill", tag: "Control", glyph: "❄", desc: "Slowed or chilled foes take +25% bonus damage." },
+    { id: "twin_bolt", name: "Split Chamber", tag: "Turret", glyph: "»", desc: "Turrets fire an extra split bolt at 42% damage." },
+    { id: "lava_shell", name: "Magma Shells", tag: "Mortar", glyph: "●", desc: "Mortar shells leave scorching lava pools on impact." },
+    { id: "arc_fork", name: "Tesla Fork", tag: "Coil", glyph: "⚡", desc: "Coils chain to +1 extra target (+20% jump dmg)." },
+    { id: "sunder_beam", name: "Rift Sunder", tag: "Spire", glyph: "┃", desc: "Spire rails shred armor & deal +25% vs bosses." },
+    { id: "bounty", name: "Scrap Magnet", tag: "Economy", glyph: "⬡", desc: "+28% kill scrap and +45% boss bounty." },
+    { id: "rapid_rite", name: "Rift Conduit", tag: "Powers", glyph: "☄", desc: "Meteor & Surge recharge 35% faster and hit 35% harder." },
+    { id: "executioner", name: "Coup de Grace", tag: "Offense", glyph: "⚔", desc: "Foes under 25% HP take +65% damage." },
+    { id: "well_mend", name: "Wellheart Bloom", tag: "Instant", glyph: "♥", desc: "Restore +5 Wellheart HP and gain +90 scrap right now." },
+    { id: "overclock_all", name: "Forge Tempo", tag: "Offense", glyph: "▲", desc: "All towers gain +15% attack speed and +8% range." },
+  ];
+  const RELIC_WAVES = [3, 6, 10, 15, 20, 25, 30, 35, 40, 50, 60, 75, 90];
 
   // Multi-rank hub trees. col/row drive the visual tree; effect stacks per rank.
   // exclusive: only one node in the group may be purchased (real branch choice).
@@ -555,18 +579,25 @@
 
   const $ = (id) => document.getElementById(id);
   const canvas = $("game");
-  const ctx = canvas.getContext("2d", { alpha: false });
+  const mainCtx = canvas.getContext("2d", { alpha: false });
+  let ctx = mainCtx;
   const els = {
     hp: $("hp"), scrap: $("scrap"), wave: $("wave"), score: $("score"),
-    banner: $("banner"), toast: $("toast"),
+    banner: $("banner"), toast: $("toast"), streakPill: $("streak-pill"),
     hub: $("screen-hub"), upgrades: $("screen-upgrades"), pause: $("screen-pause"),
     over: $("screen-over"), codex: $("screen-codex"), settings: $("screen-settings"),
+    relic: $("screen-relic"),
     bestWave: $("best-wave"), bestScore: $("best-score"), chips: $("chips"), chipsUp: $("chips-up"),
     btnContinue: $("btn-continue"), upgradeList: $("upgrade-list"),
     overTitle: $("over-title"), overSummary: $("over-summary"), overChips: $("over-chips"),
     btnMute: $("btn-mute"), btnPause: $("btn-pause"), btnSpeed: $("btn-speed"),
     speedLabel: $("speed-label"),
     btnSell: $("btn-sell"), btnUpgrade: $("btn-upgrade"), btnAutoLevel: $("btn-auto-level"),
+    btnTargetMode: $("btn-target-mode"), btnInspectClose: $("btn-inspect-close"),
+    btnNextWave: $("btn-next-wave"), abilityBar: $("ability-bar"),
+    btnMeteor: $("btn-ab-meteor"), btnSurge: $("btn-ab-surge"),
+    meteorFill: $("ab-meteor-fill"), surgeFill: $("ab-surge-fill"),
+    meteorLabel: $("ab-meteor-label"), surgeLabel: $("ab-surge-label"),
     inspect: $("inspect"), inspectText: $("inspect-text"),
     coach: $("coach"), coachText: $("coach-text"),
   };
@@ -575,6 +606,7 @@
   let audioCtx = null;
   let masterGain = null;
   let musicNodes = null;
+  let noiseBuf = null;
   function ensureAudio() {
     if (!audioCtx) {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -590,6 +622,29 @@
     if (!masterGain || !audioCtx) return;
     const v = settings.muted ? 0 : Math.max(0, Math.min(1, settings.volume));
     masterGain.gain.setTargetAtTime(v, audioCtx.currentTime, 0.04);
+  }
+  function noiseBurst(dur = 0.14, freq = 600, gain = 0.05) {
+    if (settings.muted || settings.volume <= 0.001) return;
+    try {
+      const ac = ensureAudio();
+      if (!noiseBuf) {
+        const len = Math.floor(ac.sampleRate * 0.35);
+        noiseBuf = ac.createBuffer(1, len, ac.sampleRate);
+        const data = noiseBuf.getChannelData(0);
+        for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      }
+      const src = ac.createBufferSource();
+      src.buffer = noiseBuf;
+      const filt = ac.createBiquadFilter();
+      filt.type = "lowpass";
+      filt.frequency.setValueAtTime(freq, ac.currentTime);
+      filt.frequency.exponentialRampToValueAtTime(120, ac.currentTime + dur);
+      const g = ac.createGain();
+      g.gain.setValueAtTime(Math.max(0.0001, gain), ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+      src.connect(filt); filt.connect(g); g.connect(masterGain || ac.destination);
+      src.start(); src.stop(ac.currentTime + dur + 0.02);
+    } catch { /* ignore */ }
   }
   function beep(freq, dur, type = "square", gain = 0.03) {
     if (settings.muted || settings.volume <= 0.001) return;
@@ -673,20 +728,30 @@
     } catch { /* unsupported */ }
   }
   const sfx = {
-    place: () => { toneSlide(520, 780, 0.09, "triangle", 0.05); haptic(12); },
-    upgrade: () => { beep(520, 0.05, "triangle", 0.03); setTimeout(() => toneSlide(780, 980, 0.09, "triangle", 0.04), 40); haptic([8, 30, 16]); },
-    socket: () => { beep(640, 0.06, "sine", 0.035); beep(960, 0.04, "sine", 0.02); haptic(10); },
-    shoot: (kind) => beep(kind === "mortar" ? 140 : kind === "coil" ? 980 : kind === "spire" ? 320 : 880, 0.028, "square", 0.016),
-    hit: () => beep(260 + Math.random() * 60, 0.025, "square", 0.014),
-    kill: () => { toneSlide(420, 180, 0.08, "square", 0.028); haptic(8); },
-    leak: () => { beep(110, 0.18, "sawtooth", 0.05); haptic([30, 40, 30]); },
-    wave: () => { toneSlide(400, 620, 0.12, "triangle", 0.035); haptic(14); },
-    start: () => { toneSlide(330, 520, 0.14, "triangle", 0.04); haptic(18); },
-    over: () => { toneSlide(220, 90, 0.28, "sawtooth", 0.04); haptic([40, 60, 40]); },
-    buy: () => { beep(660, 0.07, "triangle", 0.04); haptic(10); },
-    ui: () => beep(400, 0.03, "triangle", 0.02),
-    speed: () => beep(500 + settings.gameSpeed * 120, 0.05, "triangle", 0.03),
-    cancel: () => beep(220, 0.04, "triangle", 0.02),
+    place: () => { toneSlide(420, 740, 0.09, "triangle", 0.055); beep(210, 0.05, "sine", 0.04); haptic(12); },
+    upgrade: () => { beep(520, 0.05, "triangle", 0.038); setTimeout(() => toneSlide(760, 1080, 0.1, "triangle", 0.048), 42); haptic([8, 28, 16]); },
+    socket: () => { beep(580, 0.06, "sine", 0.04); setTimeout(() => beep(880, 0.07, "triangle", 0.036), 35); haptic(10); },
+    shoot: (kind) => {
+      if (kind === "mortar") { toneSlide(155, 62, 0.11, "triangle", 0.045); noiseBurst(0.07, 450, 0.03); }
+      else if (kind === "coil") { toneSlide(1120, 620, 0.055, "sawtooth", 0.022); }
+      else if (kind === "spire") { toneSlide(680, 180, 0.09, "sawtooth", 0.03); noiseBurst(0.05, 1600, 0.02); }
+      else { toneSlide(840, 480, 0.032, "triangle", 0.02); }
+    },
+    hit: () => beep(240 + Math.random() * 80, 0.024, "triangle", 0.016),
+    boom: () => { toneSlide(140, 44, 0.18, "sine", 0.065); noiseBurst(0.16, 520, 0.055); },
+    meteor: () => { toneSlide(190, 38, 0.34, "sawtooth", 0.075); noiseBurst(0.3, 950, 0.08); haptic([20, 30, 35]); },
+    surge: () => { toneSlide(280, 880, 0.24, "triangle", 0.055); setTimeout(() => beep(1040, 0.14, "sine", 0.04), 90); haptic([12, 24, 18]); },
+    relic: () => { beep(523, 0.08, "triangle", 0.045); setTimeout(() => beep(659, 0.08, "triangle", 0.045), 70); setTimeout(() => beep(784, 0.14, "triangle", 0.05), 140); haptic(14); },
+    streak: () => { toneSlide(540, 960, 0.12, "triangle", 0.04); haptic(10); },
+    kill: (streak = 0) => { const lift = Math.min(240, streak * 14); toneSlide(400 + lift, 180 + lift * 0.4, 0.075, "triangle", 0.032); haptic(6); },
+    leak: () => { toneSlide(145, 70, 0.22, "sawtooth", 0.06); haptic([30, 40, 30]); },
+    wave: () => { toneSlide(380, 620, 0.13, "triangle", 0.042); haptic(14); },
+    start: () => { toneSlide(330, 560, 0.15, "triangle", 0.048); haptic(18); },
+    over: () => { toneSlide(220, 82, 0.32, "sawtooth", 0.05); haptic([40, 60, 40]); },
+    buy: () => { beep(640, 0.07, "triangle", 0.045); setTimeout(() => beep(860, 0.06, "sine", 0.03), 45); haptic(10); },
+    ui: () => beep(430, 0.028, "triangle", 0.022),
+    speed: () => beep(500 + settings.gameSpeed * 110, 0.045, "triangle", 0.03),
+    cancel: () => beep(220, 0.04, "triangle", 0.022),
   };
 
   function ownedRank(id) {
@@ -804,6 +869,12 @@
     const cap = (BASE_TOWER[type] && BASE_TOWER[type].maxRange) || 200;
     return Math.min(cap, range);
   }
+  function relicCount(id) {
+    if (!state || !state.relics) return 0;
+    let n = 0;
+    for (const r of state.relics) if (r === id) n++;
+    return n;
+  }
   function towerStats(type) {
     const base = { ...BASE_TOWER[type] };
     const tree = UPGRADE_TREES[type] || [];
@@ -812,6 +883,11 @@
     base.damage *= mb.globalDmg;
     base.fireRate *= mb.globalFireRate;
     base.range *= mb.globalRange;
+    const tempo = relicCount("overclock_all");
+    if (tempo > 0) {
+      base.fireRate *= Math.pow(0.87, tempo);
+      base.range *= Math.pow(1.08, tempo);
+    }
     base.cost = Math.max(12, Math.floor(base.cost * mb.towerCostMul));
     // sellMul applied at sell-time so mid-run forge buys still count.
     if (mb.globalCritAdd) base.crit = (base.crit || 0) + mb.globalCritAdd;
@@ -823,29 +899,30 @@
   function comboKey(elements) {
     return [...elements].sort().join("+");
   }
+  const COMBO_DESC = {
+    "fire+water": "Geyser (blast + shove forward)",
+    "earth+fire": "Magma (kill → lava pool)",
+    "fire+wind": "Wildfire (spread burn)",
+    "earth+water": "Mire (sticky zone)",
+    "water+wind": "Shatter (bonus vs chilled)",
+    "earth+wind": "Tempest (air + armor)",
+    "arc+fire": "Plasma (execute mark)",
+    "arc+water": "Conduct (chain splash)",
+    "arc+earth": "Fracture (shred pulse)",
+    "arc+wind": "Surge (chain jump)",
+    "arc+frost": "Brittle (next-hit amp)",
+    "fire+frost": "Melt (armor crack)",
+    "frost+water": "Rime (shield then pop)",
+    "earth+frost": "Spike (armor pierce)",
+    "frost+wind": "Whiteout (scramble + chill)",
+  };
   function describeCombo(elements) {
     if (!elements.length) return "No elements";
     if (elements.length === 1) {
       const el = ELEMENTS[elements[0]];
       return el ? `${el.name}: ${el.tip}` : elements[0];
     }
-    return ({
-      "fire+water": "Geyser (blast + shove forward)",
-      "earth+fire": "Magma (kill → lava pool)",
-      "fire+wind": "Wildfire (spread burn)",
-      "earth+water": "Mire (sticky zone)",
-      "water+wind": "Shatter (bonus vs chilled)",
-      "earth+wind": "Tempest (air + armor)",
-      "arc+fire": "Plasma (execute mark)",
-      "arc+water": "Conduct (chain splash)",
-      "arc+earth": "Fracture (shred pulse)",
-      "arc+wind": "Surge (chain jump)",
-      "arc+frost": "Brittle (next-hit amp)",
-      "fire+frost": "Melt (armor crack)",
-      "frost+water": "Rime (shield then pop)",
-      "earth+frost": "Spike (armor pierce)",
-      "frost+wind": "Whiteout (scramble + chill)",
-    })[comboKey(elements)] || elements.map((id) => (ELEMENTS[id] || {}).name || id).join("+");
+    return COMBO_DESC[comboKey(elements)] || elements.map((id) => (ELEMENTS[id] || {}).name || id).join("+");
   }
 
   function finalizeLane(points) {
@@ -867,7 +944,7 @@
     return DIFFICULTIES[diffId] || DIFFICULTIES.normal;
   }
   function clampMap(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-  function pt(x, y, w, h, m = 14) {
+  function pt(x, y, w, h, m = 28) {
     return { x: clampMap(x, m, w - m), y: clampMap(y, m, h - m) };
   }
   /** Angle turn at corner i (radians). Large = meaningful bend. */
@@ -883,18 +960,21 @@
   function appendZig(corners, w, h, fromY, toY, startX, travel, hairpin, rng, flips) {
     let x = startX;
     let goingRight = rng() > 0.5;
-    const inset = w * (0.12 + (1 - travel) * 0.08);
+    const inset = Math.max(36, w * (0.13 + (1 - travel) * 0.08));
     const reach = (w * 0.5 - inset) * travel;
-    for (let i = 1; i <= flips; i++) {
-      const t = i / (flips + 1);
+    // Keep vertical switchback spacing generous (~122px) so buildable islands always exist between lanes.
+    const maxFlips = Math.max(1, Math.min(3, Math.floor((toY - fromY) / 118)));
+    const safeFlips = Math.max(1, Math.min(flips, maxFlips));
+    for (let i = 1; i <= safeFlips; i++) {
+      const t = i / (safeFlips + 1);
       const y = fromY + (toY - fromY) * t;
       corners.push(pt(x, y, w, h));
       const center = w * 0.5 + (rng() - 0.5) * w * 0.04 * (1 - travel);
       let tx = goingRight ? center + reach : center - reach;
       tx += (rng() - 0.5) * w * 0.03 * hairpin;
-      const pull = 0.32 + hairpin * 0.42;
-      const midX = x * pull + tx * (1 - pull) + (rng() - 0.5) * w * 0.05;
-      const midY = y + (rng() - 0.5) * (8 + hairpin * 14);
+      const pull = 0.34 + hairpin * 0.36;
+      const midX = x * pull + tx * (1 - pull) + (rng() - 0.5) * w * 0.04;
+      const midY = y + (rng() - 0.5) * (6 + hairpin * 10);
       corners.push(pt(midX, midY, w, h));
       x = tx;
       corners.push(pt(x, y, w, h));
@@ -909,19 +989,20 @@
   function composeMotif(motif, w, h, spawnN, diff, rng) {
     const travel = Math.max(0.45, Math.min(1, diff.travel));
     const hairpin = diff.hairpin;
-    const top = h * 0.055;
-    const exitY = h * (0.9 - (1 - travel) * 0.03);
-    const midBand = h * (0.28 + (1 - travel) * 0.08);
-    const funnelY = h * (0.38 + (1 - travel) * 0.1);
-    const inset = w * diff.edgeInset;
+    // Safe top & bottom margins so portal arches and Wellheart bastion never clip against canvas frame.
+    const top = Math.max(48, h * 0.092);
+    const exitY = Math.min(h - 42, h * (0.885 - (1 - travel) * 0.02));
+    const midBand = h * (0.29 + (1 - travel) * 0.07);
+    const funnelY = h * (0.38 + (1 - travel) * 0.08);
+    const inset = Math.max(46, w * diff.edgeInset);
     const spawns = [];
     const merges = [];
     const spine = [];
 
     if (motif === "dual-merge") {
       // Two parallel upper lanes → choke merge → S-run.
-      const left = pt(inset * 0.7, top, w, h);
-      const right = pt(w - inset * 0.7, top, w, h);
+      const left = pt(Math.max(44, inset * 0.9), top, w, h, 42);
+      const right = pt(Math.min(w - 44, w - inset * 0.9), top, w, h, 42);
       const merge = pt(w * 0.5 + (rng() - 0.5) * w * 0.06, midBand, w, h);
       spawns.push(left, right);
       merges.push(merge);
@@ -1004,14 +1085,17 @@
       }
       const merge = pt(w * 0.5 + (rng() - 0.5) * w * 0.1, midBand, w, h);
       merges.push(merge);
-      // Lead-in from a soft center approach for spine start.
-      spine.push(pt(w * 0.5, top + h * 0.08, w, h));
       spine.push(merge);
       const flips = travel > 0.9 ? 5 : travel > 0.7 ? 4 : 3;
       const x = appendZig(spine, w, h, merge.y + h * 0.03, exitY - h * 0.05, merge.x, travel, hairpin * 0.7, rng, flips);
       spine.push(pt(x, exitY, w, h));
     }
 
+    // Keep all spawn portals comfortably inside canvas edges so arches and rings never clip.
+    for (const s of spawns) {
+      s.x = clampMap(s.x, 44, w - 44);
+      s.y = clampMap(s.y, 48, h - 48);
+    }
     // Ensure exit is last spine point.
     if (!spine.length || spine[spine.length - 1].y < exitY - 8) {
       const last = spine[spine.length - 1] || { x: w * 0.5, y: funnelY };
@@ -1204,6 +1288,15 @@
     const lane = laneForEnemy(e);
     return lane ? posOnPath(lane, e.dist) : { x: 0, y: 0 };
   }
+  function enemyHeading(e) {
+    const lane = laneForEnemy(e);
+    if (!lane) return Math.PI / 2;
+    const p0 = posOnPath(lane, Math.max(0, e.dist - 4));
+    const p1 = posOnPath(lane, Math.min(lane.total, e.dist + 6));
+    const dx = p1.x - p0.x, dy = p1.y - p0.y;
+    if (Math.hypot(dx, dy) < 0.01) return Math.PI / 2;
+    return Math.atan2(dy, dx);
+  }
   function enemyPathTotal(e) {
     const lane = laneForEnemy(e);
     return lane ? lane.total : (state.path ? state.path.total : 0);
@@ -1320,17 +1413,21 @@
   function nextWaveDelay() {
     const living = livingEnemyCount();
     // Slightly longer when the field is already crowded, but never gated on a full clear.
-    const crowd = Math.min(1.2, living * 0.045);
-    return 1.6 + crowd;
+    const crowd = Math.min(2.2, living * 0.08);
+    return 3.2 + crowd;
   }
 
   const state = {
     mode: "hub", seed: null, difficulty: "normal", path: null,
-    w: 390, h: 620, hp: 20, scrap: 155, score: 0, wave: 0,
+    w: 390, h: 620, hp: 20, scrap: 130, score: 0, wave: 0,
     selectedTower: null, selectedBuilt: null,
     towers: [], enemies: [], projectiles: [], fx: [], particles: [], hazards: [],
     spawnQueue: [], spawnTimer: 0, betweenWaves: 0, awaitingStart: false, time: 0, frame: 0,
     shake: 0, flash: 0, ghost: null,
+    relics: [], relicDraftWave: 0,
+    meteorCd: 0, surgeCd: 0, surgeT: 0, armedAbility: null,
+    streak: 0, streakT: 0, streakTier: 0,
+    terrainDirty: true,
   };
 
   function normalizeSpeed(v) {
@@ -1480,8 +1577,9 @@
   function syncPlaceCancel() {
     const btn = $("btn-place-cancel");
     if (!btn) return;
-    const show = state.mode === "playing" && !!state.selectedTower;
+    const show = state.mode === "playing" && (!!state.selectedTower || !!state.armedAbility);
     btn.classList.toggle("hidden", !show);
+    if (show) btn.textContent = state.armedAbility ? "Cancel Aim" : "Cancel";
   }
   function syncStartBtn() {
     const btn = $("btn-start-wave");
@@ -1490,6 +1588,188 @@
     btn.classList.toggle("hidden", !show);
     btn.disabled = !show;
   }
+  function earlyWaveBonus() {
+    if (state.betweenWaves <= 0) return 0;
+    return Math.max(4, Math.round(state.betweenWaves * (3.5 + state.wave * 0.45)));
+  }
+  function syncNextWaveBtn() {
+    const btn = els.btnNextWave;
+    if (!btn) return;
+    const canCall =
+      state.mode === "playing" &&
+      !state.awaitingStart &&
+      !state.selectedTower &&
+      !state.armedAbility &&
+      state.spawnQueue.length === 0 &&
+      state.betweenWaves > 0.25 &&
+      !(runIsDaily && state.wave >= DAILY.waveCap);
+    btn.classList.toggle("hidden", !canCall);
+    if (canCall) {
+      btn.textContent = `Wave ${state.wave + 1} (+${earlyWaveBonus()})`;
+    }
+  }
+  function callNextWaveEarly() {
+    if (state.mode !== "playing" || state.awaitingStart || state.spawnQueue.length > 0 || state.betweenWaves <= 0) return;
+    if (runIsDaily && state.wave >= DAILY.waveCap) return;
+    const bonus = earlyWaveBonus();
+    state.scrap += bonus;
+    state.betweenWaves = 0;
+    sfx.streak();
+    toast(`Early wave! +${bonus} scrap`);
+    beginWave();
+    updateHUD();
+    saveRun();
+  }
+
+  function abilityCdMul() {
+    return Math.pow(0.65, relicCount("rapid_rite"));
+  }
+  function abilityDmgMul() {
+    return 1 + 0.35 * relicCount("rapid_rite");
+  }
+  function syncAbilitiesUI() {
+    if (!els.abilityBar) return;
+    const show = state.mode === "playing" && !state.awaitingStart && !!state.seed;
+    els.abilityBar.classList.toggle("hidden", !show);
+    if (!show) return;
+    const mMax = ABILITY_DEF.meteor.cd * abilityCdMul();
+    const sMax = ABILITY_DEF.surge.cd * abilityCdMul();
+    if (els.btnMeteor) {
+      const ready = state.meteorCd <= 0;
+      const armed = state.armedAbility === "meteor";
+      els.btnMeteor.classList.toggle("ready", ready && !armed);
+      els.btnMeteor.classList.toggle("armed", armed);
+      els.btnMeteor.classList.toggle("cooling", !ready);
+      els.btnMeteor.disabled = !ready;
+      const pct = ready ? 100 : Math.max(0, Math.min(100, (1 - state.meteorCd / mMax) * 100));
+      if (els.meteorFill) els.meteorFill.style.width = ready ? "0%" : `${pct.toFixed(0)}%`;
+      if (els.meteorLabel) els.meteorLabel.textContent = armed ? "Tap Map" : ready ? "Meteor" : `${Math.ceil(state.meteorCd)}s`;
+    }
+    if (els.btnSurge) {
+      const active = state.surgeT > 0;
+      const ready = state.surgeCd <= 0 && !active;
+      els.btnSurge.classList.toggle("ready", ready);
+      els.btnSurge.classList.toggle("active-buff", active);
+      els.btnSurge.classList.toggle("cooling", !ready && !active);
+      els.btnSurge.disabled = !ready;
+      const pct = ready || active ? 100 : Math.max(0, Math.min(100, (1 - state.surgeCd / sMax) * 100));
+      if (els.surgeFill) els.surgeFill.style.width = (ready || active) ? "0%" : `${pct.toFixed(0)}%`;
+      if (els.surgeLabel) els.surgeLabel.textContent = active ? `Surge ${Math.ceil(state.surgeT)}s` : ready ? "Surge" : `${Math.ceil(state.surgeCd)}s`;
+    }
+  }
+  function armMeteor() {
+    if (state.mode !== "playing" || state.awaitingStart || state.meteorCd > 0) return;
+    if (state.armedAbility === "meteor") {
+      state.armedAbility = null;
+      state.ghost = null;
+      sfx.cancel();
+    } else {
+      state.selectedTower = null;
+      state.selectedBuilt = null;
+      state.armedAbility = "meteor";
+      state.ghost = null;
+      sfx.ui();
+      toast("Tap battlefield to call Meteor");
+    }
+    updateHUD();
+  }
+  function fireMeteorAt(x, y) {
+    if (state.mode !== "playing" || state.meteorCd > 0) return;
+    const rad = ABILITY_DEF.meteor.radius;
+    const dmg = (ABILITY_DEF.meteor.dmgBase + state.wave * ABILITY_DEF.meteor.dmgWave) * abilityDmgMul();
+    state.meteorCd = ABILITY_DEF.meteor.cd * abilityCdMul();
+    state.armedAbility = null;
+    state.ghost = null;
+    const fakeTower = {
+      type: "mortar", x, y, color: "#ff8c42", elements: ["fire", "earth"],
+      hitsAir: true, hitsGround: true, bossBonus: 0.15,
+    };
+    let hits = 0;
+    for (const e of state.enemies) {
+      if (!e.alive) continue;
+      const p = enemyPos(e);
+      if (Math.hypot(p.x - x, p.y - y) <= rad) {
+        damageEnemy(e, dmg, fakeTower, { color: "#ffb854", aoe: true, silentMatch: true });
+        applyStun(e, 0.45, { aoe: true });
+        hits++;
+      }
+    }
+    pushHazard({ kind: "magma", x, y, r: rad * 0.72, t: ABILITY_DEF.meteor.poolDur, dps: Math.max(16, dmg * 0.16) });
+    pushCombatFx({ kind: "blast", x, y, t: 0.48, r: rad, color: "#ff7a32" });
+    pushCombatFx({ kind: "ring", x, y, t: 0.52, r0: 10, r1: rad * 1.15, color: "#ffe08a" });
+    state.fx.push({ kind: "text", x, y: y - 16, t: 0.7, text: hits ? `METEOR ×${hits}` : "METEOR", color: "#ffd166" });
+    spawnParticles(x, y, "#ff8c3a", 28, 160);
+    spawnParticles(x, y, "#ffe08a", 16, 110);
+    triggerScreenFlash(0.14);
+    addShake(1.3);
+    sfx.meteor();
+    updateHUD();
+    saveRun();
+  }
+  function triggerSurge() {
+    if (state.mode !== "playing" || state.awaitingStart || state.surgeCd > 0 || state.surgeT > 0) return;
+    state.surgeT = ABILITY_DEF.surge.dur;
+    state.surgeCd = ABILITY_DEF.surge.cd * abilityCdMul();
+    for (const t of state.towers) {
+      pushCombatFx({ kind: "ring", x: t.x, y: t.y, t: 0.5, r0: 8, r1: 42, color: "#ffd166" });
+      spawnParticles(t.x, t.y, "#ffb854", 8, 70);
+    }
+    showBanner("Ember Surge · +55% speed");
+    sfx.surge();
+    addShake(0.45);
+    updateHUD();
+    saveRun();
+  }
+
+  function openRelicDraft() {
+    const wrap = $("relic-choices");
+    if (!wrap || !els.relic) return;
+    // Pick 3 distinct relics (seeded per run + wave for Daily fairness).
+    const rng = mulberry32(hashSeed(`${state.seed}:relic:${state.wave}`));
+    const pool = RELICS.slice();
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const picks = pool.slice(0, 3);
+    const sub = $("relic-subtitle");
+    if (sub) sub.textContent = `Wave ${state.wave} cleared — pick 1 Rift Relic for this run.`;
+    wrap.innerHTML = "";
+    for (const r of picks) {
+      const owned = relicCount(r.id);
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "relic-card";
+      card.innerHTML =
+        `<span class="relic-badge" aria-hidden="true">${r.glyph}</span>` +
+        `<span class="relic-copy">` +
+          `<span class="relic-name"><span>${r.name}${owned ? ` ×${owned + 1}` : ""}</span><span class="relic-tag">${r.tag}</span></span>` +
+          `<span class="relic-desc">${r.desc}</span>` +
+        `</span>`;
+      card.addEventListener("click", () => applyRelic(r));
+      wrap.appendChild(card);
+    }
+    state.mode = "relic";
+    showScreen("relic");
+    sfx.relic();
+  }
+  function applyRelic(r) {
+    if (!state.relics) state.relics = [];
+    state.relics.push(r.id);
+    if (r.id === "well_mend") {
+      state.hp += 5;
+      state.scrap += 90;
+    } else if (r.id === "overclock_all") {
+      for (const t of state.towers) applyTowerLevelStats(t);
+    }
+    state.mode = "playing";
+    showScreen(null);
+    toast(`Relic: ${r.name}`);
+    sfx.buy();
+    updateHUD();
+    saveRun();
+  }
+
   function playerStartWaves() {
     if (state.mode !== "playing" || !state.awaitingStart) return;
     state.awaitingStart = false;
@@ -1501,13 +1781,14 @@
     advanceCoach(1);
   }
   function cancelPlacement(silent) {
-    if (!state.selectedTower && !state.ghost) return;
+    if (!state.selectedTower && !state.ghost && !state.armedAbility) return;
     state.selectedTower = null;
+    state.armedAbility = null;
     state.ghost = null;
     placePtr = null;
     updateHUD();
     syncPlaceCancel();
-    if (!silent) { sfx.cancel(); toast("Placement canceled"); }
+    if (!silent) { sfx.cancel(); toast("Canceled"); }
   }
 
   function resize() {
@@ -1523,6 +1804,7 @@
     canvas.height = Math.floor(cssH * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     state.w = cssW; state.h = cssH;
+    state.terrainDirty = true;
     if (state.seed) {
       state.path = generatePath(state.seed, state.w, state.h, runLayoutDiffId());
       for (const t of state.towers) {
@@ -1538,9 +1820,12 @@
       hp: state.hp, scrap: state.scrap, score: state.score, wave: state.wave,
       betweenWaves: state.betweenWaves, awaitingStart: !!state.awaitingStart,
       spawnTimer: state.spawnTimer, spawnQueue: state.spawnQueue,
+      relics: state.relics || [], relicDraftWave: state.relicDraftWave || 0,
+      meteorCd: state.meteorCd || 0, surgeCd: state.surgeCd || 0, surgeT: state.surgeT || 0,
       towers: state.towers.map((t) => ({
         type: t.type, nx: t.x / state.w, ny: t.y / state.h,
-        level: t.level, cooldown: t.cooldown, levelCd: t.levelCd || 0, elements: t.elements || [],
+        level: t.level, cooldown: t.cooldown, levelCd: t.levelCd || 0,
+        elements: t.elements || [], targetMode: t.targetMode || "first",
       })),
       enemies: state.enemies.map((e) => ({
         type: e.type, dist: e.dist, hp: e.hp, maxHp: e.maxHp, speed: e.speed, lane: e.lane || 0,
@@ -1574,6 +1859,7 @@
       type: t.type, x: t.nx * state.w, y: t.ny * state.h, nx: t.nx, ny: t.ny,
       level, cooldown: t.cooldown || 0, levelCd: t.levelCd || 0,
       elements: [...(t.elements || [])],
+      targetMode: TARGET_MODES.includes(t.targetMode) ? t.targetMode : "first",
       aim: typeof t.aim === "number" ? t.aim : -Math.PI / 2,
       recoil: 0,
     };
@@ -1589,7 +1875,15 @@
       runIsDaily = !!data.isDaily;
       runDailyKey = data.dailyKey || (runIsDaily ? dailyKey() : null);
       meta.selectedDifficulty = state.difficulty;
+      state.relics = Array.isArray(data.relics) ? [...data.relics] : [];
+      state.relicDraftWave = data.relicDraftWave || 0;
+      state.meteorCd = data.meteorCd || 0;
+      state.surgeCd = data.surgeCd || 0;
+      state.surgeT = data.surgeT || 0;
+      state.armedAbility = null;
+      state.streak = 0; state.streakT = 0; state.streakTier = 0;
       state.path = generatePath(state.seed, state.w, state.h, runLayoutDiffId());
+      state.terrainDirty = true;
       state.hp = data.hp; state.scrap = data.scrap; state.score = data.score; state.wave = data.wave;
       state.betweenWaves = data.betweenWaves || 0;
       state.awaitingStart = data.awaitingStart != null
@@ -1601,7 +1895,7 @@
       state.enemies = (data.enemies || []).map((e) => {
         const def = ENEMY[e.type] || ENEMY.drone;
         return {
-          ...def, type: e.type, dist: e.dist, hp: e.hp, maxHp: e.maxHp,
+          ...def, type: e.type, dist: e.dist, hp: e.hp, maxHp: e.maxHp, hpTrail: e.hp,
           speed: e.speed || def.speed, tags: e.tags || def.tags,
           color: e.color || def.color, r: e.r || def.r,
           resist: e.resist || { ...(def.resist || {}) },
@@ -1616,10 +1910,11 @@
           matchFxAt: 0, reward: e.reward, alive: true, hitFlash: 0, lane: e.lane || 0,
         };
       });
-      state.projectiles = []; state.fx = []; state.particles = [];
+      state.projectiles = []; state.fx = []; state.particles = []; state.hazards = [];
       state.selectedBuilt = null; state.selectedTower = null;
       state.mode = "paused";
       syncStartBtn();
+      syncPauseDetails();
       return true;
     } catch { return false; }
   }
@@ -1672,7 +1967,15 @@
       state.difficulty = "normal";
       state.seed = dailySeedFor(runDailyKey || dailyKey());
     }
+    state.relics = [];
+    state.relicDraftWave = 0;
+    state.meteorCd = 0;
+    state.surgeCd = 0;
+    state.surgeT = 0;
+    state.armedAbility = null;
+    state.streak = 0; state.streakT = 0; state.streakTier = 0;
     state.path = generatePath(state.seed, state.w, state.h, runLayoutDiffId());
+    state.terrainDirty = true;
     const diff = currentDiff();
     const mb = metaBonuses();
     const baseHp = runIsDaily ? 18 : diff.id === "nightmare" ? 16 : diff.id === "hard" ? 18 : 20;
@@ -1691,7 +1994,7 @@
     state.shake = 0; state.flash = 0;
     state.mode = "playing";
     showScreen(null);
-    showBanner(runIsDaily ? "Daily · 100 waves" : "Prep · place towers");
+    showBanner(runIsDaily ? "Daily Rift · 100 waves" : "Prep · place towers");
     ensureAudio();
     sfx.start();
     syncMusic();
@@ -1710,7 +2013,6 @@
     const victory = !!opts.victory && !abandoned;
     const diff = DIFFICULTIES[state.difficulty] || DIFFICULTIES.normal;
     const wasDaily = runIsDaily;
-    // Rebalanced earn (this PR) + Daily chipMul / clear bonus from wave-scaling (#13).
     const dailyBonus = wasDaily && !abandoned
       ? (wave >= 8 ? 12 : 0) + (victory ? DAILY.clearBonus : 0)
       : 0;
@@ -1767,6 +2069,137 @@
     addShake(victory ? 0.55 : 1.1);
   }
 
+  function syncPauseDetails() {
+    const metaEl = $("pause-meta");
+    if (metaEl) {
+      const dName = runIsDaily ? "Daily Rift" : (DIFFICULTIES[state.difficulty]?.name || "Normal");
+      const seedTxt = state.seed ? ` · ${state.seed.slice(0, 14)}` : "";
+      metaEl.textContent = `${dName} · Wave ${Math.max(1, state.wave)}${seedTxt} · Auto-saved locally.`;
+    }
+    const relEl = $("pause-relics");
+    if (relEl) {
+      const counts = {};
+      for (const id of state.relics || []) counts[id] = (counts[id] || 0) + 1;
+      const entries = Object.entries(counts);
+      relEl.classList.toggle("hidden", entries.length === 0);
+      relEl.innerHTML = entries.map(([id, n]) => {
+        const def = RELICS.find((r) => r.id === id);
+        if (!def) return "";
+        return `<span class="pause-relic-pill" title="${def.desc}">${def.glyph} ${def.name}${n > 1 ? ` ×${n}` : ""}</span>`;
+      }).join("");
+    }
+  }
+
+  function resetAllProgress() {
+    try {
+      localStorage.removeItem(STORAGE.meta);
+      localStorage.removeItem(STORAGE.best);
+      localStorage.removeItem(STORAGE.run);
+    } catch { /* ignore */ }
+    meta = defaultMeta();
+    best = defaultBest();
+    settings.tutorialDone = false;
+    settings.coachStep = 0;
+    saveSettings();
+    invalidateMetaBonuses();
+    runIsDaily = false;
+    runDailyKey = null;
+    state.seed = null;
+    state.mode = "hub";
+    state.towers = []; state.enemies = []; state.projectiles = [];
+    state.fx = []; state.particles = []; state.hazards = [];
+    state.relics = []; state.selectedBuilt = null; state.selectedTower = null;
+    state.armedAbility = null;
+    const confirmBox = $("reset-confirm-box");
+    if (confirmBox) confirmBox.classList.add("hidden");
+    refreshHub();
+    showScreen("hub");
+    sfx.cancel();
+    toast("All progress reset");
+  }
+
+  function respecForge() {
+    let refunded = 0;
+    for (const tree of Object.values(UPGRADE_TREES)) {
+      for (const u of tree) {
+        const r = ownedRank(u.id);
+        for (let k = 1; k <= r; k++) refunded += upgradeCostAt(u, k);
+      }
+    }
+    if (refunded <= 0) {
+      toast("No upgrades to refund");
+      return;
+    }
+    meta.chips += refunded;
+    meta.owned = {};
+    invalidateMetaBonuses();
+    saveJSON(STORAGE.meta, meta);
+    sfx.relic();
+    renderUpgrades();
+    refreshHub();
+    toast(`Refunded ${formatCompact(refunded)} chips`);
+  }
+
+  let codexTab = "combos";
+  let codexReturnScreen = "hub";
+  function renderCodex() {
+    const body = $("codex-body");
+    if (!body) return;
+    document.querySelectorAll(".codex-tab").forEach((b) => {
+      b.classList.toggle("active", b.dataset.codex === codexTab);
+    });
+    if (codexTab === "combos") {
+      const elRows = ELEMENT_IDS.map((id) => {
+        const e = ELEMENTS[id];
+        return `<div class="codex-item"><div class="codex-item-top"><span style="color:${e.color}">${e.name}</span><span class="codex-pill">${e.cost} scrap</span></div><div class="codex-item-sub">${e.tip}</div></div>`;
+      }).join("");
+      const comboRows = Object.entries(COMBO_DESC).map(([k, desc]) => {
+        const [a, b] = k.split("+");
+        const ea = ELEMENTS[a], eb = ELEMENTS[b];
+        const title = `<span style="color:${ea?.color || "#fff"}">${ea?.name || a}</span> + <span style="color:${eb?.color || "#fff"}">${eb?.name || b}</span>`;
+        const short = COMBO_SHORT[k] || "";
+        return `<div class="codex-item"><div class="codex-item-top"><span>${title}</span><span class="codex-pill">${short}</span></div><div class="codex-item-sub">${desc}</div></div>`;
+      }).join("");
+      body.innerHTML = elRows + comboRows;
+    } else if (codexTab === "towers") {
+      body.innerHTML = Object.entries(BASE_TOWER).map(([id, def]) => {
+        const st = towerStats(id);
+        const dps = Math.round(st.damage / Math.max(0.1, st.fireRate));
+        return `<div class="codex-item"><div class="codex-item-top"><span style="color:${def.color}">${def.name}</span><span class="codex-pill">${st.cost} scrap · ~${dps} DPS</span></div><div class="codex-item-sub">${def.blurb} · Range ${Math.round(st.range)}</div></div>`;
+      }).join("");
+    } else {
+      const keys = ["drone", "crawler", "armor", "swarm", ...BOSS_ROSTER];
+      body.innerHTML = keys.map((k) => {
+        const e = ENEMY[k];
+        const isBoss = isBossType(k);
+        const res = formatResistLine(e.resist || {});
+        const abilityDesc = ({
+          bulk: "Heavy armored vanguard",
+          ashregen: "Flying · regenerates HP unless chilled",
+          carapace: "Regenerating carapace shield",
+          brood: "Spawns Swarm adds periodically",
+          tempest: "Enrages & surges below 45% HP",
+        })[e.ability] || (e.tags.includes("flying") ? "Flying unit" : "Ground unit");
+        return `<div class="codex-item"><div class="codex-item-top"><span style="color:${e.color}">${e.label}</span><span class="codex-pill">${isBoss ? "BOSS" : e.tags.join(" · ")}</span></div><div class="codex-item-sub">${abilityDesc} · ${res}</div></div>`;
+      }).join("");
+    }
+  }
+  function openCodex(from) {
+    codexReturnScreen = from || "hub";
+    renderCodex();
+    showScreen("codex");
+  }
+  function closeCodex() {
+    if (codexReturnScreen === "pause" && state.seed) {
+      state.mode = "paused";
+      showScreen("pause");
+    } else {
+      state.mode = "hub";
+      showScreen("hub");
+      refreshHub();
+    }
+  }
+
   function showScreen(name) {
     els.hub.classList.toggle("hidden", name !== "hub");
     els.upgrades.classList.toggle("hidden", name !== "upgrades");
@@ -1774,7 +2207,10 @@
     els.over.classList.toggle("hidden", name !== "over");
     if (els.codex) els.codex.classList.toggle("hidden", name !== "codex");
     if (els.settings) els.settings.classList.toggle("hidden", name !== "settings");
-    // Layout mode: play chrome only when no full-screen sheet is up (stops HUD/dock stacking).
+    if (els.relic) els.relic.classList.toggle("hidden", name !== "relic");
+    if (name === "pause") syncPauseDetails();
+    // Reset scroll position to top whenever opening a screen.
+    if (name && els[name]) els[name].scrollTop = 0;
     const app = $("app");
     if (app) {
       const ui = name == null ? "play" : (name === "hub" ? "hub" : "sheet");
@@ -1788,6 +2224,8 @@
     }
     syncPlaceCancel();
     syncStartBtn();
+    syncNextWaveBtn();
+    syncAbilitiesUI();
   }
 
   function refreshHub() {
@@ -1980,13 +2418,8 @@
       wrap.appendChild(btn);
     }
     const sel = DIFFICULTIES[meta.selectedDifficulty] || DIFFICULTIES.normal;
-    const layoutNote = sel.id === "nightmare"
-      ? "short harsh path"
-      : sel.id === "hard"
-        ? "tighter bends"
-        : "open layout";
     hint.textContent = isDifficultyUnlocked(meta.selectedDifficulty)
-      ? `${sel.name}: ×${sel.hpMul.toFixed(2)} HP · ${layoutNote} · ×${sel.chipMul} chips`
+      ? `×${sel.hpMul.toFixed(1)} HP · ×${sel.chipMul} chips`
       : unlockHint(meta.selectedDifficulty);
   }
 
@@ -2028,15 +2461,22 @@
     els.score.title = String(score);
     if (els.wave && els.wave.parentElement) {
       els.wave.parentElement.title = state.awaitingStart
-        ? `${dShort} · Prep — tap Start when ready`
+        ? `${dShort} · Prep — tap Start Wave when ready`
         : runIsDaily
           ? `Daily · Wave ${waveN} of ${DAILY.waveCap} · Score ${score}`
           : `${dShort} · Wave ${waveN} · Score ${score}`;
+    }
+    if (els.streakPill) {
+      const showStreak = state.mode === "playing" && state.streak >= 5 && state.streakT > 0;
+      els.streakPill.classList.toggle("hidden", !showStreak);
+      if (showStreak) els.streakPill.textContent = `STREAK ×${state.streak}`;
     }
     refreshTowerButtons();
     updateInspect();
     syncPlaceCancel();
     syncStartBtn();
+    syncNextWaveBtn();
+    syncAbilitiesUI();
   }
   function refreshTowerButtons() {
     document.querySelectorAll(".tower-btn").forEach((btn) => {
@@ -2051,6 +2491,11 @@
     // Steeper curve so endless scrap can't buy infinite power.
     const base = BASE_TOWER[t.type].cost;
     return Math.floor(base * (0.62 + t.level * 0.58 + Math.pow(Math.max(0, t.level - 3), 1.35) * 0.35));
+  }
+  function towerSellValue(t) {
+    const elBonus = (t.elements || []).length * 15;
+    const sellBase = Math.floor((t.sell || 30) * (0.7 + t.level * 0.15) + elBonus * 0.5);
+    return Math.max(1, Math.floor(sellBase * metaBonuses().sellMul));
   }
   function towerLevelReady(t) {
     return !t || !t.levelCd || t.levelCd <= 0;
@@ -2214,19 +2659,25 @@
     }
     els.inspect.classList.remove("hidden");
     const elsList = sel.elements || [];
-    const matchTip = elsList.length
-      ? `<span class="match-tip">Hit feedback shows WEAK / RESIST — △ weak · □ resist on foes.</span><br>`
-      : `<span class="match-tip">Socket up to 2. Pair for combos; learn matchups in combat.</span><br>`;
+    const dps = Math.round(sel.damage / Math.max(0.1, sel.fireRate));
+    const socketCost = elementCost(sel);
+    const nextTxt = elsList.length < MAX_ELEMENTS ? ` · Socket ${socketCost}` : " · Full";
     els.inspectText.innerHTML =
-      `<strong>${BASE_TOWER[sel.type].name}</strong> Lv${sel.level} · ${BASE_TOWER[sel.type].blurb}<br>` +
-      matchTip +
-      `${describeCombo(elsList)} · socket ${elsList.length}/${MAX_ELEMENTS}` +
-      (elsList.length < MAX_ELEMENTS ? ` · next ${elementCost(sel)} scrap` : "");
+      `<strong>${BASE_TOWER[sel.type].name}</strong> Lv${sel.level} · ${dps} DPS · Rng ${Math.round(sel.range)}` +
+      `<span class="inspect-sub">${describeCombo(elsList)}${nextTxt}</span>`;
+
+    if (els.btnTargetMode) {
+      const mode = sel.targetMode || "first";
+      els.btnTargetMode.textContent = TARGET_LABELS[mode] || "First";
+      els.btnTargetMode.title = `Targeting: ${TARGET_LABELS[mode] || "First"} (tap to cycle)`;
+    }
+
     els.btnSell.disabled = false;
+    els.btnSell.textContent = `Sell +${towerSellValue(sel)}`;
     const ready = towerLevelReady(sel);
     const upCost = upgradeCost(sel);
     els.btnUpgrade.disabled = !ready || state.scrap < upCost;
-    els.btnUpgrade.textContent = !ready ? `Up ${Math.ceil(sel.levelCd || 0)}s` : `Up ${upCost}`;
+    els.btnUpgrade.textContent = !ready ? `Up ${Math.ceil(sel.levelCd || 0)}s` : `Up · ${upCost}`;
     els.btnUpgrade.title = !ready
       ? `Cooldown ${Math.ceil(sel.levelCd || 0)}s`
       : state.scrap < upCost
@@ -2240,8 +2691,17 @@
       const full = elsList.length >= MAX_ELEMENTS;
       const label = def ? def.name : (el[0].toUpperCase() + el.slice(1));
       btn.classList.toggle("active", owned);
-      btn.disabled = owned || (full && !owned) || state.scrap < elementCost(sel);
-      btn.textContent = owned ? label + " ✓" : label;
+      btn.disabled = owned || (full && !owned) || state.scrap < socketCost;
+      if (owned) {
+        btn.innerHTML = `<span>${label} ✓</span>`;
+      } else if (elsList.length === 1) {
+        const preview = COMBO_SHORT[comboKey([elsList[0], el])];
+        btn.innerHTML = preview
+          ? `<span>${label}</span><span class="el-combo-hint">→ ${preview}</span>`
+          : `<span>${label}</span>`;
+      } else {
+        btn.innerHTML = `<span>${label}</span>`;
+      }
       if (def) btn.title = `${def.name}: ${def.tip}`;
     });
   }
@@ -2251,13 +2711,12 @@
     if (!b) return;
     b.textContent = text;
     b.classList.remove("hidden", "show");
-    // Subtle non-blocking chip — short dwell, no stage takeover.
     requestAnimationFrame(() => b.classList.add("show"));
     clearTimeout(showBanner._t);
     showBanner._t = setTimeout(() => {
       b.classList.remove("show");
       setTimeout(() => b.classList.add("hidden"), 220);
-    }, 700);
+    }, 1100);
   }
   function toast(text) {
     const t = els.toast;
@@ -2268,34 +2727,72 @@
     toast._t = setTimeout(() => {
       t.classList.remove("show");
       setTimeout(() => t.classList.add("hidden"), 200);
-    }, 1400);
+    }, 1500);
   }
 
   let upgradeTab = "forge";
-  function nodeReveal(u, tree) {
-    if (ownedRank(u.id) > 0 || !u.req) return "open";
-    if (reqSatisfied(u, tree)) return "open";
-    if (ownedRank(u.req) > 0) return "near";
-    // Also near if an exclusive sibling of the req is owned (branch fork).
-    const reqNode = tree.find((p) => p.id === u.req);
-    if (reqNode && reqNode.exclusive) {
-      const sibOwned = tree.some((p) => p.exclusive === reqNode.exclusive && ownedRank(p.id) > 0);
-      if (sibOwned) return "near";
-    }
-    return "fog";
-  }
   function nodeCopy(u, tree) {
-    const reveal = nodeReveal(u, tree);
-    if (reveal === "fog") return { name: "???", desc: "Locked", fog: true };
-    if (reveal === "near" && !reqSatisfied(u, tree)) {
+    if (!reqSatisfied(u, tree) && ownedRank(u.id) === 0) {
       const parent = tree.find((p) => p.id === u.req) || findUpgradeNode(u.req);
       const need = u.reqRank || 1;
       const pname = parent ? parent.name : "prior node";
-      return { name: u.name, desc: `Needs ${pname} ×${need}`, fog: false };
+      return { name: u.name, desc: `Needs ${pname} ×${need} · ${u.desc}` };
     }
-    let desc = u.desc;
-    if (u.exclusive) desc = `Pick one · ${desc}`;
-    return { name: u.name, desc, fog: false };
+    return { name: u.name, desc: u.desc };
+  }
+  function drawTreeConnectors(grid, svg, tree, nodeMap) {
+    if (!grid || !svg) return;
+    const w = grid.scrollWidth || grid.offsetWidth;
+    const h = grid.scrollHeight || grid.offsetHeight;
+    if (w < 10 || h < 10) return;
+    svg.setAttribute("width", String(w));
+    svg.setAttribute("height", String(h));
+    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    svg.innerHTML = "";
+    const hubKeys = new Set();
+    for (const u of tree) {
+      if (!u.req) continue;
+      const parent = tree.find((p) => p.id === u.req);
+      if (!parent) continue;
+      const pEl = nodeMap.get(parent.id);
+      const cEl = nodeMap.get(u.id);
+      if (!pEl || !cEl) continue;
+      const lit = ownedRank(u.req) >= (u.reqRank || 1) || unlockViaExclusiveSibling(u, tree);
+      const x1 = pEl.offsetLeft + pEl.offsetWidth / 2;
+      const y1 = pEl.offsetTop + pEl.offsetHeight;
+      const x2 = cEl.offsetLeft + cEl.offsetWidth / 2;
+      const y2 = cEl.offsetTop;
+      const midY = (y1 + y2) / 2;
+      const isBypass = Math.abs(x1 - x2) < 4 && (y2 - y1) > 48;
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      if (isBypass) {
+        const gutterX = pEl.offsetLeft + pEl.offsetWidth + 7;
+        path.setAttribute(
+          "d",
+          `M ${x1} ${y1} C ${x1} ${y1 + 14}, ${gutterX} ${y1 + 8}, ${gutterX} ${y1 + 24} L ${gutterX} ${y2 - 24} C ${gutterX} ${y2 - 8}, ${x2} ${y2 - 14}, ${x2} ${y2}`
+        );
+      } else {
+        path.setAttribute("d", `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`);
+      }
+      path.setAttribute("class", "up-branch" + (lit ? " lit" : ""));
+      svg.appendChild(path);
+      const hk = `${parent.id}`;
+      if (!hubKeys.has(hk)) {
+        hubKeys.add(hk);
+        const hub = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        hub.setAttribute("cx", String(x1));
+        hub.setAttribute("cy", String(y1));
+        hub.setAttribute("r", "4");
+        hub.setAttribute("class", "up-hub" + (lit ? " lit" : ""));
+        svg.appendChild(hub);
+      }
+      const leaf = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      leaf.setAttribute("cx", String(x2));
+      leaf.setAttribute("cy", String(y2));
+      leaf.setAttribute("r", "3.5");
+      leaf.setAttribute("class", "up-hub" + (ownedRank(u.id) > 0 ? " lit" : ""));
+      svg.appendChild(leaf);
+    }
   }
   function renderUpgrades() {
     meta = loadJSON(STORAGE.meta, defaultMeta());
@@ -2309,77 +2806,42 @@
     list.innerHTML = "";
     list.className = "upgrade-tree" + (upgradeTab === "forge" ? " upgrade-tree-forge" : "");
     const tree = UPGRADE_TREES[upgradeTab] || [];
-    const maxRow = tree.reduce((m, u) => Math.max(m, u.row || 0), 0);
     const maxCol = tree.reduce((m, u) => Math.max(m, u.col || 0), 0);
     const cols = maxCol + 1;
-    const rows = maxRow + 1;
+    const rowOffset = upgradeTab === "forge" ? 2 : 1;
 
-    if (upgradeTab !== "forge") {
-      const hint = document.createElement("p");
-      hint.className = "up-tree-hint";
-      hint.textContent = "Branch picks are permanent · deep ranks cost more";
-      list.appendChild(hint);
-    }
+    const hint = document.createElement("p");
+    hint.className = "up-tree-hint";
+    hint.textContent = upgradeTab === "forge"
+      ? "Swipe sideways to browse all 5 Forge lanes · Respec refunds 100%"
+      : "OR nodes pick one branch · Respec anytime for a full refund";
+    list.appendChild(hint);
 
     const scroller = document.createElement("div");
     scroller.className = "up-tree-scroll";
-    if (upgradeTab === "forge") {
-      const lanes = document.createElement("div");
-      lanes.className = "up-path-lanes";
-      lanes.style.setProperty("--up-cols", String(cols));
-      for (const p of FORGE_PATHS) {
-        const chip = document.createElement("span");
-        chip.className = `up-path-chip path-${p.id}`;
-        chip.textContent = p.label;
-        lanes.appendChild(chip);
-      }
-      scroller.appendChild(lanes);
-    }
     const grid = document.createElement("div");
     grid.className = "up-tree-grid";
     grid.style.setProperty("--up-cols", String(cols));
-    grid.style.setProperty("--up-rows", String(rows));
     if (upgradeTab === "forge") grid.classList.add("up-tree-grid-forge");
 
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "up-tree-svg");
-    svg.setAttribute("viewBox", `0 0 ${cols} ${rows}`);
-    svg.setAttribute("preserveAspectRatio", "none");
     svg.setAttribute("aria-hidden", "true");
-    const hubKeys = new Set();
-    for (const u of tree) {
-      if (!u.req) continue;
-      const parent = tree.find((p) => p.id === u.req);
-      if (!parent) continue;
-      const lit = ownedRank(u.req) >= (u.reqRank || 1) || unlockViaExclusiveSibling(u, tree);
-      const x1 = (parent.col || 0) + 0.5;
-      const y1 = (parent.row || 0) + 0.88;
-      const x2 = (u.col || 0) + 0.5;
-      const y2 = (u.row || 0) + 0.12;
-      const midY = (y1 + y2) / 2;
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`);
-      path.setAttribute("class", "up-branch" + (lit ? " lit" : ""));
-      svg.appendChild(path);
-      const hk = `${parent.col},${parent.row}`;
-      if (!hubKeys.has(hk)) {
-        hubKeys.add(hk);
-        const hub = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        hub.setAttribute("cx", String(x1));
-        hub.setAttribute("cy", String(y1));
-        hub.setAttribute("r", "0.06");
-        hub.setAttribute("class", "up-hub" + (lit ? " lit" : ""));
-        svg.appendChild(hub);
-      }
-      const leaf = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      leaf.setAttribute("cx", String(x2));
-      leaf.setAttribute("cy", String(y2));
-      leaf.setAttribute("r", "0.05");
-      leaf.setAttribute("class", "up-hub" + (ownedRank(u.id) > 0 ? " lit" : ""));
-      svg.appendChild(leaf);
-    }
     grid.appendChild(svg);
 
+    // Put Forge lane headers directly inside Row 1 of the grid so alignment is always 100% exact.
+    if (upgradeTab === "forge") {
+      FORGE_PATHS.forEach((p, i) => {
+        const chip = document.createElement("span");
+        chip.className = `up-path-chip path-${p.id}`;
+        chip.textContent = p.label;
+        chip.style.gridColumn = String(i + 1);
+        chip.style.gridRow = "1";
+        grid.appendChild(chip);
+      });
+    }
+
+    const nodeMap = new Map();
     for (const u of tree) {
       const rank = ownedRank(u.id);
       const max = u.max || 1;
@@ -2394,24 +2856,24 @@
         + (rank ? " owned" : "")
         + (full ? " maxed" : "")
         + ((!reqOk || blocked) && !rank ? " locked" : "")
-        + (copy.fog ? " fog" : "")
+        + (blocked ? " blocked-alt" : "")
         + (u.exclusive ? " choice" : "")
         + (u.path ? ` path-${u.path}` : "");
       node.style.gridColumn = String((u.col || 0) + 1);
-      node.style.gridRow = String((u.row || 0) + 1);
+      node.style.gridRow = String((u.row || 0) + rowOffset);
       node.innerHTML =
-        `<span class="up-top"><span class="up-ico up-ico-${copy.fog ? "star" : (u.icon || "star")}" aria-hidden="true"></span>` +
+        `<span class="up-top"><span class="up-ico up-ico-${u.icon || "star"}" aria-hidden="true"></span>` +
         `<span class="up-name">${copy.name}</span></span>` +
         `<span class="up-desc">${copy.desc}</span>` +
-        `<span class="up-foot"><span class="up-rank">${copy.fog ? "—" : `${rank}/${max}`}</span>` +
-        `<span class="up-cost">${full ? "MAX" : blocked ? "ALT" : copy.fog ? "—" : nextCost}</span></span>`;
-      const canBuy = !full && reqOk && !blocked && !copy.fog && meta.chips >= nextCost;
-      node.disabled = full || blocked || copy.fog || !reqOk || meta.chips < nextCost;
-      if (blocked) node.title = "Other branch already chosen";
-      else if (!reqOk && !copy.fog) node.title = copy.desc;
+        `<span class="up-foot"><span class="up-rank">${rank}/${max}</span>` +
+        `<span class="up-cost">${full ? "MAX" : blocked ? "ALT" : nextCost}</span></span>`;
+      const canBuy = !full && reqOk && !blocked && meta.chips >= nextCost;
+      node.disabled = full || blocked || !reqOk || meta.chips < nextCost;
+      if (blocked) node.title = "Other branch chosen (Respec to change)";
+      else if (!reqOk) node.title = copy.desc;
       else if (!full && meta.chips < nextCost) node.title = `Need ${nextCost} chips`;
       else node.title = u.desc || u.name;
-      if (canBuy || (!full && reqOk && !blocked && !copy.fog)) {
+      if (canBuy || (!full && reqOk && !blocked)) {
         node.addEventListener("click", () => {
           const r = ownedRank(u.id);
           if (r >= (u.max || 1) || !reqSatisfied(u, tree) || exclusiveBlocked(u, tree)) return;
@@ -2424,10 +2886,13 @@
           renderUpgrades(); refreshHub();
         });
       }
+      nodeMap.set(u.id, node);
       grid.appendChild(node);
     }
     scroller.appendChild(grid);
     list.appendChild(scroller);
+    // Measure actual DOM bounds on next frame to draw pixel-accurate connectors (never stretched!).
+    requestAnimationFrame(() => drawTreeConnectors(grid, svg, tree, nodeMap));
   }
 
   function beginWave() {
@@ -2484,7 +2949,7 @@
     state.enemySeq = (state.enemySeq || 0) + 1;
     state.enemies.push({
       id: state.enemySeq,
-      type, dist: 0, hp, maxHp: hp,
+      type, dist: 0, hp, maxHp: hp, hpTrail: hp,
       speed: def.speed * jitter * speedMul * packSlow,
       baseSpeed: def.speed * jitter * speedMul * packSlow,
       reward: Math.floor(def.reward * (0.9 + difficulty * 0.05) * rewardMul * (boss && bossTotal > 1 ? 0.85 : 1)),
@@ -2609,7 +3074,7 @@
     state.towers.push({
       ...stats,
       type, x, y, nx: x / state.w, ny: y / state.h,
-      level: 1, cooldown: 0, levelCd: 0, elements: [],
+      level: 1, cooldown: 0, levelCd: 0, elements: [], targetMode: "first",
       aim: -Math.PI / 2, recoil: 0, turnRate: stats.turnRate || 3.5,
       lockId: null, acquireT: 0,
     });
@@ -2628,12 +3093,26 @@
   }
 
   function findTarget(tower, enemies) {
+    const mode = tower.targetMode || "first";
     let bestE = null;
+    let bestVal = mode === "close" || mode === "weak" ? Infinity : -Infinity;
     for (const e of enemies) {
       if (!e.alive || !canTarget(tower, e)) continue;
       const p = enemyPos(e);
       const d = Math.hypot(p.x - tower.x, p.y - tower.y);
-      if (d <= tower.range && e.dist > (bestE ? bestE.dist : -1)) bestE = e;
+      if (d > tower.range) continue;
+      if (mode === "strong") {
+        const val = e.hp + (isBossEnemy(e) ? 1e6 : 0);
+        if (val > bestVal || (val === bestVal && e.dist > (bestE ? bestE.dist : -1))) {
+          bestVal = val; bestE = e;
+        }
+      } else if (mode === "close") {
+        if (d < bestVal) { bestVal = d; bestE = e; }
+      } else if (mode === "weak") {
+        if (e.hp < bestVal) { bestVal = e.hp; bestE = e; }
+      } else {
+        if (e.dist > bestVal) { bestVal = e.dist; bestE = e; }
+      }
     }
     return bestE;
   }
@@ -2678,7 +3157,25 @@
     const mb = metaBonuses();
     if (elsArr.length) {
       mul *= mb.elementDmgMul;
-      if (elsArr.length >= 2) mul *= mb.dualSocketDmg;
+      if (elsArr.length >= 2) {
+        mul *= mb.dualSocketDmg;
+        const cAmp = relicCount("combo_amp");
+        if (cAmp > 0) mul *= Math.pow(1.24, cAmp);
+      }
+    }
+
+    // Run Relic combat synergies
+    const cryo = relicCount("cryo_vuln");
+    if (cryo > 0 && (enemy.slow < 0.99 || enemy.chillT > 0 || enemy.freezeT > 0)) {
+      mul *= Math.pow(1.25, cryo);
+    }
+    const exec = relicCount("executioner");
+    if (exec > 0 && enemy.hp / Math.max(1, enemy.maxHp) <= 0.25) {
+      mul *= Math.pow(1.65, exec);
+    }
+    const sunder = relicCount("sunder_beam");
+    if (sunder > 0 && tower.type === "spire" && isBossEnemy(enemy)) {
+      mul *= Math.pow(1.25, sunder);
     }
 
     if (enemy.shred > 0) mul *= 1 + Math.min(0.5, enemy.shred);
@@ -2883,33 +3380,78 @@
     e.alive = false;
     const p = enemyPos(e);
     let scrapGain = e.reward * metaBonuses().scrapKillMul;
-    // Soft aura: owned kill-scrap nodes on any placed tower add a little.
+    const bounty = relicCount("bounty");
+    if (bounty > 0) {
+      scrapGain *= Math.pow(1.28, bounty);
+      if (isBossEnemy(e)) scrapGain *= Math.pow(1.45, bounty);
+    }
     let aura = 0;
     for (const t of state.towers) aura = Math.max(aura, t.killScrapAura || 0);
     if (aura) scrapGain *= 1 + aura;
     state.scrap += Math.max(1, Math.floor(scrapGain));
     state.score += e.reward * 2 + Math.floor(state.wave);
+
+    // Kill-streak momentum & ability recharge on kill!
+    state.streak = (state.streak || 0) + 1;
+    state.streakT = 2.6;
+    const cdTrim = (isBossEnemy(e) ? 2.5 : 0.32) * (1 + 0.35 * relicCount("rapid_rite"));
+    if (state.meteorCd > 0) state.meteorCd = Math.max(0, state.meteorCd - cdTrim);
+    if (state.surgeCd > 0) state.surgeCd = Math.max(0, state.surgeCd - cdTrim);
+
+    const streakMarks = [8, 16, 25, 40, 60, 90, 125];
+    const nextMark = streakMarks[state.streakTier || 0];
+    if (nextMark && state.streak >= nextMark) {
+      state.streakTier = (state.streakTier || 0) + 1;
+      const bonus = 8 + state.streakTier * 6;
+      state.scrap += bonus;
+      state.score += bonus * 3;
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 26, t: 0.75, text: `STREAK ×${nextMark} +${bonus}`, color: "#ffd166" });
+      sfx.streak();
+    }
+
     pushCombatFx({ kind: "pop", x: p.x, y: p.y, t: 0.4, color: e.color });
-    spawnParticles(p.x, p.y, e.color, isBossEnemy(e) ? 28 : 12, isBossEnemy(e) ? 140 : 90);
-    if (isBossEnemy(e)) addShake(1.15);
-    else addShake(0.22);
-    sfx.kill();
+    spawnParticles(p.x, p.y, e.color, isBossEnemy(e) ? 30 : 12, isBossEnemy(e) ? 150 : 90);
+    if (isBossEnemy(e)) {
+      spawnParticles(p.x, p.y, "#ffd166", 18, 120);
+      addShake(1.2);
+      sfx.boom();
+    } else {
+      addShake(0.2);
+      sfx.kill(state.streak);
+    }
+
+    // Volatile Core relic: slain foes explode for splash damage (non-recursive).
+    const vol = relicCount("volatile");
+    if (vol > 0 && !opts.fromVolatile) {
+      const blastDmg = Math.max(12, e.maxHp * 0.18 * vol);
+      for (const o of state.enemies) {
+        if (!o.alive) continue;
+        const q = enemyPos(o);
+        if (Math.hypot(q.x - p.x, q.y - p.y) < 52) {
+          o.hp -= blastDmg;
+          if (settings.hitFlash !== false) o.hitFlash = 0.08;
+          if (o.hp <= 0) killEnemy(o, { fromVolatile: true });
+        }
+      }
+      pushCombatFx({ kind: "blast", x: p.x, y: p.y, t: 0.34, r: 52, color: "#ffb854" });
+    }
 
     if (opts.magma) {
-      pushHazard({ kind: "magma", x: p.x, y: p.y, r: 48, t: 2.6, dps: Math.max(10, opts.magma * 0.4) });
+      const cAmp = 1 + 0.4 * relicCount("combo_amp");
+      pushHazard({ kind: "magma", x: p.x, y: p.y, r: 48, t: 2.8, dps: Math.max(12, opts.magma * 0.42 * cAmp) });
       for (const o of state.enemies) {
         if (!o.alive) continue;
         const q = enemyPos(o);
         if (Math.hypot(q.x - p.x, q.y - p.y) < 50) {
-          o.hp -= opts.magma * 0.55;
+          o.hp -= opts.magma * 0.55 * cAmp;
           o.burn = Math.max(o.burn, 5);
           o.burnT = Math.max(o.burnT, 1.5);
           if (o.hp <= 0) killEnemy(o);
         }
       }
-      pushCombatFx({ kind: "blast", x: p.x, y: p.y, t: 0.4, r: 50, color: "#e85d4c" });
-      state.fx.push({ kind: "text", x: p.x, y: p.y - 16, t: 0.5, text: "MAGMA", color: "#e85d4c" });
-      spawnParticles(p.x, p.y, "#e85d4c", 16, 100);
+      pushCombatFx({ kind: "blast", x: p.x, y: p.y, t: 0.4, r: 50, color: "#ee6450" });
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 16, t: 0.5, text: "MAGMA", color: "#ee6450" });
+      spawnParticles(p.x, p.y, "#ee6450", 16, 100);
     }
   }
 
@@ -2918,12 +3460,14 @@
     const matchMul = damageMultiplier(tower, e);
     let dmg = amount * matchMul;
     let didCrit = false;
-    if (opts.critChance && Math.random() < opts.critChance) {
+    const surgeCrit = state.surgeT > 0 ? ABILITY_DEF.surge.critAdd : 0;
+    const critChance = (opts.critChance || 0) + surgeCrit;
+    if (critChance > 0 && Math.random() < critChance) {
       dmg *= 2;
       didCrit = true;
       const p = enemyPos(e);
-      state.fx.push({ kind: "text", x: p.x, y: p.y - 14, t: 0.5, text: "CRIT", color: "#ffb34a" });
-      addShake(0.4);
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 14, t: 0.5, text: "CRIT", color: "#ffb854" });
+      addShake(0.36);
     }
     if ((e.brittleT || 0) > 0) {
       dmg *= 1.4;
@@ -2933,7 +3477,7 @@
     }
     if (comboKey(tower.elements || []) === "water+wind" && e.chillT > 0) {
       const p = enemyPos(e);
-      state.fx.push({ kind: "text", x: p.x, y: p.y - 18, t: 0.45, text: "SHATTER", color: "#4db8c4" });
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 18, t: 0.45, text: "SHATTER", color: "#50c2cf" });
     }
     if (e.shield > 0) {
       const absorbed = Math.min(e.shield, dmg);
@@ -2969,7 +3513,7 @@
     }
     if (settings.dmgNumbers !== false && dmg >= 1) {
       const shown = Math.max(1, Math.round(dmg));
-      let numColor = didCrit ? "#ffb34a" : (opts.color || "#f3ebe2");
+      let numColor = didCrit ? "#ffb854" : (opts.color || "#f5eee6");
       if (!didCrit && elsArr.length) {
         if (matchMul >= 1.25) numColor = "#9fe0b0";
         else if (matchMul <= 0.75) numColor = "#9a9088";
@@ -2996,34 +3540,39 @@
     const p = enemyPos(target);
     const elsArr = tower.elements || [];
     const tint = elsArr.length ? ELEMENTS[elsArr[0]].color : tower.color;
-    // Keep current aim — rotation system already slewed toward the target.
     tower.recoil = 1;
 
     if (tower.type === "mortar") {
       state.projectiles.push({
         kind: "shell", x: tower.x, y: tower.y, tx: p.x, ty: p.y,
-        t: 0, dur: 0.45, damage: tower.damage, splash: tower.splash || 42,
+        t: 0, dur: 0.44, damage: tower.damage, splash: tower.splash || 44,
         tower, color: tint,
       });
     } else if (tower.type === "coil") {
-      damageEnemy(target, tower.damage, tower, { color: tint });
-      state.fx.push({ kind: "beam", x: tower.x, y: tower.y, x2: p.x, y2: p.y, t: 0.12, color: tint });
-      if (tower.chain) {
-        let second = null, bestD = Infinity;
-        for (const e of state.enemies) {
-          if (!e.alive || e === target || !canTarget(tower, e)) continue;
-          const q = enemyPos(e);
-          const d = Math.hypot(q.x - p.x, q.y - p.y);
-          if (d < 70 && d < bestD) { bestD = d; second = e; }
-        }
-        if (second) {
-          const q = enemyPos(second);
-          damageEnemy(second, tower.damage * 0.7, tower, { color: tint });
-          state.fx.push({ kind: "beam", x: p.x, y: p.y, x2: q.x, y2: q.y, t: 0.1, color: tint });
+      damageEnemy(target, tower.damage, tower, { color: tint, critChance: tower.crit || 0 });
+      state.fx.push({ kind: "beam", arc: true, x: tower.x, y: tower.y, x2: p.x, y2: p.y, t: 0.14, color: tint });
+      const totalChains = (tower.chain || 0) + relicCount("arc_fork");
+      if (totalChains > 0) {
+        const hitSet = new Set([target]);
+        let prev = p;
+        const jumpMul = 0.7 + 0.15 * relicCount("arc_fork");
+        for (let c = 0; c < totalChains; c++) {
+          let nextE = null, bestD = Infinity;
+          for (const e of state.enemies) {
+            if (!e.alive || hitSet.has(e) || !canTarget(tower, e)) continue;
+            const q = enemyPos(e);
+            const d = Math.hypot(q.x - prev.x, q.y - prev.y);
+            if (d < 82 && d < bestD) { bestD = d; nextE = e; }
+          }
+          if (!nextE) break;
+          hitSet.add(nextE);
+          const q = enemyPos(nextE);
+          damageEnemy(nextE, tower.damage * jumpMul, tower, { color: tint });
+          state.fx.push({ kind: "beam", arc: true, x: prev.x, y: prev.y, x2: q.x, y2: q.y, t: 0.12, color: tint });
+          prev = q;
         }
       }
     } else if (tower.type === "spire") {
-      // Pierce line: hit primary + further foes along the aim ray.
       const ang = tower.aim;
       const ux = Math.cos(ang), uy = Math.sin(ang);
       const hits = [];
@@ -3034,7 +3583,7 @@
         const along = vx * ux + vy * uy;
         if (along < 8 || along > tower.range) continue;
         const perp = Math.abs(vx * uy - vy * ux);
-        if (perp > 16) continue;
+        if (perp > 18) continue;
         hits.push({ e, along });
       }
       hits.sort((a, b) => a.along - b.along);
@@ -3042,16 +3591,36 @@
       const end = hits[Math.min(hits.length, pierce) - 1];
       const ex = end ? enemyPos(end.e).x : tower.x + ux * tower.range;
       const ey = end ? enemyPos(end.e).y : tower.y + uy * tower.range;
-      state.fx.push({ kind: "beam", x: tower.x, y: tower.y, x2: ex, y2: ey, t: 0.16, color: tint });
+      state.fx.push({ kind: "beam", rail: true, x: tower.x, y: tower.y, x2: ex, y2: ey, t: 0.2, color: tint });
+      const sunder = relicCount("sunder_beam");
       hits.slice(0, pierce).forEach((h, i) => {
-        damageEnemy(h.e, tower.damage * (1 - i * 0.12), tower, { color: tint, critChance: tower.crit || 0 });
+        if (sunder > 0) h.e.shred = Math.min(0.55, (h.e.shred || 0) + 0.18 * sunder);
+        damageEnemy(h.e, tower.damage * (1 - i * 0.11), tower, { color: tint, critChance: tower.crit || 0 });
       });
     } else {
       state.projectiles.push({
         kind: "bolt", x: tower.x, y: tower.y, tx: p.x, ty: p.y,
-        t: 0, dur: 0.12, target, damage: tower.damage,
+        t: 0, dur: 0.11, target, damage: tower.damage,
         critChance: tower.crit || 0, tower, color: tint,
       });
+      // Split Chamber relic: Turret fires an extra split bolt at a secondary target or same target.
+      const splits = relicCount("twin_bolt");
+      if (splits > 0) {
+        let alt = null, bestD = Infinity;
+        for (const e of state.enemies) {
+          if (!e.alive || e === target || !canTarget(tower, e)) continue;
+          const q = enemyPos(e);
+          const d = Math.hypot(q.x - tower.x, q.y - tower.y);
+          if (d <= tower.range && d < bestD) { bestD = d; alt = e; }
+        }
+        const t2 = alt || target;
+        const p2 = enemyPos(t2);
+        state.projectiles.push({
+          kind: "bolt", x: tower.x, y: tower.y, tx: p2.x, ty: p2.y,
+          t: 0, dur: 0.13, target: t2, damage: tower.damage * (0.42 * splits),
+          critChance: tower.crit || 0, tower, color: "#ffd166",
+        });
+      }
     }
     sfx.shoot(tower.type);
   }
@@ -3065,6 +3634,20 @@
     const speed = normalizeSpeed(settings.gameSpeed);
     const step = dt * speed;
     state.time += step; state.frame++;
+
+    // Active abilities & streak timers
+    if (!state.awaitingStart) {
+      if (state.meteorCd > 0) state.meteorCd = Math.max(0, state.meteorCd - step);
+      if (state.surgeCd > 0) state.surgeCd = Math.max(0, state.surgeCd - step);
+      if (state.surgeT > 0) state.surgeT = Math.max(0, state.surgeT - step);
+    }
+    if (state.streakT > 0) {
+      state.streakT -= step;
+      if (state.streakT <= 0) {
+        state.streak = 0;
+        state.streakTier = 0;
+      }
+    }
 
     // Prep gate: no auto-spawn until player taps Start.
     if (!state.awaitingStart) {
@@ -3080,7 +3663,6 @@
           const next = state.spawnQueue.shift();
           spawnEnemy(next.type, next.difficulty, next.speedMul || 1, next.rewardMul || 1, next);
           if (isBossType(next.type)) {
-            // Space bosses along the path so packs don't stack into one blob.
             state.spawnTimer = plan.interval * (3.2 + (next.bossIndex || 0) * 0.75);
           } else {
             state.spawnTimer = plan.interval * (next.type === "swarm" ? 0.35 : 1);
@@ -3094,15 +3676,19 @@
             endRun(false, { victory: true });
             return;
           }
-          // Hold — do not schedule wave 101.
         } else {
-          // Timer advance: next wave starts even if foes remain (overlaps OK).
           state.betweenWaves = nextWaveDelay();
           const scrapWave = Math.floor(
             BALANCE.scrapWaveBase + state.wave * BALANCE.scrapWavePer + metaBonuses().scrapWaveAdd
           );
           state.scrap += Math.floor(scrapWave * (runIsDaily ? DAILY.scrapWaveMul : 1));
           saveRun();
+          // Trigger roguelite Rift Relic draft at milestone waves!
+          if (RELIC_WAVES.includes(state.wave) && state.relicDraftWave < state.wave) {
+            state.relicDraftWave = state.wave;
+            openRelicDraft();
+            return;
+          }
         }
       }
     }
@@ -3110,6 +3696,9 @@
     const broodSpawns = [];
     for (const e of state.enemies) {
       if (!e.alive) continue;
+      if (e.hpTrail == null) e.hpTrail = e.hp;
+      if (e.hpTrail > e.hp) e.hpTrail = Math.max(e.hp, e.hpTrail - e.maxHp * 1.4 * step);
+      else e.hpTrail = e.hp;
       if (e.hitFlash > 0) e.hitFlash -= step;
       if (e.knockCd > 0) e.knockCd -= step;
       if (e.stunCd > 0) e.stunCd -= step;
@@ -3126,7 +3715,7 @@
         e.hp -= e.burn * step;
         if (Math.random() < step * 8) {
           const p = enemyPos(e);
-          spawnParticles(p.x, p.y, "#e85d4c", 1, 30);
+          spawnParticles(p.x, p.y, "#ee6450", 1, 30);
         }
         if (e.hp <= 0) killEnemy(e);
       }
@@ -3155,8 +3744,8 @@
           e.enraged = true;
           e.speed = (e.baseSpeed || e.speed) * 1.4;
           const p = enemyPos(e);
-          state.fx.push({ kind: "text", x: p.x, y: p.y - 16, t: 0.6, text: "TEMPEST", color: "#4db8c4" });
-          spawnParticles(p.x, p.y, "#4db8c4", 14, 90);
+          state.fx.push({ kind: "text", x: p.x, y: p.y - 16, t: 0.6, text: "TEMPEST", color: "#50c2cf" });
+          spawnParticles(p.x, p.y, "#50c2cf", 14, 90);
         }
         if (e.enraged) e.knockCd = Math.max(e.knockCd, 0.3);
       }
@@ -3216,8 +3805,8 @@
       state.hazards = state.hazards.filter((h) => h.t > 0);
     }
 
+    const surgeRateMul = state.surgeT > 0 ? ABILITY_DEF.surge.rateMul : 1;
     for (const tower of state.towers) {
-      // Level CD is wall-clock so Up All isn't glued shut at 1× or trivial at 5×.
       if (tower.levelCd > 0) tower.levelCd = Math.max(0, tower.levelCd - dt);
       if (tower.recoil > 0) tower.recoil = Math.max(0, tower.recoil - step * 4.5);
       if (tower.acquireT > 0) tower.acquireT = Math.max(0, tower.acquireT - step);
@@ -3235,7 +3824,7 @@
         const tp = enemyPos(track);
         const want = Math.atan2(tp.y - tower.y, tp.x - tower.x);
         const dAim = angleDelta(tower.aim || 0, want);
-        const rate = tower.turnRate || (BASE_TOWER[tower.type] && BASE_TOWER[tower.type].turnRate) || 3.5;
+        const rate = (tower.turnRate || (BASE_TOWER[tower.type] && BASE_TOWER[tower.type].turnRate) || 3.5) * (state.surgeT > 0 ? 1.4 : 1);
         const maxStep = rate * step;
         tower.aim = (tower.aim || 0) + Math.max(-maxStep, Math.min(maxStep, dAim));
         aligned = Math.abs(angleDelta(tower.aim, want)) <= BALANCE.aimAlign;
@@ -3245,7 +3834,7 @@
       if (tower.cooldown > 0) continue;
       if (track && aligned && (tower.acquireT || 0) <= 0) {
         fireTower(tower, track);
-        tower.cooldown = tower.fireRate;
+        tower.cooldown = tower.fireRate * surgeRateMul;
       }
     }
 
@@ -3268,9 +3857,14 @@
               damageEnemy(e, p.damage, p.tower, { color: p.color, aoe: true });
             }
           }
+          const lavaShell = relicCount("lava_shell");
+          if (lavaShell > 0) {
+            pushHazard({ kind: "magma", x: p.tx, y: p.ty, r: Math.max(36, p.splash * 0.72), t: 2.6 + lavaShell * 0.6, dps: Math.max(12, p.damage * 0.25 * lavaShell) });
+          }
           pushCombatFx({ kind: "blast", x: p.tx, y: p.ty, t: 0.35, r: p.splash, color: p.color });
           spawnParticles(p.tx, p.ty, p.color, 18, 120);
-          addShake(0.5);
+          sfx.boom();
+          addShake(0.45);
           p.dead = true;
         }
       }
@@ -3309,24 +3903,24 @@
     const n = Math.sin(i * 127.1 + j * 311.7) * 43758.5453;
     return n - Math.floor(n);
   }
-  function drawField() {
+  function drawFieldStatic() {
     const w = state.w, h = state.h;
     const seedN = (state.seed || "ember").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
 
-    // Warm basalt plateau with cool moss bowls — readable ground plane.
+    // Rich volcanic basalt plateau with cool mineral moss pockets & warm rift glow.
     const sky = ctx.createLinearGradient(0, 0, 0, h);
-    sky.addColorStop(0, "#342820");
-    sky.addColorStop(0.18, "#261e18");
-    sky.addColorStop(0.55, "#1c2018");
-    sky.addColorStop(0.82, "#161a14");
-    sky.addColorStop(1, "#10140e");
+    sky.addColorStop(0, "#2d211a");
+    sky.addColorStop(0.22, "#221b16");
+    sky.addColorStop(0.55, "#191e17");
+    sky.addColorStop(0.84, "#151914");
+    sky.addColorStop(1, "#10120e");
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, w, h);
 
-    // Soft horizon heat wash near spawn belt
+    // Horizon hearth heat wash near spawn belt
     const heat = ctx.createLinearGradient(0, 0, 0, h * 0.28);
-    heat.addColorStop(0, "rgba(232,90,42,0.14)");
-    heat.addColorStop(0.55, "rgba(180,80,30,0.05)");
+    heat.addColorStop(0, "rgba(232,96,42,0.18)");
+    heat.addColorStop(0.55, "rgba(180,80,30,0.06)");
     heat.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = heat;
     ctx.fillRect(0, 0, w, h * 0.32);
@@ -3341,8 +3935,8 @@
       const rh = 26 + (i % 5) * 14;
       const shelf = ctx.createRadialGradient(sx, sy, 4, sx, sy, rw);
       const cool = (i + seedN) % 3 === 0;
-      shelf.addColorStop(0, cool ? "rgba(62,78,58,0.42)" : "rgba(72,56,40,0.48)");
-      shelf.addColorStop(0.55, cool ? "rgba(40,52,38,0.18)" : "rgba(48,38,28,0.2)");
+      shelf.addColorStop(0, cool ? "rgba(64,84,60,0.44)" : "rgba(76,58,42,0.46)");
+      shelf.addColorStop(0.55, cool ? "rgba(40,54,38,0.18)" : "rgba(48,38,28,0.18)");
       shelf.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = shelf;
       ctx.beginPath();
@@ -3351,10 +3945,10 @@
     }
 
     // Stratified stone bands
-    ctx.globalAlpha = 0.18;
+    ctx.globalAlpha = 0.16;
     for (let i = 0; i < 8; i++) {
       const y = (hash2(i, seedN) * 0.85 + 0.08) * h;
-      ctx.strokeStyle = i % 2 ? "#3a3228" : "#2a3428";
+      ctx.strokeStyle = i % 2 ? "#3d342a" : "#2b3629";
       ctx.lineWidth = 6 + (i % 3) * 3;
       ctx.beginPath();
       ctx.moveTo(-10, y);
@@ -3366,19 +3960,19 @@
     }
     ctx.globalAlpha = 1;
 
-    // Magma vein network (quiet glow, terrain identity)
-    for (let i = 0; i < 9; i++) {
+    // Glowing subterranean magma veins
+    for (let i = 0; i < 10; i++) {
       const x0 = hash2(i * 2, seedN) * w;
       const y0 = hash2(seedN, i * 3) * h;
-      const x1 = x0 + (hash2(i, 9) - 0.5) * 90;
-      const y1 = y0 + 40 + hash2(i, 11) * 50;
+      const x1 = x0 + (hash2(i, 9) - 0.5) * 95;
+      const y1 = y0 + 38 + hash2(i, 11) * 52;
       const vein = ctx.createLinearGradient(x0, y0, x1, y1);
       vein.addColorStop(0, "rgba(90,36,18,0)");
-      vein.addColorStop(0.4, "rgba(180,64,28,0.35)");
-      vein.addColorStop(0.7, "rgba(255,140,50,0.12)");
+      vein.addColorStop(0.4, "rgba(210,78,32,0.42)");
+      vein.addColorStop(0.7, "rgba(255,160,64,0.2)");
       vein.addColorStop(1, "rgba(40,16,8,0)");
       ctx.strokeStyle = vein;
-      ctx.lineWidth = 2.2;
+      ctx.lineWidth = 2.4;
       ctx.lineCap = "round";
       ctx.beginPath();
       ctx.moveTo(x0, y0);
@@ -3386,18 +3980,18 @@
       ctx.stroke();
     }
 
-    // Rock clusters with lit faces
+    // Ambient decorative basalt outcrops
     for (let i = 0; i < 12; i++) {
       const sx = hash2(i + 20, seedN) * w;
       const sy = hash2(seedN + 4, i + 30) * h;
-      const s = 10 + (i % 4) * 3;
-      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      const s = 9 + (i % 4) * 2.5;
+      ctx.fillStyle = "rgba(0,0,0,0.32)";
       ctx.beginPath();
       ctx.ellipse(sx + 1, sy + s * 0.55, s * 1.1, s * 0.35, 0, 0, Math.PI * 2);
       ctx.fill();
       const rock = ctx.createLinearGradient(sx - s, sy - s, sx + s, sy + s);
-      rock.addColorStop(0, "#5a5248");
-      rock.addColorStop(0.4, "#2e2a24");
+      rock.addColorStop(0, "#5c5347");
+      rock.addColorStop(0.45, "#2d2822");
       rock.addColorStop(1, "#12100e");
       ctx.fillStyle = rock;
       ctx.beginPath();
@@ -3417,63 +4011,29 @@
       ctx.closePath();
       ctx.fill();
       if (i % 3 === 0) {
-        ctx.fillStyle = "rgba(111,191,138,0.22)";
+        ctx.fillStyle = "rgba(111,191,138,0.24)";
         ctx.beginPath();
         ctx.ellipse(sx - s * 0.15, sy, s * 0.4, s * 0.18, -0.5, 0, Math.PI * 2);
         ctx.fill();
       }
     }
 
-    // Fine grit / mica
+    // Fine mineral grit / mica
     for (let i = 0; i < 90; i++) {
       const sx = hash2(i, seedN + 1) * w;
       const sy = hash2(seedN + 2, i) * h;
       ctx.globalAlpha = 0.18 + hash2(i, 5) * 0.2;
-      ctx.fillStyle = i % 6 === 0 ? "#7ec9a0" : i % 4 === 0 ? "#c4a35a" : "#3a342c";
+      ctx.fillStyle = i % 6 === 0 ? "#7ed0a2" : i % 4 === 0 ? "#cca95c" : "#3d362d";
       ctx.fillRect(sx, sy, 1.2 + (i % 3) * 0.6, 1.2 + (i % 2) * 0.5);
     }
     ctx.globalAlpha = 1;
 
-    // Atmospheric depth bands
-    const haze = ctx.createLinearGradient(0, h * 0.35, 0, h);
-    haze.addColorStop(0, "rgba(0,0,0,0)");
-    haze.addColorStop(0.7, "rgba(8,10,8,0.18)");
-    haze.addColorStop(1, "rgba(6,8,6,0.35)");
-    ctx.fillStyle = haze;
-    ctx.fillRect(0, 0, w, h);
-
-    // Vignette
-    const vig = ctx.createRadialGradient(w * 0.5, h * 0.4, h * 0.1, w * 0.5, h * 0.5, h * 0.82);
+    // Atmospheric depth vignette
+    const vig = ctx.createRadialGradient(w * 0.5, h * 0.42, h * 0.12, w * 0.5, h * 0.5, h * 0.85);
     vig.addColorStop(0, "rgba(0,0,0,0)");
-    vig.addColorStop(1, "rgba(0,0,0,0.48)");
+    vig.addColorStop(1, "rgba(0,0,0,0.44)");
     ctx.fillStyle = vig;
     ctx.fillRect(0, 0, w, h);
-
-    // Ambient ember motes + soft trails
-    if (settings.particles !== false && motionAllowed()) {
-      const embers = settings.batterySaver ? 6 : 16;
-      for (let i = 0; i < embers; i++) {
-        const drift = state.time * (8 + i % 5) + i * 17;
-        const px = ((i * 73 + drift * 2.2) % (w + 30)) - 15;
-        const py = h - ((i * 41 + state.time * (12 + (i % 5))) % (h * 0.92));
-        const pulse = 0.12 + 0.1 * Math.sin(state.time * 2.8 + i);
-        const glow = ctx.createRadialGradient(px, py, 0, px, py, 5);
-        glow.addColorStop(0, i % 3 === 0 ? `rgba(255,200,100,${pulse + 0.15})` : `rgba(232,100,40,${pulse})`);
-        glow.addColorStop(1, "rgba(80,20,0,0)");
-        ctx.fillStyle = glow;
-        ctx.beginPath();
-        ctx.arc(px, py, 5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = pulse;
-        ctx.strokeStyle = "rgba(255,160,60,0.35)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(px, py + 2);
-        ctx.lineTo(px - 1.5, py + 10);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-      }
-    }
   }
 
   function strokePts(pts) {
@@ -3848,65 +4408,161 @@
     ctx.fill();
     ctx.restore();
   }
-  function drawRiftPath() {
+  let terrainCanvas = null;
+  let terrainCtx = null;
+  let terrainKey = "";
+
+  function drawStaticTerrainAndRoad() {
+    drawFieldStatic();
     if (!state.path) return;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     const lanes = (state.path.lanes && state.path.lanes.length) ? state.path.lanes : [state.path];
     const merges = state.path.merges || [];
-    // Trimmed draw polylines: main spine full; side spurs stop at merge (round-cap join).
     const drawPts = lanes.map((lane, i) => lanePointsForDraw(lane.points, i, merges));
-    // Side spurs first, then main. Trimming (not stroke-gaps) makes the Y join.
     const layers = ["shadow", "berm", "shoulder", "bed", "surface"];
     for (const layer of layers) {
       for (let i = drawPts.length - 1; i >= 0; i--) {
         drawLaneLayer(drawPts[i], i === 0 ? 1 : 0.95, i === 0, layer, null);
       }
     }
-    // Soft asphalt blend at mouths (no ring / join disk)
     for (const m of merges) drawMergeJunction(m);
     for (let i = drawPts.length - 1; i >= 0; i--) {
-      // Skip wear marks right at the mouth so seams stay quiet
       drawLaneLayer(drawPts[i], i === 0 ? 1 : 0.95, i === 0, "detail", merges);
     }
-    // Unbuildable rocks — map constraint.
     if (state.path.obstacles) {
       for (const o of state.path.obstacles) {
         ctx.save();
         ctx.translate(o.x, o.y);
-        ctx.fillStyle = "rgba(0,0,0,0.45)";
+        ctx.fillStyle = "rgba(0,0,0,0.48)";
         ctx.beginPath();
-        ctx.ellipse(0, o.r * 0.4, o.r * 1.05, o.r * 0.42, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, o.r * 0.42, o.r * 1.08, o.r * 0.44, 0, 0, Math.PI * 2);
         ctx.fill();
         const rock = ctx.createLinearGradient(-o.r, -o.r, o.r, o.r);
-        rock.addColorStop(0, "#5a5246");
-        rock.addColorStop(0.4, "#2e2a24");
-        rock.addColorStop(1, "#12100c");
+        rock.addColorStop(0, "#645a4c");
+        rock.addColorStop(0.45, "#312c26");
+        rock.addColorStop(1, "#14110e");
         ctx.fillStyle = rock;
         ctx.beginPath();
         ctx.moveTo(-o.r * 0.95, o.r * 0.2);
-        ctx.lineTo(-o.r * 0.5, -o.r * 0.7);
-        ctx.lineTo(o.r * 0.1, -o.r * 1.0);
-        ctx.lineTo(o.r * 0.9, -o.r * 0.3);
-        ctx.lineTo(o.r * 0.75, o.r * 0.55);
+        ctx.lineTo(-o.r * 0.5, -o.r * 0.72);
+        ctx.lineTo(o.r * 0.12, -o.r * 1.0);
+        ctx.lineTo(o.r * 0.9, -o.r * 0.28);
+        ctx.lineTo(o.r * 0.74, o.r * 0.55);
         ctx.lineTo(-o.r * 0.2, o.r * 0.72);
         ctx.closePath();
         ctx.fill();
-        ctx.fillStyle = "rgba(255,220,170,0.14)";
+        ctx.strokeStyle = "rgba(255,220,175,0.16)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = "rgba(255,225,180,0.15)";
         ctx.beginPath();
         ctx.moveTo(-o.r * 0.2, -o.r * 0.3);
-        ctx.lineTo(o.r * 0.05, -o.r * 0.85);
-        ctx.lineTo(o.r * 0.3, -o.r * 0.2);
+        ctx.lineTo(o.r * 0.08, -o.r * 0.88);
+        ctx.lineTo(o.r * 0.32, -o.r * 0.2);
         ctx.closePath();
         ctx.fill();
-        ctx.fillStyle = "rgba(111,191,138,0.2)";
+        ctx.fillStyle = "rgba(111,191,138,0.22)";
         ctx.beginPath();
-        ctx.ellipse(-o.r * 0.15, -o.r * 0.05, o.r * 0.38, o.r * 0.16, -0.4, 0, Math.PI * 2);
+        ctx.ellipse(-o.r * 0.18, -o.r * 0.04, o.r * 0.38, o.r * 0.16, -0.4, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       }
     }
-    // Pads stay data-only for layout spacing — no dotted slot markers (free placement).
+  }
+
+  function ensureTerrainCache() {
+    const dpr = Math.min(settings.batterySaver ? 1.25 : 2, window.devicePixelRatio || 1);
+    const key = `${state.seed || "hub"}:${state.w}x${state.h}@${dpr}:${state.path ? state.path.motif : "none"}`;
+    if (!state.terrainDirty && terrainCanvas && terrainKey === key) return;
+    if (!terrainCanvas) {
+      terrainCanvas = document.createElement("canvas");
+      terrainCtx = terrainCanvas.getContext("2d", { alpha: false });
+    }
+    terrainCanvas.width = Math.max(1, Math.floor(state.w * dpr));
+    terrainCanvas.height = Math.max(1, Math.floor(state.h * dpr));
+    terrainCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx = terrainCtx;
+    try {
+      drawStaticTerrainAndRoad();
+    } finally {
+      ctx = mainCtx;
+    }
+    terrainKey = key;
+    state.terrainDirty = false;
+  }
+
+  function drawAmbientEmbers() {
+    if (settings.particles === false || !motionAllowed()) return;
+    const w = state.w, h = state.h;
+    const embers = settings.batterySaver ? 6 : 16;
+    for (let i = 0; i < embers; i++) {
+      const drift = state.time * (8 + (i % 5)) + i * 17;
+      const px = ((i * 73 + drift * 2.2) % (w + 30)) - 15;
+      const py = h - ((i * 41 + state.time * (12 + (i % 5))) % (h * 0.92));
+      const pulse = 0.15 + 0.12 * Math.sin(state.time * 2.8 + i);
+      const glow = ctx.createRadialGradient(px, py, 0, px, py, 5);
+      glow.addColorStop(0, i % 3 === 0 ? `rgba(255,212,120,${pulse + 0.18})` : `rgba(232,100,40,${pulse})`);
+      glow.addColorStop(1, "rgba(80,20,0,0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(px, py, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawHazards() {
+    if (!state.hazards || !state.hazards.length) return;
+    for (const h of state.hazards) {
+      const fade = Math.min(1, h.t / 0.8);
+      const pulse = 0.5 + 0.5 * Math.sin(state.time * 5 + h.x * 0.1);
+      ctx.save();
+      ctx.globalAlpha = fade;
+      if (h.kind === "magma") {
+        const g = ctx.createRadialGradient(h.x, h.y, 4, h.x, h.y, h.r);
+        g.addColorStop(0, `rgba(255, 224, 130, ${0.72 + pulse * 0.2})`);
+        g.addColorStop(0.42, "rgba(232, 92, 42, 0.62)");
+        g.addColorStop(0.78, "rgba(92, 24, 12, 0.42)");
+        g.addColorStop(1, "rgba(20, 8, 4, 0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = `rgba(255, 184, 84, ${0.42 + pulse * 0.25})`;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r * (0.7 + pulse * 0.08), 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (h.kind === "mire") {
+        const g = ctx.createRadialGradient(h.x, h.y, 4, h.x, h.y, h.r);
+        g.addColorStop(0, "rgba(82, 136, 124, 0.55)");
+        g.addColorStop(0.55, "rgba(56, 72, 54, 0.46)");
+        g.addColorStop(1, "rgba(20, 24, 18, 0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(126, 208, 162, 0.35)";
+        ctx.lineWidth = 1.4;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r * 0.82, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawRiftPath() {
+    ensureTerrainCache();
+    if (terrainCanvas) {
+      ctx.drawImage(terrainCanvas, 0, 0, state.w, state.h);
+    }
+    drawAmbientEmbers();
+    drawHazards();
+    if (!state.path) return;
+    const lanes = (state.path.lanes && state.path.lanes.length) ? state.path.lanes : [state.path];
     const spawnPts = state.path.spawns || lanes.map((l) => l.points[0]);
     spawnPts.forEach((p, i) => drawSpawnPortal(p, i, spawnPts.length));
     const exit = state.path.exit || (lanes[0] && lanes[0].points[lanes[0].points.length - 1]);
@@ -3914,14 +4570,39 @@
   }
 
   function drawGhostPlacement() {
+    if (state.armedAbility === "meteor" && state.ghost) {
+      const { x, y } = state.ghost;
+      const rad = ABILITY_DEF.meteor.radius;
+      const pulse = 0.5 + 0.5 * Math.sin(state.time * 9);
+      ctx.save();
+      const fill = ctx.createRadialGradient(x, y, 4, x, y, rad);
+      fill.addColorStop(0, `rgba(255, 204, 102, ${0.32 + pulse * 0.14})`);
+      fill.addColorStop(0.65, "rgba(232, 90, 42, 0.18)");
+      fill.addColorStop(1, "rgba(232, 90, 42, 0)");
+      ctx.fillStyle = fill;
+      ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(255, 184, 84, 0.9)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(x - 10, y); ctx.lineTo(x + 10, y);
+      ctx.moveTo(x, y - 10); ctx.lineTo(x, y + 10);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
     if (!state.ghost || !state.selectedTower || !state.path) return;
     const { x, y, ok } = state.ghost;
     const stats = towerStats(state.selectedTower);
     ctx.save();
-    ctx.globalAlpha = 0.28;
+    ctx.globalAlpha = 0.34;
     ctx.beginPath();
     ctx.arc(x, y, stats.range, 0, Math.PI * 2);
-    ctx.strokeStyle = ok ? "rgba(255,179,74,0.65)" : "rgba(232,93,76,0.65)";
+    ctx.fillStyle = ok ? "rgba(255, 184, 84, 0.06)" : "rgba(232, 93, 76, 0.07)";
+    ctx.fill();
+    ctx.strokeStyle = ok ? "rgba(255,184,84,0.75)" : "rgba(232,93,76,0.75)";
     ctx.lineWidth = 1.8;
     ctx.setLineDash([5, 4]);
     ctx.stroke();
@@ -3929,9 +4610,9 @@
     ctx.restore();
     // Footprint disk — red when overlapping road/rocks
     ctx.save();
-    ctx.fillStyle = ok ? "rgba(255,179,74,0.12)" : "rgba(232,93,76,0.22)";
-    ctx.strokeStyle = ok ? "rgba(255,179,74,0.45)" : "rgba(232,93,76,0.85)";
-    ctx.lineWidth = 1.6;
+    ctx.fillStyle = ok ? "rgba(111,191,138,0.16)" : "rgba(232,93,76,0.24)";
+    ctx.strokeStyle = ok ? "rgba(111,191,138,0.65)" : "rgba(232,93,76,0.9)";
+    ctx.lineWidth = 1.8;
     ctx.beginPath();
     ctx.arc(x, y, TOWER_PLACE_R, 0, Math.PI * 2);
     ctx.fill();
@@ -3939,7 +4620,7 @@
     ctx.restore();
     // Mini tower silhouette instead of flat disk
     ctx.save();
-    ctx.globalAlpha = ok ? 0.55 : 0.35;
+    ctx.globalAlpha = ok ? 0.65 : 0.35;
     ctx.translate(x, y);
     ctx.scale(0.92, 0.92);
     drawTower({
@@ -3949,13 +4630,13 @@
     ctx.restore();
     if (!ok) {
       ctx.save();
-      ctx.strokeStyle = "rgba(232,93,76,0.9)";
+      ctx.strokeStyle = "rgba(232,93,76,0.95)";
       ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.moveTo(x - 10, y - 10);
-      ctx.lineTo(x + 10, y + 10);
-      ctx.moveTo(x + 10, y - 10);
-      ctx.lineTo(x - 10, y + 10);
+      ctx.moveTo(x - 9, y - 9);
+      ctx.lineTo(x + 9, y + 9);
+      ctx.moveTo(x + 9, y - 9);
+      ctx.lineTo(x - 9, y + 9);
       ctx.stroke();
       ctx.restore();
     }
@@ -3972,20 +4653,28 @@
     const aim = typeof t.aim === "number" ? t.aim : -Math.PI / 2;
     const recoil = t.recoil || 0;
     const pulse = 0.5 + 0.5 * Math.sin(state.time * 4 + t.x * 0.05);
-    const idle = Math.sin(state.time * 2.4 + t.x * 0.04) * 0.6;
+    const idle = Math.sin(state.time * 2.4 + t.x * 0.04) * 0.5;
     const attack = recoil > 0.08;
-    ctx.translate(0, idle * 0.25);
-    ctx.scale(1.42, 1.42);
+    ctx.translate(0, idle * 0.2);
+    ctx.scale(1.3, 1.3);
+
+    if (state.surgeT > 0) {
+      ctx.strokeStyle = `rgba(255, 206, 94, ${0.42 + pulse * 0.35})`;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(0, 2, 22 + pulse * 2.5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
 
     if (selected) {
-      ctx.strokeStyle = "rgba(255,179,74,0.95)";
+      ctx.strokeStyle = "rgba(255,184,84,0.95)";
       ctx.lineWidth = 2.2;
       ctx.setLineDash([4, 3]);
       ctx.beginPath();
-      ctx.arc(0, 0, 26 + Math.sin(state.time * 5) * 1.5, 0, Math.PI * 2);
+      ctx.arc(0, 0, 26 + Math.sin(state.time * 5) * 1.4, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.strokeStyle = "rgba(255,179,74,0.22)";
+      ctx.strokeStyle = "rgba(255,184,84,0.22)";
       ctx.lineWidth = 6;
       ctx.beginPath();
       ctx.arc(0, 0, 26, 0, Math.PI * 2);
@@ -4293,7 +4982,7 @@
   function drawEnemy(e, x, y) {
     ctx.save();
     ctx.translate(x, y);
-    ctx.scale(1.48, 1.48);
+    ctx.scale(1.22, 1.22);
     const flash = e.hitFlash > 0;
     const bob = Math.sin(state.time * (e.tags.includes("flying") ? 7 : 5) + e.dist * 0.08);
     const crawl = e.dist * 0.35;
@@ -4350,7 +5039,8 @@
     if (e.shape === "tri") {
       const flap = Math.sin(state.time * 14 + e.dist) * 0.35;
       ctx.save();
-      ctx.translate(0, bob * 1.5);
+      ctx.translate(0, bob * 1.4);
+      ctx.rotate(enemyHeading(e) + Math.PI / 2);
       [-1, 1].forEach((side) => {
         ctx.save();
         ctx.translate(side * (e.r * 0.2), 2);
@@ -4714,15 +5404,20 @@
     }
 
     const pct = Math.max(0, e.hp / e.maxHp);
-    const barW = Math.max(18, e.r * 1.6);
+    const trailPct = Math.max(pct, Math.min(1, (e.hpTrail != null ? e.hpTrail : e.hp) / e.maxHp));
+    const barW = Math.max(20, e.r * 1.65);
     const barY = -e.r - 11;
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    roundRect(-barW / 2, barY, barW, 4, 1.5); ctx.fill();
+    ctx.fillStyle = "rgba(0,0,0,0.62)";
+    roundRect(-barW / 2, barY, barW, 4.4, 1.5); ctx.fill();
+    if (trailPct > pct + 0.01) {
+      ctx.fillStyle = "rgba(255,244,226,0.72)";
+      roundRect(-barW / 2, barY, barW * trailPct, 4.4, 1.5); ctx.fill();
+    }
     const hg = ctx.createLinearGradient(-barW / 2, 0, barW / 2, 0);
-    hg.addColorStop(0, pct < 0.3 ? "#e85d4c" : "#4a9a60");
+    hg.addColorStop(0, pct < 0.3 ? "#ee6450" : "#4a9a60");
     hg.addColorStop(1, pct < 0.3 ? "#ffb4ab" : "#6fbf8a");
     ctx.fillStyle = hg;
-    roundRect(-barW / 2, barY, barW * pct, 4, 1.5); ctx.fill();
+    roundRect(-barW / 2, barY, barW * pct, 4.4, 1.5); ctx.fill();
 
     // Element resist pips: filled square = resist, bright triangle = weak
     const resist = enemyResist(e);
@@ -4731,24 +5426,24 @@
       return v != null && (v <= 0.85 || v >= 1.15);
     });
     if (pipEls.length) {
-      const pipGap = pipEls.length > 5 ? 7 : 9;
+      const pipGap = pipEls.length > 5 ? 7 : 8.5;
       const pipW = pipEls.length * pipGap;
       pipEls.forEach((el, i) => {
         const px = -pipW / 2 + i * pipGap + pipGap / 2;
-        const py = barY - 7;
+        const py = barY - 6.5;
         const v = resist[el];
         ctx.save();
         ctx.fillStyle = ELEMENTS[el].color;
-        ctx.strokeStyle = "rgba(0,0,0,0.45)";
+        ctx.strokeStyle = "rgba(0,0,0,0.5)";
         ctx.lineWidth = 1;
-        ctx.globalAlpha = v <= 0.85 ? 1 : 0.9;
+        ctx.globalAlpha = v <= 0.85 ? 1 : 0.92;
         ctx.beginPath();
         if (v <= 0.85) {
-          roundRect(px - 3, py - 3, 6, 6, 1.5); ctx.fill(); ctx.stroke();
+          roundRect(px - 2.8, py - 2.8, 5.6, 5.6, 1.4); ctx.fill(); ctx.stroke();
         } else {
-          ctx.moveTo(px, py - 4);
-          ctx.lineTo(px + 3.4, py + 2.6);
-          ctx.lineTo(px - 3.4, py + 2.6);
+          ctx.moveTo(px, py - 3.6);
+          ctx.lineTo(px + 3.2, py + 2.4);
+          ctx.lineTo(px - 3.2, py + 2.4);
           ctx.closePath();
           ctx.fill();
           ctx.stroke();
@@ -4759,23 +5454,23 @@
 
     if (e.shieldMax > 0 && e.shield > 0) {
       const sp = Math.max(0, e.shield / e.shieldMax);
-      ctx.fillStyle = "rgba(0,0,0,0.4)";
-      roundRect(-barW / 2, barY - 5, barW, 2.5, 1); ctx.fill();
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      roundRect(-barW / 2, barY - 4.5, barW, 2.5, 1); ctx.fill();
       ctx.fillStyle = "#d8d0c4";
-      roundRect(-barW / 2, barY - 5, barW * sp, 2.5, 1); ctx.fill();
+      roundRect(-barW / 2, barY - 4.5, barW * sp, 2.5, 1); ctx.fill();
     }
 
     if (isBossEnemy(e)) {
       const tag = (e.label || "Boss").slice(0, 10);
-      ctx.fillStyle = "rgba(0,0,0,0.55)";
-      const tw = Math.max(28, tag.length * 5.2);
-      roundRect(-tw / 2, e.r + 2, tw, 11, 3); ctx.fill();
-      ctx.fillStyle = "#ffb34a";
+      ctx.fillStyle = "rgba(0,0,0,0.62)";
+      const tw = Math.max(30, tag.length * 5.4);
+      roundRect(-tw / 2, e.r + 3, tw, 11, 3); ctx.fill();
+      ctx.fillStyle = "#ffb854";
       ctx.font = "800 8px Bricolage Grotesque, Avenir Next, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       const suffix = (e.bossTotal || 1) > 1 ? ` ${(e.bossIndex || 0) + 1}/${e.bossTotal}` : "";
-      ctx.fillText(tag + suffix, 0, e.r + 7.5);
+      ctx.fillText(tag + suffix, 0, e.r + 8.5);
       ctx.textBaseline = "alphabetic";
     }
     ctx.restore();
@@ -4791,18 +5486,23 @@
     ctx.save();
     ctx.translate(ox, oy);
 
-    drawField();
     drawRiftPath();
     drawGhostPlacement();
 
     for (let i = 0; i < state.towers.length; i++) {
       const t = state.towers[i];
       if (state.selectedBuilt === i) {
+        ctx.save();
         ctx.beginPath();
         ctx.arc(t.x, t.y, t.range, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(243,235,226,0.16)";
-        ctx.lineWidth = 1.5;
+        ctx.fillStyle = "rgba(255, 184, 84, 0.05)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255, 184, 84, 0.36)";
+        ctx.lineWidth = 1.6;
+        ctx.setLineDash([6, 4]);
         ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
       }
       drawTower(t, state.selectedBuilt === i);
     }
@@ -4816,22 +5516,29 @@
       const x = p.x + (p.tx - p.x) * u;
       const y = p.y + (p.ty - p.y) * u;
       if (p.kind === "shell") {
-        const arc = Math.sin(u * Math.PI) * 36;
+        // Soft ground target shadow
+        ctx.save();
+        ctx.fillStyle = `rgba(0,0,0,${0.25 + u * 0.25})`;
+        ctx.beginPath();
+        ctx.ellipse(x, y + 3, 5 + u * 3, 2.5 + u * 1.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        const arc = Math.sin(u * Math.PI) * 38;
         const sy = y - arc;
-        const glow = ctx.createRadialGradient(x, sy, 0, x, sy, 9);
-        glow.addColorStop(0, "#fff6d0");
+        const glow = ctx.createRadialGradient(x, sy, 0, x, sy, 10);
+        glow.addColorStop(0, "#fff8d8");
         glow.addColorStop(0.35, p.color);
         glow.addColorStop(1, "rgba(0,0,0,0)");
         ctx.fillStyle = glow;
-        ctx.beginPath(); ctx.arc(x, sy, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x, sy, 10, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = p.color;
-        ctx.beginPath(); ctx.arc(x, sy, 4.5, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = "rgba(255,255,255,0.65)";
+        ctx.beginPath(); ctx.arc(x, sy, 4.6, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(255,255,255,0.72)";
         ctx.beginPath(); ctx.arc(x - 1.2, sy - 1.4, 1.8, 0, Math.PI * 2); ctx.fill();
       } else {
         const ang = Math.atan2(y - p.y, x - p.x);
         ctx.strokeStyle = p.color;
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 3.2;
         ctx.lineCap = "round";
         ctx.globalAlpha = 0.35;
         ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(x, y); ctx.stroke();
@@ -4876,23 +5583,68 @@
         const rr = r0 + (r1 - r0) * (1 - Math.min(1, a / (f.kind === "ring" ? 0.5 : 0.35)));
         ctx.globalAlpha = Math.min(1, a * 2.2);
         ctx.strokeStyle = f.color;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = f.kind === "blast" ? 2.6 : 2;
         ctx.beginPath(); ctx.arc(f.x, f.y, rr, 0, Math.PI * 2); ctx.stroke();
         ctx.globalAlpha = 1;
       } else if (f.kind === "beam") {
-        ctx.globalAlpha = Math.min(1, a * 8);
-        ctx.strokeStyle = f.color;
-        ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x2, f.y2); ctx.stroke();
-        ctx.globalAlpha = 1;
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        if (f.arc) {
+          // Jagged electric lightning arc for Coil & Arc combos!
+          const segs = 5;
+          const dx = f.x2 - f.x, dy = f.y2 - f.y;
+          const len = Math.hypot(dx, dy) || 1;
+          const nx = -dy / len, ny = dx / len;
+          const buildPath = () => {
+            ctx.beginPath();
+            ctx.moveTo(f.x, f.y);
+            for (let s = 1; s < segs; s++) {
+              const t = s / segs;
+              const j = (Math.sin(state.time * 70 + s * 3.7 + f.x) * 6.5);
+              ctx.lineTo(f.x + dx * t + nx * j, f.y + dy * t + ny * j);
+            }
+            ctx.lineTo(f.x2, f.y2);
+          };
+          ctx.globalAlpha = Math.min(0.45, a * 4);
+          ctx.strokeStyle = f.color;
+          ctx.lineWidth = 5;
+          buildPath(); ctx.stroke();
+          ctx.globalAlpha = Math.min(1, a * 9);
+          ctx.strokeStyle = "#f2ffff";
+          ctx.lineWidth = 1.8;
+          buildPath(); ctx.stroke();
+        } else if (f.rail) {
+          // Glowing dual-layer rail beam for Spire!
+          ctx.globalAlpha = Math.min(0.42, a * 3);
+          ctx.strokeStyle = f.color;
+          ctx.lineWidth = 7;
+          ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x2, f.y2); ctx.stroke();
+          ctx.globalAlpha = Math.min(1, a * 7);
+          ctx.strokeStyle = "#fff6dc";
+          ctx.lineWidth = 2.4;
+          ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x2, f.y2); ctx.stroke();
+        } else {
+          ctx.globalAlpha = Math.min(1, a * 8);
+          ctx.strokeStyle = f.color;
+          ctx.lineWidth = 2.6;
+          ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x2, f.y2); ctx.stroke();
+        }
+        ctx.restore();
       } else if (f.kind === "place") {
         ctx.globalAlpha = a * 2; ctx.strokeStyle = f.color; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(f.x, f.y, 18 + (0.5 - a) * 40, 0, Math.PI * 2); ctx.stroke();
         ctx.globalAlpha = 1;
       } else if (f.kind === "text") {
-        ctx.globalAlpha = Math.min(1, a * 3); ctx.fillStyle = f.color;
-        ctx.font = "800 11px Bricolage Grotesque, Avenir Next, sans-serif"; ctx.textAlign = "center";
-        ctx.fillText(f.text, f.x, f.y - (0.5 - a) * 20); ctx.globalAlpha = 1;
+        ctx.globalAlpha = Math.min(1, a * 3);
+        ctx.font = "800 11.5px Bricolage Grotesque, Avenir Next, sans-serif";
+        ctx.textAlign = "center";
+        const ty = f.y - (0.5 - a) * 22;
+        ctx.fillStyle = "rgba(10,8,6,0.75)";
+        ctx.fillText(f.text, f.x + 1, ty + 1);
+        ctx.fillStyle = f.color;
+        ctx.fillText(f.text, f.x, ty);
+        ctx.globalAlpha = 1;
       } else if (f.kind === "leak") {
         ctx.globalAlpha = a; ctx.fillStyle = "rgba(232,93,76,0.28)";
         ctx.fillRect(-ox, -oy, w + 20, h + 20); ctx.globalAlpha = 1;
@@ -4904,12 +5656,6 @@
       ctx.fillStyle = "#e85d4c";
       ctx.fillRect(-ox, -oy, w + 20, h + 20);
       ctx.globalAlpha = 1;
-    }
-
-    if (state.seed && state.mode !== "hub") {
-      ctx.globalAlpha = 0.3; ctx.fillStyle = "#f3ebe2";
-      ctx.font = "9px Nunito, Avenir Next, sans-serif"; ctx.textAlign = "left";
-      ctx.fillText(state.seed.slice(0, 18), 8, h - 8); ctx.globalAlpha = 1;
     }
 
     ctx.restore();
@@ -4946,6 +5692,13 @@
     syncMusic();
     const { x, y, clientX, clientY } = canvasPos(evt);
 
+    if (state.armedAbility === "meteor") {
+      placePtr = { id: evt.pointerId, x0: clientX, y0: clientY, x, y, dragged: false, ability: "meteor" };
+      state.ghost = { x, y, ok: true };
+      try { canvas.setPointerCapture(evt.pointerId); } catch { /* */ }
+      return;
+    }
+
     for (let i = state.towers.length - 1; i >= 0; i--) {
       const t = state.towers[i];
       if (Math.hypot(t.x - x, t.y - y) < TOWER_HIT_R) {
@@ -4979,15 +5732,25 @@
 
   function onCanvasPointerMove(evt) {
     if (state.mode !== "playing") return;
-    if (placePtr && placePtr.id === evt.pointerId && state.selectedTower) {
+    if (placePtr && placePtr.id === evt.pointerId) {
       const { x, y, clientX, clientY } = canvasPos(evt);
       if (Math.hypot(clientX - placePtr.x0, clientY - placePtr.y0) > 10) placePtr.dragged = true;
       placePtr.x = x; placePtr.y = y;
-      state.ghost = { x, y, ok: placementOk(x, y) };
+      if (placePtr.ability === "meteor") {
+        state.ghost = { x, y, ok: true };
+      } else if (state.selectedTower) {
+        state.ghost = { x, y, ok: placementOk(x, y) };
+      }
+      return;
+    }
+    if (state.armedAbility === "meteor") {
+      if (evt.pointerType === "mouse") {
+        const { x, y } = canvasPos(evt);
+        state.ghost = { x, y, ok: true };
+      }
       return;
     }
     if (!state.selectedTower) { state.ghost = null; return; }
-    // Hover preview (mouse)
     if (evt.pointerType === "mouse") {
       const { x, y } = canvasPos(evt);
       state.ghost = { x, y, ok: placementOk(x, y) };
@@ -4996,10 +5759,20 @@
 
   function finishPlacePointer(evt, canceled) {
     if (!placePtr || placePtr.id !== evt.pointerId) return;
+    const isMeteor = placePtr.ability === "meteor";
     const { x, y } = state.ghost || placePtr;
-    const ok = !canceled && state.selectedTower && placementOk(x, y);
     placePtr = null;
     try { canvas.releasePointerCapture(evt.pointerId); } catch { /* */ }
+    if (isMeteor) {
+      if (!canceled && state.armedAbility === "meteor") {
+        fireMeteorAt(x, y);
+      } else {
+        state.ghost = null;
+      }
+      updateHUD();
+      return;
+    }
+    const ok = !canceled && state.selectedTower && placementOk(x, y);
     if (ok) {
       placeTower(x, y);
       state.ghost = null;
@@ -5025,6 +5798,7 @@
         cancelPlacement(false);
         return;
       }
+      state.armedAbility = null;
       state.selectedTower = type;
       state.selectedBuilt = null;
       state.ghost = null;
@@ -5045,8 +5819,48 @@
       sfx.ui();
     });
   }
+  if (els.btnNextWave) {
+    els.btnNextWave.addEventListener("click", () => {
+      ensureAudio();
+      callNextWaveEarly();
+    });
+  }
+  if (els.btnMeteor) {
+    els.btnMeteor.addEventListener("click", () => {
+      ensureAudio();
+      armMeteor();
+    });
+  }
+  if (els.btnSurge) {
+    els.btnSurge.addEventListener("click", () => {
+      ensureAudio();
+      triggerSurge();
+    });
+  }
+  if (els.btnTargetMode) {
+    els.btnTargetMode.addEventListener("click", () => {
+      if (state.selectedBuilt == null) return;
+      const t = state.towers[state.selectedBuilt];
+      const idx = TARGET_MODES.indexOf(t.targetMode || "first");
+      t.targetMode = TARGET_MODES[(idx + 1) % TARGET_MODES.length];
+      sfx.ui();
+      toast(`Target: ${TARGET_LABELS[t.targetMode]}`);
+      updateHUD();
+      saveRun();
+    });
+  }
+  if (els.btnInspectClose) {
+    els.btnInspectClose.addEventListener("click", () => {
+      state.selectedBuilt = null;
+      sfx.ui();
+      updateHUD();
+    });
+  }
   document.addEventListener("keydown", (evt) => {
-    if (evt.key === "Escape") cancelPlacement(false);
+    if (evt.key === "Escape") {
+      if (state.selectedTower || state.armedAbility) cancelPlacement(false);
+      else if (state.selectedBuilt != null) { state.selectedBuilt = null; updateHUD(); }
+    }
   });
 
   document.querySelectorAll(".el-btn").forEach((btn) => {
@@ -5079,9 +5893,7 @@
   els.btnSell.addEventListener("click", () => {
     if (state.selectedBuilt == null) return;
     const t = state.towers[state.selectedBuilt];
-    const elBonus = (t.elements || []).length * 15;
-    const sellBase = Math.floor((t.sell || 30) * (0.7 + t.level * 0.15) + elBonus * 0.5);
-    state.scrap += Math.max(1, Math.floor(sellBase * metaBonuses().sellMul));
+    state.scrap += towerSellValue(t);
     spawnParticles(t.x, t.y, t.color, 10, 70);
     state.towers.splice(state.selectedBuilt, 1);
     state.selectedBuilt = null; updateHUD(); saveRun();
@@ -5137,18 +5949,52 @@
   $("btn-continue").addEventListener("click", continueRun);
   $("btn-upgrades").addEventListener("click", () => { showScreen("upgrades"); renderUpgrades(); });
   $("btn-upgrades-back").addEventListener("click", () => { showScreen("hub"); refreshHub(); });
+  if ($("btn-respec")) $("btn-respec").addEventListener("click", respecForge);
+  if ($("btn-codex")) $("btn-codex").addEventListener("click", () => openCodex("hub"));
+  if ($("btn-pause-codex")) $("btn-pause-codex").addEventListener("click", () => openCodex("pause"));
+  if ($("btn-codex-back")) $("btn-codex-back").addEventListener("click", closeCodex);
+  document.querySelectorAll(".codex-tab").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      codexTab = btn.dataset.codex || "combos";
+      renderCodex();
+      sfx.ui();
+    });
+  });
   if ($("btn-settings")) $("btn-settings").addEventListener("click", () => openSettings("hub"));
   if ($("btn-pause-settings")) $("btn-pause-settings").addEventListener("click", () => openSettings("pause"));
-  if ($("btn-settings-back")) $("btn-settings-back").addEventListener("click", () => closeSettings());
+  if ($("btn-settings-back")) {
+    $("btn-settings-back").addEventListener("click", () => {
+      const box = $("reset-confirm-box");
+      if (box) box.classList.add("hidden");
+      closeSettings();
+    });
+  }
+  if ($("btn-reset-progress")) {
+    $("btn-reset-progress").addEventListener("click", () => {
+      const box = $("reset-confirm-box");
+      if (box) {
+        box.classList.remove("hidden");
+        box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+      sfx.ui();
+    });
+  }
+  if ($("btn-reset-cancel")) {
+    $("btn-reset-cancel").addEventListener("click", () => {
+      const box = $("reset-confirm-box");
+      if (box) box.classList.add("hidden");
+      sfx.cancel();
+    });
+  }
+  if ($("btn-reset-confirm")) {
+    $("btn-reset-confirm").addEventListener("click", () => resetAllProgress());
+  }
   $("btn-to-hub").addEventListener("click", () => { saveRun(); state.mode = "hub"; showScreen("hub"); refreshHub(); hideCoach(false); });
   $("btn-abandon").addEventListener("click", () => endRun(true));
   $("btn-again").addEventListener("click", () => { clearRun(); resize(); startNewRun(); });
   $("btn-over-hub").addEventListener("click", () => { state.mode = "hub"; showScreen("hub"); refreshHub(); });
-  // Codex hidden — discovery via play (tooltips, combat feedback, trial).
-  if ($("btn-codex")) $("btn-codex").classList.add("hidden");
-  if ($("screen-codex")) $("screen-codex").classList.add("hidden");
   document.querySelectorAll(".tab").forEach((tab) => {
-    tab.addEventListener("click", () => { upgradeTab = tab.dataset.tab; renderUpgrades(); });
+    tab.addEventListener("click", () => { upgradeTab = tab.dataset.tab; renderUpgrades(); sfx.ui(); });
   });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden && state.mode === "playing") {
@@ -5253,6 +6099,7 @@
   kickFrame();
   window.__RD = {
     state, startNewRun, saveRun, loadRun, generatePath, wavePlan, beginWave, endRun,
-    ELEMENTS, settings, sfx, DAILY, BALANCE, DIFFICULTIES,
+    ELEMENTS, RELICS, settings, sfx, DAILY, BALANCE, DIFFICULTIES,
+    openRelicDraft, resetAllProgress, respecForge, fireMeteorAt, triggerSurge, callNextWaveEarly,
   };
 })();
