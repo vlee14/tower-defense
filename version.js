@@ -2,7 +2,7 @@
  * Keep index.html ?v= query params equal to this value.
  * Service worker imports this file for cache naming.
  */
-var APP_VERSION = "2.3.0";
+var APP_VERSION = "2.3.1";
 var APP_NAME = "Emberwell";
 if (typeof self !== "undefined") {
   self.APP_VERSION = APP_VERSION;
