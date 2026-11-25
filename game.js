@@ -27,13 +27,13 @@
       motifs: ["s-bend", "dual-merge", "y-merge"], unlock: null,
     },
     hard: {
-      id: "hard", name: "Hard", hpMul: 1.42, speedMul: 1.1, countMul: 1.18, intervalMul: 0.9, rewardMul: 1.4, chipMul: 1.35,
+      id: "hard", name: "Hard", hpMul: 1.85, speedMul: 1.12, countMul: 1.22, intervalMul: 0.86, rewardMul: 1.25, chipMul: 1.45,
       edgeInset: 0.17, travel: 0.74, hairpin: 0.75, padOffset: 35, padClear: 30, pathClear: ROAD_HALF_W + TOWER_PLACE_R,
       motifs: ["hairpin", "y-merge", "triple-funnel"],
       unlock: { kind: "wave", difficulty: "normal", wave: 10 },
     },
     nightmare: {
-      id: "nightmare", name: "Nightmare", hpMul: 2.0, speedMul: 1.24, countMul: 1.35, intervalMul: 0.78, rewardMul: 1.85, chipMul: 1.85,
+      id: "nightmare", name: "Nightmare", hpMul: 2.85, speedMul: 1.24, countMul: 1.35, intervalMul: 0.76, rewardMul: 1.35, chipMul: 2.0,
       edgeInset: 0.21, travel: 0.52, hairpin: 1.0, padOffset: 32, padClear: 29, pathClear: ROAD_HALF_W + TOWER_PLACE_R - 1,
       motifs: ["hairpin", "triple-funnel", "quad-squeeze"],
       unlock: { kind: "wave", difficulty: "hard", wave: 12 },
@@ -65,35 +65,35 @@
 
   // Internal balance ledger: cost-per-DPS / ability budget for tuning.
   // DPS ~ damage / fireRate (splash & pierce counted as ability multipliers).
-  // HP curve: soft early (W1–5 learnable), steeper mid/late, deep exponential climb.
+  // HP curve: learnable early, steeper mid/late, fierce exponential deep climb.
   // Daily applies DAILY.* muls on top of Normal + hard-layout path; hard-stops at waveCap.
   const DAILY = {
     waveCap: 100,
     layout: "hard",
-    hpMul: 1.48,
-    speedMul: 1.14,
-    countMul: 1.25,
+    hpMul: 1.75,
+    speedMul: 1.15,
+    countMul: 1.26,
     intervalMul: 0.82,
-    rewardMul: 0.88,
-    scrapWaveMul: 0.82,
+    rewardMul: 0.86,
+    scrapWaveMul: 0.8,
     armorBias: 0.12,
-    chipMul: 1.35,
-    clearBonus: 100,
+    chipMul: 1.4,
+    clearBonus: 120,
   };
   const BALANCE = {
     scrapStart: 130,
-    scrapWaveBase: 18,
-    scrapWavePer: 2.3,
-    scrapKillScale: 0.68,
+    scrapWaveBase: 16,
+    scrapWavePer: 2.1,
+    scrapKillScale: 0.64,
     levelDmgPer: 0.22,
     levelDmgSoft: 0.035, // damp after L6
     levelRangePer: 0.08,
     levelRatePer: 0.04,
     levelCd: 1.25, // wall-clock seconds (not scaled by game speed)
-    hpEarly: 0.11, // W1–10: slightly gentler than before
-    hpMid: 0.26, // W11–22: clear step up
-    hpLate: 0.42, // W23–40: threatening
-    hpDeepBase: 1.068, // exponential after wave 40
+    hpEarly: 0.14, // W1–10: crisp early pressure
+    hpMid: 0.34, // W11–22: serious mid-game check
+    hpLate: 0.56, // W23–40: dangerous late waves
+    hpDeepBase: 1.082, // steeper exponential after wave 40
     countCap: 68,
     countWaveEarly: 1.05, // W1–5 spawn growth
     countWaveLate: 1.58, // denser mid/late packs
@@ -187,7 +187,9 @@
     phalanx: { id: "phalanx", label: "Iron Phalanx", cls: "", desc: "Dense armored column" },
     swarm: { id: "swarm", label: "Swarm Rush", cls: "", desc: "Fast packed Swarm flood" },
     hasted: { id: "hasted", label: "Hasted", cls: "", desc: "+18% speed · +15% scrap" },
-    carapace: { id: "carapace", label: "Carapace", cls: "", desc: "Mini-shields · +20% scrap" },
+    carapace: { id: "carapace", label: "Carapace", cls: "", desc: "Mini-shields · +18% scrap" },
+    regen: { id: "regen", label: "Regenerating", cls: "boss", desc: "Heals 2.2% HP/s · Chill halves regen" },
+    juggernaut: { id: "juggernaut", label: "Unstoppable", cls: "boss", desc: "50% CC resistance · +18% scrap" },
     bounty: { id: "bounty", label: "Bounty Wave", cls: "bounty", desc: "+45% scrap drops!" },
   };
 
@@ -200,7 +202,7 @@
   };
 
   const RELICS = [
-    { id: "volatile", name: "Volatile Core", tag: "On-Kill", rarity: "epic", glyph: "✦", desc: "Slain foes erupt for 18% max HP splash damage." },
+    { id: "volatile", name: "Volatile Core", tag: "On-Kill", rarity: "epic", glyph: "✦", desc: "Slain foes erupt for 11% max HP splash (35% cap vs bosses)." },
     { id: "combo_amp", name: "Resonant Matrix", tag: "Combos", rarity: "epic", glyph: "◈", desc: "Dual-socket towers deal +24% dmg & +40% combo blasts." },
     { id: "cryo_vuln", name: "Brittle Chill", tag: "Control", rarity: "rare", glyph: "❄", desc: "Slowed or chilled foes take +25% bonus damage." },
     { id: "twin_bolt", name: "Split Chamber", tag: "Turret", rarity: "epic", glyph: "»", desc: "Turrets fire an extra split bolt at 42% damage." },
@@ -600,9 +602,68 @@
   const defaultMeta = () => ({
     chips: 0, owned: {}, infusions: {}, blessings: 0,
     unlockedDifficulties: { normal: true }, selectedDifficulty: "normal",
+    maxNightmareTier: 1, selectedNmTier: 1, bestByNmTier: {},
     bestByDifficulty: { normal: { wave: 0, score: 0 }, hard: { wave: 0, score: 0 }, nightmare: { wave: 0, score: 0 } },
     milestones: {}, dailiesCompleted: 0, lastDailyKey: null, lastDailyBest: { wave: 0, score: 0 },
   });
+  const NM_UNLOCK_WAVE = 20;
+  function nmTierProfile(tier = 1) {
+    const t = Math.max(1, Math.floor(Number(tier) || 1));
+    if (t <= 1) {
+      return { tier: 1, hpMul: 1, speedMul: 1, countMul: 1, intervalMul: 1, chipMul: 1, mutChance: 0.56 };
+    }
+    const n = t - 1;
+    return {
+      tier: t,
+      hpMul: Math.pow(1.65, n),
+      speedMul: 1 + Math.min(0.45, n * 0.05),
+      countMul: 1 + Math.min(0.55, n * 0.06),
+      intervalMul: Math.max(0.62, Math.pow(0.95, n)),
+      chipMul: 1 + n * 0.35,
+      mutChance: Math.min(0.86, 0.58 + n * 0.06),
+    };
+  }
+  function skillTreeProgress() {
+    let owned = 0, total = 0;
+    for (const tree of Object.values(UPGRADE_TREES)) {
+      const seenExcl = new Set();
+      for (const u of tree) {
+        if (u.exclusive) {
+          if (seenExcl.has(u.exclusive)) continue;
+          seenExcl.add(u.exclusive);
+          const group = tree.filter((n) => n.exclusive === u.exclusive);
+          let groupMax = 0, groupOwned = 0;
+          for (const g of group) {
+            groupMax = Math.max(groupMax, g.max || 1);
+            groupOwned = Math.max(groupOwned, (meta.owned && meta.owned[g.id]) || 0);
+          }
+          total += groupMax;
+          owned += Math.min(groupMax, groupOwned);
+        } else {
+          const m = u.max || 1;
+          total += m;
+          owned += Math.min(m, (meta.owned && meta.owned[u.id]) || 0);
+        }
+      }
+    }
+    return { owned, total, pct: total > 0 ? Math.round((owned / total) * 100) : 0 };
+  }
+  function isSkillTreeMaxed() {
+    const p = skillTreeProgress();
+    return p.total > 0 && p.owned >= p.total;
+  }
+  function syncNightmareTierUnlock() {
+    if (!meta.maxNightmareTier || meta.maxNightmareTier < 1) meta.maxNightmareTier = 1;
+    if (!meta.selectedNmTier || meta.selectedNmTier < 1) meta.selectedNmTier = 1;
+    if (!meta.bestByNmTier || typeof meta.bestByNmTier !== "object") meta.bestByNmTier = {};
+    if (isSkillTreeMaxed()) {
+      if (!meta.unlockedDifficulties) meta.unlockedDifficulties = { normal: true };
+      meta.unlockedDifficulties.hard = true;
+      meta.unlockedDifficulties.nightmare = true;
+      if (meta.maxNightmareTier < 2) meta.maxNightmareTier = 2;
+    }
+    if (meta.selectedNmTier > meta.maxNightmareTier) meta.selectedNmTier = meta.maxNightmareTier;
+  }
   const defaultSettings = () => ({
     muted: false, volume: 0.7, music: false, haptics: true,
     gameSpeed: 1, tutorialDone: false, coachStep: 0,
@@ -1444,47 +1505,50 @@
     return lane ? lane.total : (state.path ? state.path.total : 0);
   }
 
-  function bossCountForWave(wave, rng) {
-    // Decade waves always bring bosses; count scales with endless depth (cap 5).
+  function bossCountForWave(wave, rng, diffId = "normal", nmTier = 1) {
+    // Decade waves always bring bosses; harder modes & NM ×N escalate earlier (cap 5).
     if (wave > 0 && wave % 10 === 0) {
       let n = 1 + Math.floor((wave - 10) / 10); // 10→1, 20→2, 30→3…
       if (wave >= 50) n += Math.floor((wave - 50) / 25);
       if (runIsDaily && wave >= 30) n += 1;
+      if (diffId === "nightmare" && nmTier >= 2 && wave >= 10) n += 1;
       return Math.min(5, Math.max(1, n));
     }
-    // Mid/late: more mid-cycle bosses so pressure stacks across overlaps.
-    const midChance = runIsDaily ? 0.62 : 0.42;
-    if (wave >= 18 && wave % 5 === 0 && rng() < midChance) return 1;
-    if (wave >= 28 && wave % 5 === 0 && rng() < (runIsDaily ? 0.78 : 0.55)) return 1;
-    if (wave >= 35 && rng() < (runIsDaily ? 0.18 : 0.12)) return 1;
+    // Mid/late: earlier boss pressure on Hard, Nightmare & Nightmare ×N.
+    const midStart = diffId === "nightmare" ? (nmTier >= 2 ? 12 : 15) : diffId === "hard" ? 15 : 18;
+    const midChance = runIsDaily ? 0.65 : diffId === "nightmare" ? (nmTier >= 2 ? 0.78 : 0.62) : diffId === "hard" ? 0.52 : 0.42;
+    if (wave >= midStart && wave % 5 === 0 && rng() < midChance) return 1;
+    if (wave >= 25 && wave % 5 === 0 && rng() < Math.min(0.88, midChance + 0.16)) return 1;
+    if (wave >= 32 && rng() < (runIsDaily || diffId === "nightmare" ? 0.22 : 0.12)) return 1;
     return 0;
   }
 
-  function wavePlan(seed, wave, diffId) {
+  function wavePlan(seed, wave, diffId, nmTier = (diffId === "nightmare" ? (state.nmTier || 1) : 1)) {
     const diff = DIFFICULTIES[diffId] || DIFFICULTIES.normal;
     const daily = runIsDaily ? DAILY : null;
-    const rng = mulberry32(hashSeed(seed + ":wave:" + wave + ":" + diff.id + (daily ? ":daily" : "")));
+    const nm = (!daily && diff.id === "nightmare") ? nmTierProfile(nmTier) : nmTierProfile(1);
+    const rng = mulberry32(hashSeed(seed + ":wave:" + wave + ":" + diff.id + (nm.tier > 1 ? ":x" + nm.tier : "") + (daily ? ":daily" : "")));
     const early = Math.min(wave, 10);
     const mid = Math.max(0, Math.min(wave, 22) - 10);
     const late = Math.max(0, Math.min(wave, 40) - 22);
     const deep = Math.max(0, wave - 40);
-    // Soft early → steep mid/late → deep exponential (Daily multiplies on top of Normal).
+    // Learnable early → steep mid/late → fierce deep exponential (NM ×N scales exponentially per tier).
     const difficulty = (
       1 + early * BALANCE.hpEarly + mid * BALANCE.hpMid + late * BALANCE.hpLate
-    ) * Math.pow(BALANCE.hpDeepBase, deep) * diff.hpMul * (daily ? daily.hpMul : 1);
-    const bossN = bossCountForWave(wave, rng);
+    ) * Math.pow(BALANCE.hpDeepBase, deep) * diff.hpMul * nm.hpMul * (daily ? daily.hpMul : 1);
+    const bossN = bossCountForWave(wave, rng, diff.id, nm.tier);
     const isBoss = bossN > 0;
     const countSlope = wave <= 5 ? BALANCE.countWaveEarly : BALANCE.countWaveLate;
     const count = Math.min(
       BALANCE.countCap,
       Math.floor(
         (6 + Math.floor(wave * countSlope + rng() * 3) + deep * 0.4) *
-        diff.countMul * (daily ? daily.countMul : 1)
+        diff.countMul * nm.countMul * (daily ? daily.countMul : 1)
       )
     );
     const interval = Math.max(
-      0.15,
-      (0.9 - wave * 0.026 + (rng() - 0.5) * 0.1) * diff.intervalMul * (daily ? daily.intervalMul : 1)
+      0.13,
+      (0.9 - wave * 0.026 + (rng() - 0.5) * 0.1) * diff.intervalMul * nm.intervalMul * (daily ? daily.intervalMul : 1)
     );
     const mix = [];
     const bossHpShare = bossN <= 1 ? 1 : (0.62 + 0.38 / bossN);
@@ -1497,11 +1561,16 @@
       });
     }
     for (const b of bossPacks) mix.push(b);
-    const armorBias = (diff.id === "nightmare" ? 0.1 : 0) + (daily ? daily.armorBias : 0);
-    // Seeded Wave Mutators from Wave 4+ (adds build pivots & tactical telegraphing!)
+    const armorBias = (diff.id === "nightmare" ? 0.12 + Math.min(0.14, (nm.tier - 1) * 0.03) : diff.id === "hard" ? 0.05 : 0) + (daily ? daily.armorBias : 0);
+    // Seeded Wave Mutators from Wave 4+ (Hard/NM unlock Regenerating & Unstoppable earlier!)
     let mutator = null;
-    if (wave >= 4 && !isBoss && rng() < 0.52) {
+    const mutRollChance = diff.id === "nightmare" ? nm.mutChance : diff.id === "hard" ? 0.62 : 0.52;
+    if (wave >= 4 && !isBoss && rng() < mutRollChance) {
       const mPool = ["sky", "phalanx", "swarm", "hasted", "carapace", "bounty"];
+      if (wave >= 8 || diff.id === "hard" || diff.id === "nightmare") {
+        mPool.push("regen", "juggernaut");
+        if (nm.tier >= 2) mPool.push("carapace", "regen", "juggernaut");
+      }
       mutator = WAVE_MUTATORS[mPool[Math.floor(rng() * mPool.length)]];
     }
     const weights = {
@@ -1509,7 +1578,7 @@
       crawler: mutator && (mutator.id === "sky" || mutator.id === "swarm") ? 0.12 : 0.26,
       armor: mutator && mutator.id === "phalanx"
         ? 0.92
-        : Math.min(0.55, 0.08 + wave * 0.028 + armorBias),
+        : Math.min(0.58, 0.08 + wave * 0.028 + armorBias),
       swarm: mutator && mutator.id === "swarm"
         ? 1.15
         : (wave >= 3 ? 0.24 + rng() * 0.12 : 0),
@@ -1546,14 +1615,14 @@
     for (const pack of mix) counts[pack.type] = (counts[pack.type] || 0) + pack.n;
     const mutSpeedMul = mutator && mutator.id === "hasted" ? 1.18 : 1;
     const mutRewardMul = mutator && mutator.id === "bounty" ? 1.45
-      : mutator && mutator.id === "carapace" ? 1.2
+      : mutator && (mutator.id === "carapace" || mutator.id === "juggernaut") ? 1.18
       : mutator && mutator.id === "hasted" ? 1.15
       : 1;
     const rewardFade = 1 / (1 + deep * BALANCE.rewardDeepFade);
     const layoutId = daily ? daily.layout : diff.id;
     return {
       count, interval, mix, counts, difficulty, isBoss, bossN, mutator,
-      speedMul: diff.speedMul * (1 + Math.min(0.42, deep * 0.003)) * (daily ? daily.speedMul : 1) * mutSpeedMul,
+      speedMul: diff.speedMul * nm.speedMul * (1 + Math.min(0.42, deep * 0.003)) * (daily ? daily.speedMul : 1) * mutSpeedMul,
       rewardMul: diff.rewardMul * rewardFade * BALANCE.scrapKillScale * (daily ? daily.rewardMul : 1) * mutRewardMul,
       spawnLanes: (state.path && state.path.spawnN) || spawnCountForDifficulty(layoutId),
     };
@@ -1579,7 +1648,7 @@
   }
 
   const state = {
-    mode: "hub", seed: null, difficulty: "normal", path: null,
+    mode: "hub", seed: null, difficulty: "normal", nmTier: 1, path: null,
     w: 390, h: 620, hp: 20, maxHp: 20, scrap: 130, score: 0, wave: 0,
     selectedTower: null, selectedBuilt: null, movingTower: null,
     towers: [], enemies: [], projectiles: [], fx: [], particles: [], hazards: [],
@@ -1783,20 +1852,20 @@
       BALANCE.scrapWaveBase + w * BALANCE.scrapWavePer + metaBonuses().scrapWaveAdd
     );
     const scrapWave = Math.floor(scrapWaveRaw * (runIsDaily ? DAILY.scrapWaveMul : 1));
-    // Scrap Interest: +6% banked scrap (cap +35), boosted by Forge Vault relic (+5%, +25 cap each)
+    // Scrap Interest: +5% banked scrap (cap +28), boosted by Forge Vault relic (+4%, +20 cap each)
     const vaults = relicCount("scrap_vault");
-    const intRate = 0.06 + vaults * 0.05;
-    const intCap = 35 + vaults * 25;
+    const intRate = 0.05 + vaults * 0.04;
+    const intCap = 28 + vaults * 20;
     const interest = Math.min(intCap, Math.floor(state.scrap * intRate));
-    // Flawless Wave Bonus only when wave actually clears with 0 leaks (not when rushing mid-wave).
+    // Flawless Wave Bonus only when wave clears with 0 leaks (heal every 5 flawless on Normal/Hard only).
     let flawlessBonus = 0;
     let healed = false;
     if (!opts.rushed) {
       if ((state.waveLeaks || 0) === 0) {
         state.flawlessStreak = (state.flawlessStreak || 0) + 1;
         if (state.runStats) state.runStats.flawlessWaves = (state.runStats.flawlessWaves || 0) + 1;
-        flawlessBonus = Math.max(4, Math.round(scrapWave * 0.15));
-        if (state.flawlessStreak % 3 === 0 && state.hp < (state.maxHp || 20)) {
+        flawlessBonus = Math.max(3, Math.round(scrapWave * 0.12));
+        if (state.difficulty !== "nightmare" && state.flawlessStreak % 5 === 0 && state.hp < (state.maxHp || 20)) {
           state.hp += 1;
           healed = true;
         }
@@ -1819,10 +1888,10 @@
   function earlyWaveBonus() {
     if (!canCallNextWave()) return 0;
     if (state.betweenWaves > 0) {
-      return Math.max(5, Math.round(state.betweenWaves * (4 + state.wave * 0.5)));
+      return Math.max(4, Math.round(state.betweenWaves * (3.2 + state.wave * 0.4)));
     }
     const active = state.spawnQueue.length + livingEnemyCount();
-    return Math.max(8, Math.round((3.8 + Math.min(20, active) * 0.28) * (3 + state.wave * 0.45)));
+    return Math.max(6, Math.round((2.8 + Math.min(18, active) * 0.22) * (2.6 + state.wave * 0.36)));
   }
   function syncNextWaveBtn() {
     const btn = els.btnNextWave;
@@ -2334,7 +2403,7 @@
 
   function serializeRun() {
     return {
-      seed: state.seed, difficulty: state.difficulty || "normal",
+      seed: state.seed, difficulty: state.difficulty || "normal", nmTier: state.nmTier || 1,
       isDaily: !!runIsDaily, dailyKey: runDailyKey || null,
       hp: state.hp, maxHp: state.maxHp || state.hp, scrap: state.scrap, score: state.score, wave: state.wave,
       betweenWaves: state.betweenWaves, awaitingStart: !!state.awaitingStart,
@@ -2363,7 +2432,7 @@
         chillT: e.chillT, shred: e.shred, knockCd: e.knockCd || 0,
         stunT: e.stunT || 0, stunCd: e.stunCd || 0, freezeT: e.freezeT || 0, freezeCd: e.freezeCd || 0,
         ccDR: e.ccDR || 0, brittleT: e.brittleT || 0, rimeShield: e.rimeShield || 0, plasmaMark: e.plasmaMark || 0,
-        bountyTag: !!e.bountyTag,
+        bountyTag: !!e.bountyTag, regenTag: !!e.regenTag, unstoppable: !!e.unstoppable,
         reward: e.reward, tags: e.tags,
         resist: e.resist, bossIndex: e.bossIndex, bossTotal: e.bossTotal, color: e.color, r: e.r,
         ability: e.ability, shield: e.shield, shieldMax: e.shieldMax, shieldCd: e.shieldCd,
@@ -2409,6 +2478,7 @@
       if (!data || !data.seed) return false;
       state.seed = data.seed;
       state.difficulty = data.difficulty || "normal";
+      state.nmTier = state.difficulty === "nightmare" ? Math.max(1, data.nmTier || 1) : 1;
       runIsDaily = !!data.isDaily;
       runDailyKey = data.dailyKey || (runIsDaily ? dailyKey() : null);
       meta.selectedDifficulty = state.difficulty;
@@ -2465,7 +2535,7 @@
           chillT: e.chillT || 0, shred: e.shred || 0, knockCd: e.knockCd || 0,
           stunT: e.stunT || 0, stunCd: e.stunCd || 0, freezeT: e.freezeT || 0, freezeCd: e.freezeCd || 0,
           ccDR: e.ccDR || 0, brittleT: e.brittleT || 0, rimeShield: e.rimeShield || 0, plasmaMark: e.plasmaMark || 0,
-          bountyTag: !!e.bountyTag,
+          bountyTag: !!e.bountyTag, regenTag: !!e.regenTag, unstoppable: !!e.unstoppable,
           matchFxAt: 0, reward: e.reward, alive: true, hitFlash: 0, lane: e.lane || 0,
         };
       });
@@ -2517,16 +2587,19 @@
   }
   function startNewRun(opts = {}) {
     syncDifficultyUnlocks();
+    syncNightmareTierUnlock();
     runIsDaily = !!opts.daily;
     runDailyKey = opts.dailyKey || null;
     state.lastRunWasDaily = runIsDaily;
     if (!runIsDaily) {
       if (!isDifficultyUnlocked(meta.selectedDifficulty)) meta.selectedDifficulty = "normal";
       state.difficulty = meta.selectedDifficulty || "normal";
+      state.nmTier = state.difficulty === "nightmare" ? Math.max(1, Math.min(meta.maxNightmareTier || 1, meta.selectedNmTier || 1)) : 1;
       state.seed = newRunSeed();
     } else {
       // Meta tracks as Normal; wavePlan + layout use Daily modifiers / Hard path.
       state.difficulty = "normal";
+      state.nmTier = 1;
       state.seed = dailySeedFor(runDailyKey || dailyKey());
     }
     state.relics = [];
@@ -2600,8 +2673,8 @@
     }
     return anyMasteryAffordable();
   }
-  function nextRunGoal(wave, diffId) {
-    // Prefer difficulty unlock first, then next unclaimed milestone.
+  function nextRunGoal(wave, diffId, nmTier = 1) {
+    // Prefer difficulty unlock first, then Nightmare ×N ladder, then unclaimed milestones.
     if (!isDifficultyUnlocked("hard")) {
       const cur = Math.max((meta.bestByDifficulty && meta.bestByDifficulty.normal && meta.bestByDifficulty.normal.wave) || 0, diffId === "normal" ? wave : 0);
       return { label: "Unlock Hard Mode", cur: Math.min(10, cur), target: 10, reward: "Hard Mode" };
@@ -2609,6 +2682,16 @@
     if (!isDifficultyUnlocked("nightmare")) {
       const cur = Math.max((meta.bestByDifficulty && meta.bestByDifficulty.hard && meta.bestByDifficulty.hard.wave) || 0, diffId === "hard" ? wave : 0);
       return { label: "Unlock Nightmare", cur: Math.min(12, cur), target: 12, reward: "Nightmare" };
+    }
+    const maxTier = meta.maxNightmareTier || 1;
+    if (maxTier < 2) {
+      const prog = skillTreeProgress();
+      return { label: "Max Skill Trees → Nightmare ×2", cur: prog.owned, target: prog.total, reward: "NM ×2" };
+    }
+    if (diffId === "nightmare" && nmTier >= maxTier) {
+      const tBest = (meta.bestByNmTier && meta.bestByNmTier[nmTier] && meta.bestByNmTier[nmTier].wave) || 0;
+      const cur = Math.min(NM_UNLOCK_WAVE, Math.max(tBest, wave));
+      return { label: `Unlock Nightmare ×${nmTier + 1}`, cur, target: NM_UNLOCK_WAVE, reward: `NM ×${nmTier + 1}` };
     }
     const claimed = meta.milestones || {};
     for (const m of MILESTONES) {
@@ -2622,12 +2705,16 @@
         return { label: m.label, cur: Math.min(m.count, meta.dailiesCompleted || 0), target: m.count, reward: `+${m.chips}c` };
       }
     }
-    return null;
+    const topTier = meta.maxNightmareTier || 2;
+    const topBest = (meta.bestByNmTier && meta.bestByNmTier[topTier] && meta.bestByNmTier[topTier].wave) || 0;
+    return { label: `Unlock Nightmare ×${topTier + 1}`, cur: Math.min(NM_UNLOCK_WAVE, topBest), target: NM_UNLOCK_WAVE, reward: `NM ×${topTier + 1}` };
   }
   function endRun(abandoned, opts = {}) {
     const wave = state.wave, score = state.score;
     const victory = !!opts.victory && !abandoned;
     const diff = DIFFICULTIES[state.difficulty] || DIFFICULTIES.normal;
+    const nmTier = (!runIsDaily && diff.id === "nightmare") ? Math.max(1, state.nmTier || 1) : 1;
+    const nmProf = nmTierProfile(nmTier);
     const wasDaily = runIsDaily;
     state.lastRunWasDaily = wasDaily;
     const dailyBonus = wasDaily && !abandoned
@@ -2643,19 +2730,30 @@
     const flawlessChips = (rs.flawlessWaves || 0) * 3;
     const scoreChips = Math.floor(Math.sqrt(Math.max(0, score)) * 0.9);
     const abandonMul = abandoned ? 0.5 : 1.0;
-    const chipScale = diff.chipMul * (wasDaily ? DAILY.chipMul : 1);
+    const chipScale = diff.chipMul * nmProf.chipMul * (wasDaily ? DAILY.chipMul : 1);
     const chips = Math.floor((waveChips + bossChips + flawlessChips + scoreChips) * abandonMul * chipScale) + dailyBonus;
     meta.chips += Math.max(0, chips);
     if (!meta.bestByDifficulty[diff.id]) meta.bestByDifficulty[diff.id] = { wave: 0, score: 0 };
     const rec = meta.bestByDifficulty[diff.id];
     if (wave > rec.wave) rec.wave = wave;
     if (score > rec.score) rec.score = score;
+    if (!wasDaily && diff.id === "nightmare") {
+      if (!meta.bestByNmTier || typeof meta.bestByNmTier !== "object") meta.bestByNmTier = {};
+      if (!meta.bestByNmTier[nmTier]) meta.bestByNmTier[nmTier] = { wave: 0, score: 0 };
+      if (wave > meta.bestByNmTier[nmTier].wave) meta.bestByNmTier[nmTier].wave = wave;
+      if (score > meta.bestByNmTier[nmTier].score) meta.bestByNmTier[nmTier].score = score;
+    }
     const newly = [];
     for (const id of Object.keys(DIFFICULTIES)) {
       if (!meta.unlockedDifficulties[id] && isDifficultyUnlocked(id)) {
         meta.unlockedDifficulties[id] = true;
         newly.push(DIFFICULTIES[id].name);
       }
+    }
+    syncNightmareTierUnlock();
+    if (!wasDaily && !abandoned && diff.id === "nightmare" && nmTier >= 2 && wave >= NM_UNLOCK_WAVE && nmTier >= (meta.maxNightmareTier || 1)) {
+      meta.maxNightmareTier = nmTier + 1;
+      newly.push(`Nightmare ×${meta.maxNightmareTier}`);
     }
     // Only count Daily completion when actually played (not abandoned on Wave 0).
     if (wasDaily && runDailyKey && !abandoned && wave >= 1) {
@@ -2687,8 +2785,9 @@
           ? "Run Abandoned"
           : "Wellheart Breached";
     }
+    const diffLabel = wasDaily ? "Rift" : (diff.id === "nightmare" && nmTier > 1 ? `Nightmare ×${nmTier}` : diff.name);
     els.overSummary.textContent =
-      `${wasDaily ? "Daily · " : ""}${wasDaily ? "Rift" : diff.name} · Wave ${wave}${wasDaily ? "/" + DAILY.waveCap : ""} · Score ${formatCompact(score)}` +
+      `${wasDaily ? "Daily · " : ""}${diffLabel} · Wave ${wave}${wasDaily ? "/" + DAILY.waveCap : ""} · Score ${formatCompact(score)}` +
       (abandoned ? " (abandoned)" : victory ? " · clear" : "");
     els.overChips.textContent =
       `+${formatCompact(Math.max(0, chips))} chips` +
@@ -2727,7 +2826,7 @@
     }
     // Render Next Unlock / Milestone Goal Bar
     if (els.overGoal) {
-      const goal = nextRunGoal(wave, diff.id);
+      const goal = nextRunGoal(wave, diff.id, nmTier);
       if (goal) {
         const pct = Math.max(4, Math.min(100, Math.round((goal.cur / Math.max(1, goal.target)) * 100)));
         const rewardSuffix = goal.reward && !goal.label.includes(goal.reward) ? ` (${goal.reward})` : "";
@@ -2755,7 +2854,8 @@
   function syncPauseDetails() {
     const metaEl = $("pause-meta");
     if (metaEl) {
-      const dName = runIsDaily ? "Daily Rift" : (DIFFICULTIES[state.difficulty]?.name || "Normal");
+      const baseD = DIFFICULTIES[state.difficulty]?.name || "Normal";
+      const dName = runIsDaily ? "Daily Rift" : (state.difficulty === "nightmare" && (state.nmTier || 1) > 1 ? `Nightmare ×${state.nmTier}` : baseD);
       const seedTxt = state.seed ? ` · ${state.seed.slice(0, 14)}` : "";
       metaEl.textContent = `${dName} · Wave ${Math.max(1, state.wave)}${seedTxt} · Auto-saved locally.`;
     }
@@ -2788,6 +2888,7 @@
     runIsDaily = false;
     runDailyKey = null;
     state.seed = null;
+    state.nmTier = 1;
     state.mode = "hub";
     state.towers = []; state.enemies = []; state.projectiles = [];
     state.fx = []; state.particles = []; state.hazards = [];
@@ -2934,6 +3035,7 @@
     if (!meta.unlockedDifficulties) meta.unlockedDifficulties = { normal: true };
     if (!meta.bestByDifficulty) meta.bestByDifficulty = defaultMeta().bestByDifficulty;
     syncDifficultyUnlocks();
+    syncNightmareTierUnlock();
     best = loadJSON(STORAGE.best, defaultBest());
     const ascEl = $("hub-ascension");
     if (ascEl) {
@@ -2942,9 +3044,12 @@
       if (asc > 0) ascEl.textContent = `Ascension ${toRoman(asc)}`;
     }
     const diffId = meta.selectedDifficulty || "normal";
-    const rec = meta.bestByDifficulty[diffId] || { wave: 0, score: 0 };
-    els.bestWave.textContent = formatCompact(rec.wave || best.wave || 0);
-    const bestScore = rec.score || best.score || 0;
+    const nmSel = diffId === "nightmare" ? Math.max(1, meta.selectedNmTier || 1) : 1;
+    const rec = (diffId === "nightmare" && nmSel > 1)
+      ? ((meta.bestByNmTier && meta.bestByNmTier[nmSel]) || { wave: 0, score: 0 })
+      : (meta.bestByDifficulty[diffId] || { wave: 0, score: 0 });
+    els.bestWave.textContent = formatCompact(rec.wave || (nmSel > 1 ? 0 : best.wave) || 0);
+    const bestScore = rec.score || (nmSel > 1 ? 0 : best.score) || 0;
     els.bestScore.textContent = formatCompact(bestScore);
     els.bestScore.title = String(bestScore);
     els.chips.textContent = formatCompact(meta.chips);
@@ -3112,7 +3217,9 @@
   function renderDifficultyPicks() {
     const wrap = $("diff-picks");
     const hint = $("diff-hint");
+    const tierBar = $("nm-tier-bar");
     if (!wrap) return;
+    syncNightmareTierUnlock();
     wrap.innerHTML = "";
     for (const id of ["normal", "hard", "nightmare"]) {
       const def = DIFFICULTIES[id];
@@ -3120,7 +3227,8 @@
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "diff-btn" + (meta.selectedDifficulty === id ? " active" : "") + (!unlocked ? " locked" : "");
-      btn.innerHTML = unlocked ? def.name : `${def.name}<span class="lock">Locked</span>`;
+      const nmTag = id === "nightmare" && unlocked && (meta.selectedNmTier || 1) > 1 ? ` ×${meta.selectedNmTier}` : "";
+      btn.innerHTML = unlocked ? `${def.name}${nmTag}` : `${def.name}<span class="lock">Locked</span>`;
       btn.addEventListener("click", () => {
         if (!unlocked) { hint.textContent = unlockHint(id); toast(unlockHint(id)); return; }
         meta.selectedDifficulty = id; saveJSON(STORAGE.meta, meta); refreshHub();
@@ -3128,9 +3236,61 @@
       wrap.appendChild(btn);
     }
     const sel = DIFFICULTIES[meta.selectedDifficulty] || DIFFICULTIES.normal;
+    const isNm = meta.selectedDifficulty === "nightmare" && isDifficultyUnlocked("nightmare");
+    const nmSel = isNm ? Math.max(1, meta.selectedNmTier || 1) : 1;
+    const nmProf = nmTierProfile(nmSel);
+    const effHp = sel.hpMul * nmProf.hpMul;
+    const effChips = sel.chipMul * nmProf.chipMul;
     hint.textContent = isDifficultyUnlocked(meta.selectedDifficulty)
-      ? `×${sel.hpMul.toFixed(1)} HP · ×${sel.chipMul} chips`
+      ? `×${effHp >= 10 ? effHp.toFixed(0) : effHp.toFixed(1)} HP · ×${effChips.toFixed(2).replace(/\.00$/, "")} chips`
       : unlockHint(meta.selectedDifficulty);
+    if (tierBar) {
+      if (!isNm) {
+        tierBar.classList.add("hidden");
+        tierBar.innerHTML = "";
+      } else {
+        tierBar.classList.remove("hidden");
+        const maxT = meta.maxNightmareTier || 1;
+        if (maxT < 2) {
+          const prog = skillTreeProgress();
+          tierBar.innerHTML =
+            `<div class="nm-tier-lock">` +
+              `<span>Max all skill trees to unlock <strong>Nightmare ×2</strong></span>` +
+              `<span class="nm-tier-pct">${prog.pct}%</span>` +
+            `</div>`;
+        } else {
+          const nextHint = nmSel >= maxT
+            ? `Reach W${NM_UNLOCK_WAVE} to unlock ×${maxT + 1}`
+            : `Unlocked up to ×${maxT}`;
+          tierBar.innerHTML =
+            `<div class="nm-tier-copy">` +
+              `<div class="nm-tier-title">Nightmare Tier</div>` +
+              `<div class="nm-tier-sub">${nextHint}</div>` +
+            `</div>` +
+            `<div class="nm-tier-ctrl">` +
+              `<button type="button" id="btn-nm-down" class="nm-tier-btn" aria-label="Lower Nightmare tier"${nmSel <= 1 ? " disabled" : ""}>−</button>` +
+              `<span class="nm-tier-val">×${nmSel}</span>` +
+              `<button type="button" id="btn-nm-up" class="nm-tier-btn" aria-label="Higher Nightmare tier"${nmSel >= maxT ? " disabled" : ""}>+</button>` +
+            `</div>`;
+          const down = tierBar.querySelector("#btn-nm-down");
+          const up = tierBar.querySelector("#btn-nm-up");
+          if (down) down.addEventListener("click", () => {
+            if ((meta.selectedNmTier || 1) <= 1) return;
+            meta.selectedNmTier -= 1;
+            saveJSON(STORAGE.meta, meta);
+            sfx.ui();
+            refreshHub();
+          });
+          if (up) up.addEventListener("click", () => {
+            if ((meta.selectedNmTier || 1) >= (meta.maxNightmareTier || 1)) return;
+            meta.selectedNmTier = (meta.selectedNmTier || 1) + 1;
+            saveJSON(STORAGE.meta, meta);
+            sfx.ui();
+            refreshHub();
+          });
+        }
+      }
+    }
   }
 
   /** Compact HUD numbers so large scores/scrap never blow out the layout. */
@@ -3160,7 +3320,9 @@
     els.scrap.title = String(scrap);
     const dShort = runIsDaily
       ? "D"
-      : ({ normal: "N", hard: "H", nightmare: "NM" })[state.difficulty] || "N";
+      : state.difficulty === "nightmare" && (state.nmTier || 1) > 1
+        ? `NM${state.nmTier}`
+        : ({ normal: "N", hard: "H", nightmare: "NM" })[state.difficulty] || "N";
     const waveN = Math.max(1, state.wave);
     els.wave.textContent = state.awaitingStart
       ? `${dShort} · Prep`
@@ -3206,10 +3368,10 @@
     return Math.floor(base * (0.62 + t.level * 0.58 + Math.pow(Math.max(0, t.level - 3), 1.35) * 0.35));
   }
   function towerSellValue(t) {
-    // Fair 75% refund of total invested scrap (build + levels + sockets), boosted by sell Forge nodes.
+    // Fair 70% refund of total invested scrap (build + levels + sockets), boosted by sell Forge nodes.
     const invested = t.investedScrap || towerStats(t.type).cost;
-    const base = Math.max(t.sell || 20, Math.round(invested * 0.75));
-    return Math.max(1, Math.min(Math.round(invested * 0.95), Math.floor(base * metaBonuses().sellMul)));
+    const base = Math.max(t.sell || 20, Math.round(invested * 0.70));
+    return Math.max(1, Math.min(Math.round(invested * 0.92), Math.floor(base * metaBonuses().sellMul)));
   }
   function moveTowerCost() {
     return state.awaitingStart ? 0 : 15;
@@ -3741,9 +3903,16 @@
       }
       meta.chips -= cost;
       meta.owned[u.id] = r + 1;
+      const hadNm2 = (meta.maxNightmareTier || 1) >= 2;
+      syncNightmareTierUnlock();
       invalidateMetaBonuses();
       saveJSON(STORAGE.meta, meta);
-      sfx.buy();
+      if (!hadNm2 && (meta.maxNightmareTier || 1) >= 2) {
+        sfx.relic();
+        toast("All Skill Trees Maxed! Unlocked Nightmare ×2!");
+      } else {
+        sfx.buy();
+      }
       renderUpgrades({ justBoughtId: u.id });
       refreshHub();
     });
@@ -4360,6 +4529,8 @@
       ability, bossIndex, bossTotal,
       shield: shieldMax, shieldMax, shieldCd: 0,
       bountyTag: meta.mutId === "bounty",
+      regenTag: meta.mutId === "regen",
+      unstoppable: meta.mutId === "juggernaut",
       abilityT: 1.5 + Math.random() * 1.5,
       enraged: false,
       slow: 1, slowT: 0, burn: 0, burnT: 0, burnTower: null, chillT: 0, shred: 0, knockCd: 0,
@@ -4370,17 +4541,18 @@
   }
 
   function moveFloorFor(e) {
-    if (isBossEnemy(e)) return BALANCE.moveFloorBoss;
+    if (isBossEnemy(e) || e.unstoppable) return BALANCE.moveFloorBoss;
     if (e.tags && e.tags.includes("armored")) return BALANCE.moveFloorArmored;
     return BALANCE.moveFloor;
   }
   function slowFloorFor(e) {
-    return isBossEnemy(e) ? BALANCE.slowFloorBoss : BALANCE.slowFloor;
+    return (isBossEnemy(e) || e.unstoppable) ? BALANCE.slowFloorBoss : BALANCE.slowFloor;
   }
   function ccPotency(e, opts = {}) {
     let m = 1 / (1 + Math.min(BALANCE.ccDrCap, e.ccDR || 0) * BALANCE.ccDrPer);
     if (isBossEnemy(e)) m *= 0.42;
     else if (e.tags && e.tags.includes("armored")) m *= 0.72;
+    if (e.unstoppable) m *= 0.5;
     // AoE / splash CC is intentionally weaker than single-target sockets.
     if (opts.aoe) m *= BALANCE.aoeCcMul;
     if (opts.mul != null) m *= opts.mul;
@@ -4900,7 +5072,7 @@
       state.runStats.peakStreak = state.streak;
     }
     state.streakT = 2.6;
-    const cdTrim = (isBossEnemy(e) ? 2.8 : 0.34) * (1 + 0.35 * relicCount("rapid_rite"));
+    const cdTrim = (isBossEnemy(e) ? 1.4 : 0.14) * (1 + 0.35 * relicCount("rapid_rite"));
     if (state.meteorCd > 0) state.meteorCd = Math.max(0, state.meteorCd - cdTrim);
     if (state.surgeCd > 0) state.surgeCd = Math.max(0, state.surgeCd - cdTrim);
     if (state.novaCd > 0) state.novaCd = Math.max(0, state.novaCd - cdTrim);
@@ -4922,9 +5094,9 @@
       spawnParticles(p.x, p.y, "#ffd166", 24, 140);
       pushCombatFx({ kind: "ring", x: p.x, y: p.y, t: 0.6, r0: 12, r1: 84, color: "#ffd97d" });
       state.hitstopT = Math.max(state.hitstopT || 0, 0.052);
-      // Boss Bounty: heal +1 Wellheart if hurt!
+      // Boss Bounty: heal +1 Wellheart on Normal only (Hard/Nightmare keep every HP precious!)
       let bossMsg = `BOSS SLAIN! +${gained}⬡`;
-      if (state.hp < (state.maxHp || 20)) {
+      if (state.difficulty === "normal" && !runIsDaily && state.hp < (state.maxHp || 20)) {
         state.hp += 1;
         bossMsg += " · +1 HP";
       }
@@ -4937,18 +5109,19 @@
       sfx.kill(state.streak);
     }
 
-    // Volatile Core relic: slain foes explode for splash damage (non-recursive, shield-aware).
+    // Volatile Core relic: slain foes explode for 11% max HP splash (capped vs bosses, non-recursive).
     const vol = relicCount("volatile");
     if (vol > 0 && !opts.fromVolatile) {
-      const blastDmg = Math.max(12, e.maxHp * 0.18 * vol);
+      const blastDmg = Math.max(10, e.maxHp * 0.11 * vol);
       for (const o of state.enemies) {
         if (!o.alive) continue;
         const q = enemyPos(o);
-        if (Math.hypot(q.x - p.x, q.y - p.y) < 52) {
-          dealDirectDamage(o, blastDmg, killer, { fromVolatile: true });
+        if (Math.hypot(q.x - p.x, q.y - p.y) < 50) {
+          const applied = isBossEnemy(o) ? Math.min(blastDmg, o.maxHp * 0.35) : blastDmg;
+          dealDirectDamage(o, applied, killer, { fromVolatile: true });
         }
       }
-      pushCombatFx({ kind: "blast", x: p.x, y: p.y, t: 0.34, r: 52, color: "#ffb854" });
+      pushCombatFx({ kind: "blast", x: p.x, y: p.y, t: 0.3, r: 48, color: "#ffb854" });
     }
 
     if (opts.magma) {
@@ -5257,6 +5430,11 @@
         }
         dealDirectDamage(e, e.burn * step, e.burnTower || null, { silentFlash: true });
         if (!e.alive) continue;
+      }
+      // Regenerating wave mutator (halved while chilled)
+      if (e.regenTag && e.hp < e.maxHp) {
+        const rate = e.chillT > 0 ? 0.011 : 0.022;
+        e.hp = Math.min(e.maxHp, e.hp + e.maxHp * rate * step);
       }
       // Boss abilities
       if (e.ability === "ashregen") {
