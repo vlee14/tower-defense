@@ -11,13 +11,13 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="application-name" content="Emberwell" />
   <meta name="description" content="Endless molten-rift tower defense with elemental combos, rift relics, and active powers. Play offline anywhere." />
-  <link rel="manifest" href="manifest.webmanifest?v=2.3.1" />
+  <link rel="manifest" href="manifest.webmanifest?v=2.4.0" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icons/icon-512.png" sizes="512x512" />
   <title>Emberwell — Molten Rift Tower Defense</title>
-  <script src="version.js?v=2.3.1"></script>
-  <link rel="stylesheet" href="styles.css?v=2.3.1" />
+  <script src="version.js?v=2.4.0"></script>
+  <link rel="stylesheet" href="styles.css?v=2.4.0" />
 </head>
 <body>
   <div id="app" data-ui="hub">
@@ -62,6 +62,20 @@
     <main id="stage-wrap">
       <canvas id="game" width="390" height="620" aria-label="Emberwell battlefield"></canvas>
 
+      <div id="relic-strip" class="relic-strip hidden" aria-label="Active relics"></div>
+      <div id="boss-bar" class="boss-bar hidden" aria-live="polite">
+        <div class="boss-bar-top">
+          <span id="boss-name" class="boss-name">Boss</span>
+          <span id="boss-weak" class="boss-weak"></span>
+        </div>
+        <div class="boss-track">
+          <span id="boss-trail" class="boss-trail"></span>
+          <span id="boss-fill" class="boss-fill"></span>
+          <span id="boss-shield" class="boss-shield"></span>
+        </div>
+        <div id="boss-tip" class="boss-tip"></div>
+      </div>
+
       <div id="banner" class="wave-chip hidden" aria-live="polite"></div>
       <div id="streak-pill" class="streak-pill hidden" aria-live="polite"></div>
       <div id="toast" class="hidden" role="status" aria-live="polite"></div>
@@ -76,21 +90,29 @@
 
       <!-- Active tactical controls floating cleanly at bottom of battlefield -->
       <div id="stage-controls" class="stage-controls">
+        <div id="wave-preview" class="wave-preview hidden" aria-live="polite"></div>
         <div id="ability-bar" class="ability-bar hidden" aria-label="Rift abilities">
-          <button type="button" id="btn-ab-meteor" class="ab-btn" title="Rift Meteor: aim an explosive lava strike">
+          <button type="button" id="btn-ab-meteor" class="ab-btn" title="Rift Meteor [Q]: aim an explosive lava strike">
             <span class="ab-fill" id="ab-meteor-fill"></span>
             <svg class="ab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 3l-5.5 5.5c-.8-.3-1.6-.5-2.5-.5a6 6 0 1 0 6 6c0-.9-.2-1.7-.5-2.5L22 6l-3-3zm-8 15a4 4 0 1 1 0-8 4 4 0 0 1 0 8z"/></svg>
             <span class="ab-label" id="ab-meteor-label">Meteor</span>
           </button>
-          <button type="button" id="btn-ab-surge" class="ab-btn" title="Ember Surge: +45% tower speed & crit for 6s">
+          <button type="button" id="btn-ab-surge" class="ab-btn" title="Ember Surge [W]: +55% tower speed & +22% crit for 6s">
             <span class="ab-fill" id="ab-surge-fill"></span>
             <svg class="ab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></svg>
             <span class="ab-label" id="ab-surge-label">Surge</span>
           </button>
+          <button type="button" id="btn-ab-nova" class="ab-btn ab-nova" title="Cryo Nova [E]: chill, freeze & shred all foes on map">
+            <span class="ab-fill" id="ab-nova-fill"></span>
+            <svg class="ab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 2h2v4.6l2.6-2.6 1.4 1.4-4 4v1.6h1.6l4-4 1.4 1.4-2.6 2.6H22v2h-4.6l2.6 2.6-1.4 1.4-4-4H13v1.6l4 4-1.4 1.4-2.6-2.6V22h-2v-4.6l-2.6 2.6-1.4-1.4 4-4V13H9.4l-4 4-1.4-1.4 2.6-2.6H2v-2h4.6L4 8.4 5.4 7l4 4H11V9.4l-4-4L8.4 4 11 6.6V2z"/></svg>
+            <span class="ab-label" id="ab-nova-label">Nova</span>
+          </button>
         </div>
-        <button type="button" id="btn-next-wave" class="next-wave-btn hidden" aria-label="Call next wave early">Next Wave</button>
-        <button type="button" id="btn-place-cancel" class="place-cancel hidden" aria-label="Cancel placement">Cancel</button>
-        <button type="button" id="btn-start-wave" class="start-wave hidden" aria-label="Start waves">Start Wave</button>
+        <div class="stage-cta-row">
+          <button type="button" id="btn-next-wave" class="next-wave-btn hidden" aria-label="Call next wave early">Next Wave</button>
+          <button type="button" id="btn-place-cancel" class="place-cancel hidden" aria-label="Cancel placement">Cancel</button>
+          <button type="button" id="btn-start-wave" class="start-wave hidden" aria-label="Start waves">Start Wave</button>
+        </div>
       </div>
     </main>
 
@@ -100,7 +122,8 @@
         <div class="inspect-head">
           <div id="inspect-text" class="inspect-text"></div>
           <div class="inspect-head-btns">
-            <button type="button" id="btn-target-mode" class="chip-btn" title="Cycle targeting priority">First</button>
+            <button type="button" id="btn-move" class="chip-btn" title="Relocate tower [V]">Move</button>
+            <button type="button" id="btn-target-mode" class="chip-btn" title="Cycle targeting priority [T]">First</button>
             <button type="button" id="btn-inspect-close" class="close-btn" aria-label="Close inspector" title="Close">×</button>
           </div>
         </div>
@@ -113,9 +136,9 @@
           <button type="button" class="el-btn" data-el="frost" title="Frost: heavy chill">Frost</button>
         </div>
         <div class="inspect-actions">
-          <button type="button" id="btn-sell" class="util-btn util-sell" disabled>Sell</button>
-          <button type="button" id="btn-upgrade" class="util-btn util-up" disabled>Up +</button>
-          <button type="button" id="btn-auto-level" class="util-btn util-all" disabled title="Level every ready tower">Up All</button>
+          <button type="button" id="btn-sell" class="util-btn util-sell" disabled title="Sell tower [X]">Sell</button>
+          <button type="button" id="btn-upgrade" class="util-btn util-up" disabled title="Upgrade tower [U]">Up +</button>
+          <button type="button" id="btn-auto-level" class="util-btn util-all" disabled title="Level every ready tower [A]">Up All</button>
         </div>
       </div>
 
@@ -249,6 +272,10 @@
         <h2 id="relic-title">Choose a Relic</h2>
         <p id="relic-subtitle" class="relic-sub">Shape this run’s build — effects stack until wellheart falls.</p>
         <div id="relic-choices" class="relic-choices"></div>
+        <div class="relic-actions">
+          <button type="button" id="btn-relic-reroll" class="secondary">Reroll (Free)</button>
+          <button type="button" id="btn-relic-salvage" class="secondary">Salvage +60</button>
+        </div>
       </div>
     </section>
 
@@ -356,17 +383,23 @@
         <h2 id="over-title">Wellheart Breached</h2>
         <p id="over-summary">Wave 1 · Score 0</p>
         <p id="over-chips" class="chips-earned">+0 chips</p>
+        <div id="over-stats" class="over-stats"></div>
+        <div id="over-mvp" class="over-mvp hidden"></div>
+        <div id="over-goal" class="over-goal hidden"></div>
         <div class="hub-actions">
           <button type="button" id="btn-again" class="primary">New Run</button>
-          <button type="button" id="btn-over-hub" class="secondary">Hub &amp; Forge</button>
+          <div class="hub-actions-row">
+            <button type="button" id="btn-over-forge" class="secondary">Spend in Forge</button>
+            <button type="button" id="btn-over-hub" class="secondary">Hub</button>
+          </div>
         </div>
       </div>
     </section>
   </div>
-  <script src="game.js?v=2.3.1" defer></script>
+  <script src="game.js?v=2.4.0" defer></script>
   <script>
     (function () {
-      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "2.3.1";
+      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "2.4.0";
       var el = document.getElementById("app-version");
       if (el) el.textContent = "v" + ver;
       var sv = document.getElementById("settings-version");

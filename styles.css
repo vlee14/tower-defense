@@ -445,7 +445,7 @@ button {
   position: absolute;
   left: 14px;
   right: 14px;
-  bottom: 68px;
+  bottom: 108px;
   z-index: var(--z-coach);
   background: rgba(22, 17, 13, 0.95);
   border: 1px solid var(--stroke-ember);
@@ -457,8 +457,10 @@ button {
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  transition: bottom 0.18s var(--ease-out);
   animation: coach-in 0.28s var(--ease-out);
 }
+#app[data-inspect="1"] .coach { bottom: 126px; }
 .coach.hidden { display: none; }
 .coach-steps {
   display: flex;
@@ -493,25 +495,222 @@ button {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Floating Stage Action Bar (Abilities + Start/Next Wave + Cancel) */
-.stage-controls {
+/* Live Relic HUD Strip (top-left of battlefield) */
+.relic-strip {
   position: absolute;
-  left: 14px;
-  right: 14px;
-  bottom: 12px;
+  left: 10px;
+  top: 7px;
   z-index: var(--z-float);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 112px;
+  pointer-events: auto;
+}
+.relic-strip.hidden { display: none; }
+.relic-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(20, 15, 12, 0.88);
+  border: 1px solid rgba(232, 136, 58, 0.45);
+  color: var(--ember-hot);
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+  padding: 0;
+  transition: transform 0.12s var(--ease-spring), border-color 0.14s ease;
+}
+.relic-chip:active { transform: scale(0.92); }
+.relic-chip.rarity-rare { border-color: rgba(77, 184, 196, 0.58); color: #8be0ea; }
+.relic-chip.rarity-epic { border-color: rgba(255, 196, 92, 0.78); color: #ffd97d; background: rgba(46, 30, 14, 0.92); }
+.relic-chip-n {
+  position: absolute;
+  right: -3px;
+  bottom: -4px;
+  font-family: var(--display);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: 4px;
+  background: #1a120d;
+  border: 1px solid rgba(255, 210, 140, 0.45);
+  color: var(--cream);
+}
+
+/* Pinned Boss Health & Counterplay Bar */
+.boss-bar {
+  position: absolute;
+  left: 50%;
+  top: 34px;
+  transform: translateX(-50%);
+  width: min(calc(100% - 28px), 310px);
+  z-index: 12;
+  background: rgba(20, 14, 11, 0.92);
+  border: 1px solid rgba(232, 93, 76, 0.52);
+  border-radius: 12px;
+  padding: 6px 10px 7px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.56);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+.boss-bar.hidden { display: none; }
+.boss-bar-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.boss-name {
+  font-family: var(--display);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #ffb29e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.boss-weak {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #9fe0b0;
+  white-space: nowrap;
+}
+.boss-track {
+  position: relative;
+  height: 7px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.boss-trail, .boss-fill, .boss-shield {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 99px;
+}
+.boss-trail {
+  background: rgba(255, 240, 224, 0.72);
+  transition: width 0.22s linear;
+}
+.boss-fill {
+  background: linear-gradient(90deg, #d84336, #f47c44);
+  transition: width 0.08s linear;
+}
+.boss-shield {
+  background: linear-gradient(90deg, rgba(114, 210, 238, 0.9), rgba(202, 242, 255, 0.95));
+  height: 3px;
+  top: auto;
+  bottom: 0;
+}
+.boss-tip {
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+/* Floating Stage Action Bar (Wave Preview + Abilities + Start/Next Wave + Cancel) */
+.stage-controls {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: var(--z-float);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   pointer-events: none;
 }
-.stage-controls > * { pointer-events: auto; }
+.stage-controls > * { pointer-events: none; }
+.stage-controls button,
+.stage-controls .wave-preview { pointer-events: auto; }
+
+.wave-preview {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(18, 14, 11, 0.88);
+  border: 1px solid rgba(255, 224, 182, 0.18);
+  color: var(--cream);
+  font-size: 10.5px;
+  font-weight: 800;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.wave-preview.hidden { display: none; }
+.wp-mut {
+  font-family: var(--display);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(232, 136, 58, 0.22);
+  border: 1px solid rgba(232, 136, 58, 0.48);
+  color: var(--ember-hot);
+}
+.wp-mut.boss {
+  background: rgba(232, 93, 76, 0.24);
+  border-color: rgba(232, 93, 76, 0.58);
+  color: #ffb29e;
+}
+.wp-mut.bounty {
+  background: rgba(224, 189, 104, 0.22);
+  border-color: rgba(224, 189, 104, 0.55);
+  color: #f4d684;
+}
+.wp-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.wp-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.stage-cta-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.stage-cta-row:empty { display: none; }
 
 .ability-bar {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 5px;
 }
 .ability-bar.hidden { display: none; }
 
@@ -520,26 +719,34 @@ button {
   overflow: hidden;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 40px;
-  padding: 0 12px;
+  justify-content: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 0 11px;
   border-radius: 999px;
   background: rgba(24, 18, 14, 0.92);
   border: 1px solid var(--stroke-ember);
   color: var(--cream);
   font-family: var(--display);
   font-weight: 800;
-  font-size: 12px;
+  font-size: 11.5px;
   letter-spacing: 0.02em;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
   transition: transform 0.14s var(--ease-spring), border-color 0.18s ease, box-shadow 0.18s ease;
 }
 .ab-btn:active:not(:disabled) { transform: scale(0.94); }
 .ab-btn.ready {
   background: linear-gradient(155deg, rgba(66, 36, 18, 0.96), rgba(32, 18, 12, 0.95));
   border-color: rgba(255, 184, 84, 0.72);
-  box-shadow: 0 6px 20px rgba(232, 90, 42, 0.35);
+  box-shadow: 0 6px 18px rgba(232, 90, 42, 0.34);
 }
+.ab-btn.ab-nova.ready {
+  background: linear-gradient(155deg, rgba(20, 52, 66, 0.96), rgba(14, 28, 36, 0.95));
+  border-color: rgba(146, 206, 240, 0.75);
+  color: #dff4ff;
+  box-shadow: 0 6px 18px rgba(77, 184, 196, 0.3);
+}
+.ab-btn.ab-nova .ab-fill { background: rgba(146, 206, 240, 0.25); }
 .ab-btn.armed {
   background: linear-gradient(135deg, var(--ember-hot), var(--rift));
   color: #1a0f08;
@@ -552,7 +759,7 @@ button {
   border-color: #fff4cc;
 }
 .ab-btn.cooling {
-  opacity: 0.75;
+  opacity: 0.74;
   border-color: var(--stroke);
   color: var(--muted);
 }
@@ -566,12 +773,11 @@ button {
   pointer-events: none;
   transition: width 0.15s linear;
 }
-.ab-ico { width: 15px; height: 15px; fill: currentColor; position: relative; z-index: 1; }
-.ab-label { position: relative; z-index: 1; font-variant-numeric: tabular-nums; }
+.ab-ico { width: 14px; height: 14px; fill: currentColor; position: relative; z-index: 1; flex-shrink: 0; }
+.ab-label { position: relative; z-index: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .next-wave-btn {
-  margin-left: auto;
-  min-height: 40px;
+  min-height: 36px;
   padding: 0 14px;
   border-radius: 999px;
   background: linear-gradient(135deg, rgba(111, 191, 138, 0.95), rgba(62, 136, 90, 0.96));
@@ -579,17 +785,16 @@ button {
   color: #0b1c10;
   font-family: var(--display);
   font-weight: 800;
-  font-size: 12.5px;
+  font-size: 12px;
   letter-spacing: 0.02em;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
   transition: transform 0.14s var(--ease-spring);
 }
 .next-wave-btn:active { transform: scale(0.95); }
 .next-wave-btn.hidden { display: none; }
 
 .place-cancel {
-  margin-left: auto;
-  min-height: 40px;
+  min-height: 36px;
   padding: 0 14px;
   border-radius: 999px;
   border: 1px solid var(--stroke-hi);
@@ -597,15 +802,14 @@ button {
   color: var(--cream);
   font-family: var(--display);
   font-weight: 800;
-  font-size: 12.5px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
 }
 .place-cancel.hidden { display: none; }
 .place-cancel:active { transform: scale(0.95); }
 
 .start-wave {
-  margin: 0 auto;
-  min-height: 46px;
+  min-height: 44px;
   min-width: 156px;
   padding: 0 24px;
   border-radius: 999px;
@@ -614,7 +818,7 @@ button {
   color: #1a0f08;
   font-family: var(--display);
   font-weight: 800;
-  font-size: 15px;
+  font-size: 14.5px;
   letter-spacing: 0.03em;
   box-shadow: 0 10px 30px rgba(232, 90, 42, 0.42);
   transition: transform 0.14s var(--ease-spring), filter 0.15s ease;
@@ -1958,6 +2162,56 @@ button {
   color: var(--muted);
   line-height: 1.35;
 }
+.relic-card.rarity-rare {
+  border-color: rgba(77, 184, 196, 0.45);
+  background: linear-gradient(165deg, rgba(22, 42, 48, 0.94), rgba(16, 22, 24, 0.95));
+}
+.relic-card.rarity-rare .relic-badge {
+  background: rgba(77, 184, 196, 0.16);
+  border-color: rgba(77, 184, 196, 0.5);
+  color: #8ce2ec;
+}
+.relic-card.rarity-rare .relic-tag {
+  color: #8ce2ec;
+  background: rgba(77, 184, 196, 0.16);
+}
+.relic-card.rarity-epic {
+  border-color: rgba(255, 196, 92, 0.65);
+  background: linear-gradient(165deg, rgba(56, 36, 16, 0.95), rgba(24, 16, 10, 0.96));
+  box-shadow: 0 6px 20px rgba(232, 136, 58, 0.16);
+}
+.relic-card.rarity-epic .relic-badge {
+  background: rgba(255, 196, 92, 0.2);
+  border-color: rgba(255, 196, 92, 0.68);
+  color: #ffd97d;
+}
+.relic-card.rarity-epic .relic-tag {
+  color: #ffd97d;
+  background: rgba(255, 196, 92, 0.2);
+}
+.relic-synergy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #9fe0b0;
+  background: rgba(111, 191, 138, 0.14);
+  border: 1px solid rgba(111, 191, 138, 0.34);
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+.relic-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+.relic-actions button {
+  min-height: 40px;
+  font-size: 12.5px;
+}
 
 .pause-meta {
   font-size: 13px !important;
@@ -2172,6 +2426,118 @@ button {
   font-family: var(--display);
   font-weight: 800;
   font-size: 17px !important;
+  margin-bottom: 12px !important;
+}
+.over-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.over-stat {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  padding: 7px 6px;
+  text-align: center;
+}
+.over-stat .k {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.over-stat .v {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--cream);
+  font-variant-numeric: tabular-nums;
+}
+.over-mvp {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  background: linear-gradient(155deg, rgba(58, 38, 18, 0.72), rgba(24, 17, 12, 0.9));
+  border: 1px solid rgba(255, 196, 92, 0.44);
+  text-align: left;
+}
+.over-mvp.hidden { display: none; }
+.over-mvp-tag {
+  font-family: var(--display);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffd97d;
+}
+.over-mvp-title {
+  font-family: var(--display);
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--cream);
+}
+.over-mvp-meta {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.over-goal {
+  margin-bottom: 12px;
+  padding: 8px 11px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--stroke);
+  text-align: left;
+}
+.over-goal.hidden { display: none; }
+.over-goal-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--cream);
+  margin-bottom: 5px;
+}
+.over-goal-bar {
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+.over-goal-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--ember), var(--ember-hot));
+}
+#btn-over-forge {
+  position: relative;
+}
+#btn-over-forge.has-afford {
+  border-color: rgba(255, 184, 84, 0.68);
+  color: var(--ember-hot);
+  background: rgba(232, 136, 58, 0.14);
+}
+#btn-over-forge.has-afford::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ember-hot);
+  box-shadow: 0 0 8px rgba(255, 184, 84, 0.9);
 }
 
 /* ==================== RESPONSIVE BREAKPOINTS ==================== */
