@@ -218,6 +218,91 @@
   ];
   const RELIC_WAVES = [3, 6, 10, 15, 20, 25, 30, 35, 40, 50, 60, 75, 90];
 
+  /* Endless endgame chip sinks (Mastery Altar + Rift Blessings) */
+  const MAX_BLESSINGS = 3;
+  const MASTERY_INFUSIONS = [
+    {
+      id: "m_dmg", name: "Molten Core", base: 250, grow: 1.42,
+      desc: "+2% all tower damage per rank",
+      fmt: (r) => `+${(r * 2).toFixed(0)}% dmg`,
+    },
+    {
+      id: "m_spd", name: "Aether Clockwork", base: 300, grow: 1.44,
+      desc: "+1.5% all tower attack speed per rank",
+      fmt: (r) => `+${(r * 1.5).toFixed(1)}% speed`,
+    },
+    {
+      id: "m_eco", name: "Gilded Rift", base: 280, grow: 1.42,
+      desc: "+15 start scrap & +3 wave scrap per rank",
+      fmt: (r) => `+${r * 15} start · +${r * 3}/w`,
+    },
+    {
+      id: "m_hp", name: "Wellheart Bastion", base: 260, grow: 1.45,
+      desc: "+2 max Wellheart HP per rank",
+      fmt: (r) => `+${r * 2} max HP`,
+    },
+    {
+      id: "m_pwr", name: "Cataclysm Conduit", base: 320, grow: 1.44,
+      desc: "+4% power dmg & faster Meteor/Surge/Nova CD",
+      fmt: (r) => `+${r * 4}% pwr · −${Math.round((1 - Math.max(0.38, 1 / (1 + r * 0.025))) * 100)}% CD`,
+    },
+    {
+      id: "m_rel", name: "Relic Resonance", base: 400, grow: 1.48,
+      desc: "+3% Rare/Epic relic odds & +1 free reroll / 5 ranks",
+      fmt: (r) => `+${Math.min(150, r * 3)}% odds · +${Math.min(4, Math.floor(r / 5))} reroll`,
+    },
+  ];
+  let masteryBulkMode = "1";
+  function masteryRank(id) {
+    return (meta.infusions && meta.infusions[id]) || 0;
+  }
+  function masteryCostAt(inf, nextRank) {
+    return Math.floor(inf.base * Math.pow(inf.grow, Math.max(0, nextRank - 1)));
+  }
+  function masteryBulkPlan(inf, mode = masteryBulkMode, chips = meta.chips) {
+    const startRank = masteryRank(inf.id);
+    const maxSteps = mode === "5" ? 5 : mode === "max" ? 500 : 1;
+    let count = 0;
+    let total = 0;
+    for (let i = 0; i < maxSteps; i++) {
+      const c = masteryCostAt(inf, startRank + i + 1);
+      if (!Number.isFinite(c) || c > 1e15) break;
+      if (mode === "max" && total + c > chips) break;
+      total += c;
+      count += 1;
+    }
+    if (mode === "max" && count === 0) {
+      return { count: 1, total: masteryCostAt(inf, startRank + 1), affordable: false };
+    }
+    return { count, total, affordable: count > 0 && chips >= total };
+  }
+  function totalMasteryRanks() {
+    if (!meta.infusions) return 0;
+    let sum = 0;
+    for (const inf of MASTERY_INFUSIONS) sum += (meta.infusions[inf.id] || 0);
+    return sum;
+  }
+  function ascensionLevel() {
+    return Math.floor(totalMasteryRanks() / 5);
+  }
+  function toRoman(num) {
+    if (num <= 0) return "";
+    const pairs = [[1000, "M"], [900, "CM"], [500, "D"], [400, "CD"], [100, "C"], [90, "XC"], [50, "L"], [40, "XL"], [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"]];
+    let n = Math.min(3999, Math.floor(num)), out = "";
+    for (const [v, s] of pairs) { while (n >= v) { out += s; n -= v; } }
+    return out;
+  }
+  function blessingCost(cur = meta.blessings || 0) {
+    return Math.floor((500 + ascensionLevel() * 250) * Math.pow(3, cur));
+  }
+  function anyMasteryAffordable() {
+    if ((meta.blessings || 0) < MAX_BLESSINGS && meta.chips >= blessingCost()) return true;
+    for (const inf of MASTERY_INFUSIONS) {
+      if (meta.chips >= masteryCostAt(inf, masteryRank(inf.id) + 1)) return true;
+    }
+    return false;
+  }
+
   // Multi-rank hub trees. col/row drive the visual tree; effect stacks per rank.
   // exclusive: only one node in the group may be purchased (real branch choice).
   // path: forge lane tint (offense / economy / defense / elements / utility).
@@ -513,7 +598,8 @@
   ];
 
   const defaultMeta = () => ({
-    chips: 0, owned: {}, unlockedDifficulties: { normal: true }, selectedDifficulty: "normal",
+    chips: 0, owned: {}, infusions: {}, blessings: 0,
+    unlockedDifficulties: { normal: true }, selectedDifficulty: "normal",
     bestByDifficulty: { normal: { wave: 0, score: 0 }, hard: { wave: 0, score: 0 }, nightmare: { wave: 0, score: 0 } },
     milestones: {}, dailiesCompleted: 0, lastDailyKey: null, lastDailyBest: { wave: 0, score: 0 },
   });
@@ -538,6 +624,8 @@
     typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   let meta = loadJSON(STORAGE.meta, defaultMeta());
+  if (!meta.infusions || typeof meta.infusions !== "object") meta.infusions = {};
+  if (typeof meta.blessings !== "number" || meta.blessings < 0) meta.blessings = 0;
   if (!meta.unlockedDifficulties) meta.unlockedDifficulties = { normal: true };
   if (!meta.bestByDifficulty) meta.bestByDifficulty = defaultMeta().bestByDifficulty;
   if (!meta.selectedDifficulty) meta.selectedDifficulty = "normal";
@@ -857,6 +945,8 @@
       sellMul: 1, levelCdMul: 1, towerCostMul: 1,
       globalDmg: 1, globalFireRate: 1, globalRange: 1,
       globalCritAdd: 0, globalBoss: 0,
+      masteryPowerDmg: 1, masteryPowerCd: 1,
+      masteryRelicOdds: 0, masteryFreeRerolls: 0,
     };
   }
   function applyMetaEffect(b, e, ranks) {
@@ -886,11 +976,30 @@
   let _metaBonusCache = null;
   let _metaBonusKey = "";
   function metaBonuses() {
-    const key = JSON.stringify(meta.owned || {});
+    const key = JSON.stringify(meta.owned || {}) + "|" + JSON.stringify(meta.infusions || {});
     if (_metaBonusCache && _metaBonusKey === key) return _metaBonusCache;
     const b = emptyMetaBonuses();
     for (const tree of Object.values(UPGRADE_TREES)) {
       for (const u of tree) applyMetaEffect(b, u.effect, ownedRank(u.id));
+    }
+    // Endless Mastery Infusions (bounded, smooth scaling)
+    const rDmg = masteryRank("m_dmg");
+    const rSpd = masteryRank("m_spd");
+    const rEco = masteryRank("m_eco");
+    const rHp = masteryRank("m_hp");
+    const rPwr = masteryRank("m_pwr");
+    const rRel = masteryRank("m_rel");
+    if (rDmg > 0) b.globalDmg *= 1 + rDmg * 0.02;
+    if (rSpd > 0) b.globalFireRate /= 1 + rSpd * 0.015;
+    if (rEco > 0) { b.scrapStartAdd += rEco * 15; b.scrapWaveAdd += rEco * 3; }
+    if (rHp > 0) b.baseHpAdd += rHp * 2;
+    if (rPwr > 0) {
+      b.masteryPowerDmg = 1 + rPwr * 0.04;
+      b.masteryPowerCd = Math.max(0.38, 1 / (1 + rPwr * 0.025));
+    }
+    if (rRel > 0) {
+      b.masteryRelicOdds = Math.min(1.5, rRel * 0.03);
+      b.masteryFreeRerolls = Math.min(4, Math.floor(rRel / 5));
     }
     _metaBonusCache = b;
     _metaBonusKey = key;
@@ -932,7 +1041,7 @@
     return [...elements].sort().join("+");
   }
   const COMBO_DESC = {
-    "fire+water": "Geyser (blast + shove forward)",
+    "fire+water": "Geyser (blast + shove back)",
     "earth+fire": "Magma (kill → lava pool)",
     "fire+wind": "Wildfire (spread burn)",
     "earth+water": "Mire (sticky zone)",
@@ -1477,7 +1586,7 @@
     spawnQueue: [], spawnTimer: 0, waveInterval: 0.75, betweenWaves: 0, awaitingStart: false, time: 0, frame: 0,
     sendWaveCd: 0, paidWave: 0,
     shake: 0, flash: 0, hitstopT: 0, ghost: null,
-    relics: [], relicDraftWave: 0, pendingRelicDraft: false, relicRerolls: 0, relicDraftSalt: 0,
+    relics: [], relicDraftWave: 0, pendingRelicDraft: false, relicRerolls: 0, relicDraftSalt: 0, blessingDrafts: 0,
     meteorCd: 0, surgeCd: 0, surgeT: 0, novaCd: 0, armedAbility: null,
     streak: 0, streakT: 0, streakTier: 0,
     waveLeaks: 0, flawlessStreak: 0,
@@ -1552,6 +1661,19 @@
   }
   function pushCombatFx(fx) {
     if (settings.combatFx === false) return;
+    if (fx.kind === "blast" || fx.kind === "ring" || fx.kind === "pop") {
+      let circleN = 0;
+      for (let i = state.fx.length - 1; i >= 0; i--) {
+        const cur = state.fx[i];
+        if (cur.kind === "blast" || cur.kind === "ring" || cur.kind === "pop") {
+          circleN++;
+          if (cur.kind === fx.kind && Math.hypot((cur.x || 0) - (fx.x || 0), (cur.y || 0) - (fx.y || 0)) < 22 && cur.t > 0.14) {
+            return;
+          }
+        }
+      }
+      if (circleN >= 10) return;
+    }
     state.fx.push(fx);
     trimFx();
   }
@@ -1871,10 +1993,10 @@
   }
 
   function abilityCdMul() {
-    return Math.pow(0.65, relicCount("rapid_rite"));
+    return Math.pow(0.65, relicCount("rapid_rite")) * (metaBonuses().masteryPowerCd || 1);
   }
   function abilityDmgMul() {
-    return 1 + 0.35 * relicCount("rapid_rite");
+    return (1 + 0.35 * relicCount("rapid_rite")) * (metaBonuses().masteryPowerDmg || 1);
   }
   function syncAbilitiesUI() {
     if (!els.abilityBar) return;
@@ -1960,7 +2082,6 @@
     state.fx.push({ kind: "text", x, y: y - 16, t: 0.78, text: hits ? `METEOR ×${hits}` : "METEOR", color: "#ffd166", scale: 1.25 });
     spawnParticles(x, y, "#ff8c3a", 28, 160);
     spawnParticles(x, y, "#ffe08a", 16, 110);
-    triggerScreenFlash(0.14);
     state.hitstopT = Math.max(state.hitstopT || 0, 0.038);
     addShake(1.3);
     sfx.meteor();
@@ -2042,22 +2163,27 @@
     return "";
   }
   function relicRerollCost() {
-    return (state.relicRerolls || 0) === 0 ? 0 : 35;
+    const freeLimit = 1 + (metaBonuses().masteryFreeRerolls || 0);
+    return (state.relicRerolls || 0) < freeLimit ? 0 : 35;
   }
   function openRelicDraft(opts = {}) {
     const wrap = $("relic-choices");
     if (!wrap || !els.relic) return;
     state.pendingRelicDraft = true;
+    const isBlessing = (state.blessingDrafts || 0) > 0 && state.awaitingStart;
     const salt = state.relicDraftSalt || 0;
     const rng = mulberry32(hashSeed(`${state.seed}:relic:${state.wave}:${salt}`));
-    // Weighted draw by rarity (Common 1.0, Rare 0.8, Epic 0.62 — higher waves tilt rarer!)
-    const epicBoost = Math.min(0.45, state.wave * 0.015);
+    // Weighted draw by rarity (Common 1.0, Rare 0.85, Epic 0.62 — higher waves & Mastery tilt rarer!)
+    const mb = metaBonuses();
+    const oddsBoost = mb.masteryRelicOdds || 0;
+    const epicBoost = Math.min(0.45, state.wave * 0.015) + oddsBoost * 0.45;
+    const rareBoost = oddsBoost * 0.3;
     const pool = RELICS.slice();
     const picks = [];
     while (picks.length < 3 && pool.length) {
       let totalW = 0;
       const weights = pool.map((r) => {
-        const w = r.rarity === "epic" ? 0.62 + epicBoost : r.rarity === "rare" ? 0.85 : 1.0;
+        const w = r.rarity === "epic" ? 0.62 + epicBoost : r.rarity === "rare" ? 0.85 + rareBoost : 1.0;
         totalW += w;
         return w;
       });
@@ -2070,7 +2196,11 @@
       picks.push(pool.splice(idx, 1)[0]);
     }
     const sub = $("relic-subtitle");
-    if (sub) sub.textContent = `Wave ${state.wave} cleared — pick 1 Rift Relic for this run.`;
+    if (sub) {
+      sub.textContent = isBlessing
+        ? `Rift Blessing (${state.blessingDrafts} left) — draft a starting Relic before Wave 1!`
+        : `Wave ${state.wave} cleared — pick 1 Rift Relic for this run.`;
+    }
     wrap.innerHTML = "";
     for (const r of picks) {
       const owned = relicCount(r.id);
@@ -2090,7 +2220,8 @@
     }
     if (els.btnRelicReroll) {
       const cost = relicRerollCost();
-      els.btnRelicReroll.textContent = cost === 0 ? "Reroll (Free)" : `Reroll · ${cost}`;
+      const freeLeft = Math.max(0, 1 + (mb.masteryFreeRerolls || 0) - (state.relicRerolls || 0));
+      els.btnRelicReroll.textContent = cost === 0 ? (freeLeft > 1 ? `Reroll (Free ×${freeLeft})` : "Reroll (Free)") : `Reroll · ${cost}`;
       els.btnRelicReroll.disabled = cost > 0 && state.scrap < cost;
     }
     if (els.btnRelicSalvage) {
@@ -2114,9 +2245,18 @@
     updateHUD();
   }
   function finishRelicDraft() {
+    if ((state.blessingDrafts || 0) > 0 && state.awaitingStart) {
+      state.blessingDrafts -= 1;
+      if (state.blessingDrafts > 0) {
+        state.relicDraftSalt = (state.relicDraftSalt || 0) + 1;
+        openRelicDraft({ silent: true });
+        updateHUD();
+        return;
+      }
+    }
     state.pendingRelicDraft = false;
     if (!state.awaitingStart && !state.spawnQueue.length && livingEnemyCount() === 0 && state.betweenWaves <= 0) {
-      state.betweenWaves = BALANCE.betweenWaves;
+      state.betweenWaves = nextWaveDelay();
     }
     state.mode = "playing";
     showScreen(null);
@@ -2203,6 +2343,7 @@
       relics: state.relics || [], relicDraftWave: state.relicDraftWave || 0,
       pendingRelicDraft: !!state.pendingRelicDraft,
       relicRerolls: state.relicRerolls || 0, relicDraftSalt: state.relicDraftSalt || 0,
+      blessingDrafts: state.blessingDrafts || 0,
       meteorCd: state.meteorCd || 0, surgeCd: state.surgeCd || 0, surgeT: state.surgeT || 0, novaCd: state.novaCd || 0,
       streak: state.streak || 0, streakT: state.streakT || 0, streakTier: state.streakTier || 0,
       waveLeaks: state.waveLeaks || 0, flawlessStreak: state.flawlessStreak || 0, paidWave: state.paidWave || 0,
@@ -2276,6 +2417,7 @@
       state.pendingRelicDraft = !!data.pendingRelicDraft;
       state.relicRerolls = data.relicRerolls || 0;
       state.relicDraftSalt = data.relicDraftSalt || 0;
+      state.blessingDrafts = data.blessingDrafts || 0;
       state.meteorCd = data.meteorCd || 0;
       state.surgeCd = data.surgeCd || 0;
       state.surgeT = data.surgeT || 0;
@@ -2392,6 +2534,11 @@
     state.pendingRelicDraft = false;
     state.relicRerolls = 0;
     state.relicDraftSalt = 0;
+    state.blessingDrafts = 0;
+    if (!runIsDaily && (meta.blessings || 0) > 0) {
+      state.blessingDrafts = Math.min(MAX_BLESSINGS, meta.blessings);
+      meta.blessings = 0;
+    }
     state.meteorCd = 0;
     state.surgeCd = 0;
     state.surgeT = 0;
@@ -2431,7 +2578,11 @@
     saveJSON(STORAGE.meta, meta);
     saveRun(); updateHUD();
     syncStartBtn();
-    if (!settings.tutorialDone) showCoach(0);
+    if (state.blessingDrafts > 0) {
+      openRelicDraft();
+    } else if (!settings.tutorialDone) {
+      showCoach(0);
+    }
   }
   function continueRun() {
     resize();
@@ -2447,7 +2598,7 @@
     for (const tree of Object.values(UPGRADE_TREES)) {
       if (treeHasAffordable(tree, tree)) return true;
     }
-    return false;
+    return anyMasteryAffordable();
   }
   function nextRunGoal(wave, diffId) {
     // Prefer difficulty unlock first, then next unclaimed milestone.
@@ -2480,10 +2631,20 @@
     const wasDaily = runIsDaily;
     state.lastRunWasDaily = wasDaily;
     const dailyBonus = wasDaily && !abandoned
-      ? (wave >= 8 ? 12 : 0) + (victory ? DAILY.clearBonus : 0)
+      ? (wave >= 8 ? 15 : 0) + (victory ? DAILY.clearBonus : 0)
       : 0;
+    const rs = state.runStats || defaultRunStats();
+    // Balanced, non-exploding chip payout: waves survived + bosses + flawless + sqrt(score) bonus.
+    const waveChips =
+      Math.min(wave, 20) * 4.5 +
+      Math.max(0, Math.min(wave, 50) - 20) * 7.0 +
+      Math.max(0, wave - 50) * 9.5;
+    const bossChips = (rs.bosses || 0) * 14;
+    const flawlessChips = (rs.flawlessWaves || 0) * 3;
+    const scoreChips = Math.floor(Math.sqrt(Math.max(0, score)) * 0.9);
+    const abandonMul = abandoned ? 0.5 : 1.0;
     const chipScale = diff.chipMul * (wasDaily ? DAILY.chipMul : 1);
-    const chips = Math.floor((abandoned ? wave * 2.2 + score / 70 : wave * 4.0 + score / 48) * chipScale) + dailyBonus;
+    const chips = Math.floor((waveChips + bossChips + flawlessChips + scoreChips) * abandonMul * chipScale) + dailyBonus;
     meta.chips += Math.max(0, chips);
     if (!meta.bestByDifficulty[diff.id]) meta.bestByDifficulty[diff.id] = { wave: 0, score: 0 };
     const rec = meta.bestByDifficulty[diff.id];
@@ -2530,12 +2691,11 @@
       `${wasDaily ? "Daily · " : ""}${wasDaily ? "Rift" : diff.name} · Wave ${wave}${wasDaily ? "/" + DAILY.waveCap : ""} · Score ${formatCompact(score)}` +
       (abandoned ? " (abandoned)" : victory ? " · clear" : "");
     els.overChips.textContent =
-      `+${Math.max(0, chips)} chips` +
+      `+${formatCompact(Math.max(0, chips))} chips` +
       (dailyBonus ? ` · daily +${dailyBonus}` : "") +
       (newly.length ? ` · ${newly.join(", ")}` : "");
 
     // Render Run Breakdown Stats Grid
-    const rs = state.runStats || defaultRunStats();
     if (els.overStats) {
       const cells = [
         ["Kills", formatCompact(rs.kills || 0)],
@@ -2660,16 +2820,21 @@
         for (let k = 1; k <= r; k++) refunded += upgradeCostAt(u, k);
       }
     }
+    for (const inf of MASTERY_INFUSIONS) {
+      const r = masteryRank(inf.id);
+      for (let k = 1; k <= r; k++) refunded += masteryCostAt(inf, k);
+    }
     if (refunded <= 0) {
       toast("No upgrades to refund");
       return;
     }
     meta.chips += refunded;
     meta.owned = {};
+    meta.infusions = {};
     invalidateMetaBonuses();
     saveJSON(STORAGE.meta, meta);
     sfx.relic();
-    renderUpgrades();
+    renderUpgrades({ rebuild: true });
     refreshHub();
     toast(`Refunded ${formatCompact(refunded)} chips`);
   }
@@ -2764,10 +2929,18 @@
 
   function refreshHub() {
     meta = loadJSON(STORAGE.meta, defaultMeta());
+    if (!meta.infusions || typeof meta.infusions !== "object") meta.infusions = {};
+    if (typeof meta.blessings !== "number" || meta.blessings < 0) meta.blessings = 0;
     if (!meta.unlockedDifficulties) meta.unlockedDifficulties = { normal: true };
     if (!meta.bestByDifficulty) meta.bestByDifficulty = defaultMeta().bestByDifficulty;
     syncDifficultyUnlocks();
     best = loadJSON(STORAGE.best, defaultBest());
+    const ascEl = $("hub-ascension");
+    if (ascEl) {
+      const asc = ascensionLevel();
+      ascEl.classList.toggle("hidden", asc <= 0);
+      if (asc > 0) ascEl.textContent = `Ascension ${toRoman(asc)}`;
+    }
     const diffId = meta.selectedDifficulty || "normal";
     const rec = meta.bestByDifficulty[diffId] || { wave: 0, score: 0 };
     els.bestWave.textContent = formatCompact(rec.wave || best.wave || 0);
@@ -3368,15 +3541,22 @@
   function updateUpgradeTabBadges() {
     document.querySelectorAll("#screen-upgrades .tab").forEach((tab) => {
       const id = tab.dataset.tab;
-      const tree = UPGRADE_TREES[id] || [];
       tab.classList.toggle("active", id === upgradeTab);
-      tab.classList.toggle("has-afford", treeHasAffordable(tree, tree));
       let badge = tab.querySelector(".tab-rank");
       if (!badge) {
         badge = document.createElement("span");
         badge.className = "tab-rank";
         tab.appendChild(badge);
       }
+      if (id === "mastery") {
+        tab.classList.toggle("has-afford", anyMasteryAffordable());
+        const mRanks = totalMasteryRanks();
+        badge.textContent = mRanks > 0 ? String(mRanks) : "";
+        badge.classList.toggle("hidden", mRanks <= 0);
+        return;
+      }
+      const tree = UPGRADE_TREES[id] || [];
+      tab.classList.toggle("has-afford", treeHasAffordable(tree, tree));
       const { owned } = treeRankTotals(tree);
       badge.textContent = owned > 0 ? String(owned) : "";
       badge.classList.toggle("hidden", owned <= 0);
@@ -3958,10 +4138,140 @@
     }
   }
 
+  function renderMasteryPanel() {
+    const list = els.upgradeList;
+    const prevScroll = upgradeTreeState.key === "mastery" ? list.scrollTop : 0;
+    if (upgradeTreeState.ro) {
+      upgradeTreeState.ro.disconnect();
+      upgradeTreeState.ro = null;
+    }
+    upgradeTreeState.key = "mastery";
+    upgradeTreeState.scroller = list;
+    upgradeTreeState.sections = [];
+    upgradeTreeState.nodes = new Map();
+    upgradeTreeState.laneBtns = new Map();
+    upgradeTreeState.supportBadge = null;
+
+    els.chipsUp.textContent = `${formatCompact(meta.chips)} chips`;
+    if (els.chipsUp) els.chipsUp.title = `${meta.chips} chips`;
+    updateUpgradeTabBadges();
+
+    list.className = "upgrade-tree upgrade-tree-mastery";
+    list.innerHTML = "";
+
+    // Hero header: Ascension level + x1 / x5 / Max bulk buy toggle
+    const asc = ascensionLevel();
+    const totalR = totalMasteryRanks();
+    const nextAscIn = 5 - (totalR % 5);
+    const hero = document.createElement("div");
+    hero.className = "mastery-hero";
+    hero.innerHTML =
+      `<div class="mastery-hero-copy">` +
+        `<div class="mastery-hero-title">Rift Mastery${asc > 0 ? ` <span class="ascension-pill">Ascension ${toRoman(asc)}</span>` : ""}</div>` +
+        `<div class="mastery-hero-sub">${totalR} Mastery ranks · +${nextAscIn} to Ascension ${toRoman(asc + 1)}</div>` +
+      `</div>` +
+      `<div class="mastery-bulk" role="group" aria-label="Buy amount">` +
+        `<button type="button" class="mastery-bulk-btn${masteryBulkMode === "1" ? " active" : ""}" data-bulk="1">×1</button>` +
+        `<button type="button" class="mastery-bulk-btn${masteryBulkMode === "5" ? " active" : ""}" data-bulk="5">×5</button>` +
+        `<button type="button" class="mastery-bulk-btn${masteryBulkMode === "max" ? " active" : ""}" data-bulk="max">Max</button>` +
+      `</div>`;
+    hero.querySelectorAll(".mastery-bulk-btn").forEach((b) => {
+      b.addEventListener("click", () => {
+        masteryBulkMode = b.dataset.bulk;
+        sfx.ui();
+        renderMasteryPanel();
+      });
+    });
+    list.appendChild(hero);
+
+    // Repeatable consumable chip sink: Rift Blessing (start next normal/hard/nightmare run with 1-3 free Relics!)
+    const curBless = meta.blessings || 0;
+    const bCost = blessingCost(curBless);
+    const bFull = curBless >= MAX_BLESSINGS;
+    const bAfford = !bFull && meta.chips >= bCost;
+    const bCard = document.createElement("div");
+    bCard.className = "blessing-card";
+    const pipsHtml = Array.from({ length: MAX_BLESSINGS }, (_, i) =>
+      `<span class="blessing-pip${i < curBless ? " on" : ""}"></span>`
+    ).join("");
+    bCard.innerHTML =
+      `<div class="blessing-copy">` +
+        `<div class="blessing-title">Rift Blessing <span class="blessing-pips">${pipsHtml}</span></div>` +
+        `<div class="blessing-desc">${curBless > 0 ? `Armed: start next non-Daily run with ${curBless} Relic draft${curBless > 1 ? "s" : ""} in Prep.` : "Draft a starting Rift Relic before Wave 1 on your next run (repeatable, up to 3)."}</div>` +
+      `</div>` +
+      `<button type="button" id="btn-buy-blessing" class="blessing-btn"${!bAfford ? " disabled" : ""}>${bFull ? `Max (${MAX_BLESSINGS}/${MAX_BLESSINGS})` : `Bless · ${formatCompact(bCost)}c`}</button>`;
+    const bBtn = bCard.querySelector("#btn-buy-blessing");
+    if (bBtn) {
+      bBtn.addEventListener("click", () => {
+        if ((meta.blessings || 0) >= MAX_BLESSINGS) return;
+        const cost = blessingCost();
+        if (meta.chips < cost) { sfx.cancel(); toast(`Need ${formatCompact(cost)} chips`); return; }
+        meta.chips -= cost;
+        meta.blessings = (meta.blessings || 0) + 1;
+        saveJSON(STORAGE.meta, meta);
+        sfx.relic();
+        toast(`Rift Blessing armed (${meta.blessings}/${MAX_BLESSINGS}) for next run!`);
+        renderMasteryPanel();
+        refreshHub();
+      });
+    }
+    list.appendChild(bCard);
+
+    // 6 Infinite Rift Infusions
+    const grid = document.createElement("div");
+    grid.className = "mastery-grid";
+    for (const inf of MASTERY_INFUSIONS) {
+      const rank = masteryRank(inf.id);
+      const plan = masteryBulkPlan(inf, masteryBulkMode, meta.chips);
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = `mastery-card${plan.affordable ? " affordable" : ""}`;
+      card.dataset.infusion = inf.id;
+      card.disabled = !plan.affordable;
+      card.innerHTML =
+        `<div class="mastery-head"><span class="mastery-name">${inf.name}</span><span class="mastery-rank">Lv ${rank}</span></div>` +
+        `<div class="mastery-desc">${inf.desc}</div>` +
+        `<div class="mastery-cur">${rank > 0 ? inf.fmt(rank) : "Not infused yet"}</div>` +
+        `<div class="mastery-foot"><span class="mastery-step">+${plan.count} rank${plan.count > 1 ? "s" : ""}</span><span class="mastery-cost">${formatCompact(plan.total)}c</span></div>`;
+      card.addEventListener("click", () => {
+        const p = masteryBulkPlan(inf, masteryBulkMode, meta.chips);
+        if (!p.affordable || p.count <= 0) {
+          sfx.cancel();
+          toast(`Need ${formatCompact(p.total)} chips`);
+          return;
+        }
+        const prevAsc = ascensionLevel();
+        meta.chips -= p.total;
+        if (!meta.infusions) meta.infusions = {};
+        meta.infusions[inf.id] = (meta.infusions[inf.id] || 0) + p.count;
+        invalidateMetaBonuses();
+        saveJSON(STORAGE.meta, meta);
+        const newAsc = ascensionLevel();
+        if (newAsc > prevAsc) {
+          sfx.relic();
+          toast(`Ascension ${toRoman(newAsc)} reached!`);
+        } else {
+          sfx.buy();
+        }
+        renderMasteryPanel();
+        refreshHub();
+      });
+      grid.appendChild(card);
+    }
+    list.appendChild(grid);
+    list.scrollTop = prevScroll;
+  }
+
   function renderUpgrades(opts) {
     const { rebuild = false, justBoughtId = null } = opts || {};
     meta = loadJSON(STORAGE.meta, defaultMeta());
+    if (!meta.infusions || typeof meta.infusions !== "object") meta.infusions = {};
+    if (typeof meta.blessings !== "number" || meta.blessings < 0) meta.blessings = 0;
     invalidateMetaBonuses();
+    if (upgradeTab === "mastery") {
+      renderMasteryPanel();
+      return;
+    }
     const key = upgradeTab === "forge" ? `forge:${forgeLane}` : upgradeTab;
     const sameView = !rebuild
       && upgradeTreeState.key === key
@@ -4035,13 +4345,15 @@
     const shieldMax = ability === "carapace"
       ? Math.floor(hp * 0.28)
       : (meta.mutId === "carapace" ? Math.floor(hp * 0.2) : 0);
+    const w = Math.max(1, state.wave);
+    const waveRewardScale = 1 + Math.min(w, 30) * 0.042 + Math.max(0, w - 30) * 0.018;
     state.enemySeq = (state.enemySeq || 0) + 1;
     state.enemies.push({
       id: state.enemySeq,
       type, dist: 0, hp, maxHp: hp, hpTrail: hp,
       speed: def.speed * jitter * speedMul * packSlow,
       baseSpeed: def.speed * jitter * speedMul * packSlow,
-      reward: Math.floor(def.reward * (0.9 + difficulty * 0.05) * rewardMul * (boss && bossTotal > 1 ? 0.85 : 1)),
+      reward: Math.max(1, Math.floor(def.reward * waveRewardScale * rewardMul * (boss && bossTotal > 1 ? 0.85 : 1))),
       r, color: def.color, shape: def.shape, tags: [...def.tags],
       resist: { ...(def.resist || {}) },
       label: def.label || type,
@@ -4125,14 +4437,22 @@
   }
   function pushHazard(h) {
     if (!state.hazards) state.hazards = [];
+    for (const cur of state.hazards) {
+      if (cur.kind === h.kind && Math.hypot(cur.x - h.x, cur.y - h.y) <= Math.max(cur.r || 32, h.r || 32) * 0.72) {
+        cur.t = Math.max(cur.t, h.t);
+        if (h.dps) cur.dps = Math.max(cur.dps || 0, h.dps);
+        if (h.slow) cur.slow = Math.min(cur.slow || 1, h.slow);
+        cur.r = Math.max(cur.r || 32, h.r || 32);
+        return;
+      }
+    }
     state.hazards.push(h);
-    if (state.hazards.length > 24) state.hazards.shift();
+    if (state.hazards.length > 10) state.hazards.shift();
   }
   function comboBurst(x, y, color, label) {
-    pushCombatFx({ kind: "blast", x, y, t: 0.34, r: 46, color });
-    pushCombatFx({ kind: "ring", x, y, t: 0.4, r0: 8, r1: 40, color });
+    pushCombatFx({ kind: "blast", x, y, t: 0.22, r: 26, color });
     if (label) state.fx.push({ kind: "text", x, y: y - 18, t: 0.5, text: label, color });
-    spawnParticles(x, y, color, 12, 90);
+    spawnParticles(x, y, color, 10, 85);
   }
 
   function hitsObstacle(x, y, rad = 18) {
@@ -4559,7 +4879,7 @@
     if (isBossEnemy(e)) scrapGain *= 1.25;
     const gained = Math.max(1, Math.floor(scrapGain));
     state.scrap += gained;
-    state.score += e.reward * 2 + Math.floor(state.wave);
+    state.score += Math.round(e.reward * 2 + Math.floor(state.wave * 1.5));
 
     // Floating gold scrap popup on notable kills (bosses, armored, bounty wave, or every 3rd kill so screen stays crisp)
     if (isBossEnemy(e) || e.bountyTag || e.tags.includes("armored") || (state.runStats && state.runStats.kills % 3 === 0)) {
@@ -4997,8 +5317,7 @@
           const raw = isBossEnemy(e) ? 5 - mb.bossLeakReduce - guard : 1 - mb.leakReduce;
           state.hp -= Math.max(1, raw);
         }
-        pushCombatFx({ kind: "leak", t: 0.5 });
-        triggerScreenFlash(0.18);
+        triggerScreenFlash(0.16);
         addShake(0.95);
         sfx.leak();
         if (state.hp <= 0) { state.hp = 0; updateHUD(); endRun(false); return; }
@@ -5747,40 +6066,28 @@
     if (!state.hazards || !state.hazards.length) return;
     for (const h of state.hazards) {
       const fade = Math.min(1, h.t / 0.8);
-      const pulse = 0.5 + 0.5 * Math.sin(state.time * 5 + h.x * 0.1);
+      const pulse = 0.5 + 0.5 * Math.sin(state.time * 4 + h.x * 0.1);
       ctx.save();
-      ctx.globalAlpha = fade;
+      ctx.globalAlpha = fade * 0.72;
       if (h.kind === "magma") {
-        const g = ctx.createRadialGradient(h.x, h.y, 4, h.x, h.y, h.r);
-        g.addColorStop(0, `rgba(255, 224, 130, ${0.72 + pulse * 0.2})`);
-        g.addColorStop(0.42, "rgba(232, 92, 42, 0.62)");
-        g.addColorStop(0.78, "rgba(92, 24, 12, 0.42)");
+        const g = ctx.createRadialGradient(h.x, h.y, 2, h.x, h.y, h.r);
+        g.addColorStop(0, `rgba(255, 198, 108, ${0.34 + pulse * 0.1})`);
+        g.addColorStop(0.45, "rgba(210, 82, 34, 0.24)");
+        g.addColorStop(0.8, "rgba(74, 22, 12, 0.14)");
         g.addColorStop(1, "rgba(20, 8, 4, 0)");
         ctx.fillStyle = g;
         ctx.beginPath();
         ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = `rgba(255, 184, 84, ${0.42 + pulse * 0.25})`;
-        ctx.lineWidth = 1.6;
-        ctx.beginPath();
-        ctx.arc(h.x, h.y, h.r * (0.7 + pulse * 0.08), 0, Math.PI * 2);
-        ctx.stroke();
       } else if (h.kind === "mire") {
-        const g = ctx.createRadialGradient(h.x, h.y, 4, h.x, h.y, h.r);
-        g.addColorStop(0, "rgba(82, 136, 124, 0.55)");
-        g.addColorStop(0.55, "rgba(56, 72, 54, 0.46)");
+        const g = ctx.createRadialGradient(h.x, h.y, 2, h.x, h.y, h.r);
+        g.addColorStop(0, "rgba(82, 136, 124, 0.3)");
+        g.addColorStop(0.6, "rgba(56, 72, 54, 0.2)");
         g.addColorStop(1, "rgba(20, 24, 18, 0)");
         ctx.fillStyle = g;
         ctx.beginPath();
         ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = "rgba(126, 208, 162, 0.35)";
-        ctx.lineWidth = 1.4;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.arc(h.x, h.y, h.r * 0.82, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
       }
       ctx.restore();
     }
@@ -6857,16 +7164,32 @@
         }
         ctx.globalAlpha = 1;
       } else if (f.kind === "pop") {
-        ctx.globalAlpha = a * 2; ctx.strokeStyle = f.color; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(f.x, f.y, (1 - a) * 22, 0, Math.PI * 2); ctx.stroke();
+        // Soft quick kill flash (no expanding wireframe circle!)
+        const pAlpha = Math.min(0.32, a * 0.85);
+        const pr = 6 + (0.4 - Math.min(0.4, a)) * 14;
+        ctx.globalAlpha = pAlpha;
+        ctx.fillStyle = f.color;
+        ctx.beginPath(); ctx.arc(f.x, f.y, pr, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
-      } else if (f.kind === "blast" || f.kind === "ring") {
+      } else if (f.kind === "blast") {
+        // Pure soft radial impact glow (zero distracting wireframe circle outlines!)
+        const dur = 0.32;
+        const p = 1 - Math.min(1, a / dur);
+        const rr = Math.max(6, (f.r || 32) * (0.35 + p * 0.65));
+        const g = ctx.createRadialGradient(f.x, f.y, 1, f.x, f.y, rr);
+        g.addColorStop(0, f.color);
+        g.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.globalAlpha = Math.min(0.28, a * 0.8);
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(f.x, f.y, rr, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      } else if (f.kind === "ring") {
         const r0 = f.r0 || 0;
         const r1 = f.r1 || f.r || 40;
-        const rr = r0 + (r1 - r0) * (1 - Math.min(1, a / (f.kind === "ring" ? 0.5 : 0.35)));
-        ctx.globalAlpha = Math.min(1, a * 2.2);
+        const rr = r0 + (r1 - r0) * (1 - Math.min(1, a / 0.5));
+        ctx.globalAlpha = Math.min(0.38, a * 0.85);
         ctx.strokeStyle = f.color;
-        ctx.lineWidth = f.kind === "blast" ? 2.6 : 2;
+        ctx.lineWidth = 1.35;
         ctx.beginPath(); ctx.arc(f.x, f.y, rr, 0, Math.PI * 2); ctx.stroke();
         ctx.globalAlpha = 1;
       } else if (f.kind === "beam") {
@@ -6937,10 +7260,11 @@
     }
 
     if (state.flash > 0 && settings.screenFlash !== false) {
-      ctx.globalAlpha = Math.min(0.22, state.flash);
-      ctx.fillStyle = "#e85d4c";
+      const vg = ctx.createRadialGradient(w * 0.5, h * 0.5, Math.min(w, h) * 0.38, w * 0.5, h * 0.5, Math.max(w, h) * 0.72);
+      vg.addColorStop(0, "rgba(232,93,76,0)");
+      vg.addColorStop(1, `rgba(232,93,76,${Math.min(0.28, state.flash * 1.35).toFixed(3)})`);
+      ctx.fillStyle = vg;
       ctx.fillRect(-ox, -oy, w + 20, h + 20);
-      ctx.globalAlpha = 1;
     }
 
     ctx.restore();
