@@ -521,7 +521,7 @@
     muted: false, volume: 0.7, music: false, haptics: true,
     gameSpeed: 1, tutorialDone: false, coachStep: 0,
     shake: "low", particles: true, hitFlash: true, screenFlash: true, combatFx: true,
-    dmgNumbers: true, batterySaver: false, largeTap: false,
+    dmgNumbers: true, batterySaver: false, largeTap: false, autoWave: false,
   });
   const defaultBest = () => ({ wave: 0, score: 0 });
 
@@ -555,6 +555,7 @@
   if (typeof settings.dmgNumbers !== "boolean") settings.dmgNumbers = true;
   if (typeof settings.batterySaver !== "boolean") settings.batterySaver = false;
   if (typeof settings.largeTap !== "boolean") settings.largeTap = false;
+  if (typeof settings.autoWave !== "boolean") settings.autoWave = false;
   if (!meta.milestones) meta.milestones = {};
   if (typeof meta.dailiesCompleted !== "number") meta.dailiesCompleted = 0;
   if (prefersReducedMotion() && settings.shake !== "off") {
@@ -603,6 +604,7 @@
   const mainCtx = canvas.getContext("2d", { alpha: false });
   let ctx = mainCtx;
   const els = {
+    app: $("app"),
     hp: $("hp"), scrap: $("scrap"), wave: $("wave"), score: $("score"),
     banner: $("banner"), toast: $("toast"), streakPill: $("streak-pill"),
     hub: $("screen-hub"), upgrades: $("screen-upgrades"), pause: $("screen-pause"),
@@ -1458,9 +1460,9 @@
     for (const e of state.enemies) if (e.alive && isBossEnemy(e)) n++;
     return n;
   }
-  /** Breathing gap after wave clears so players can inspect Wave Intel & call early for bonus scrap. */
+  /** Breathing gap after wave clears (near-instant when Auto-send waves is enabled). */
   function nextWaveDelay() {
-    return 4.8;
+    return settings.autoWave ? 0.45 : 4.2;
   }
 
   function defaultRunStats() {
@@ -1473,6 +1475,7 @@
     selectedTower: null, selectedBuilt: null, movingTower: null,
     towers: [], enemies: [], projectiles: [], fx: [], particles: [], hazards: [],
     spawnQueue: [], spawnTimer: 0, waveInterval: 0.75, betweenWaves: 0, awaitingStart: false, time: 0, frame: 0,
+    sendWaveCd: 0, paidWave: 0,
     shake: 0, flash: 0, hitstopT: 0, ghost: null,
     relics: [], relicDraftWave: 0, pendingRelicDraft: false, relicRerolls: 0, relicDraftSalt: 0,
     meteorCd: 0, surgeCd: 0, surgeT: 0, novaCd: 0, armedAbility: null,
@@ -1643,37 +1646,101 @@
     btn.classList.toggle("hidden", !show);
     btn.disabled = !show;
   }
+  const MAX_STACKED_SPAWNS = 65;
+  function nextPendingRelicWave() {
+    for (const w of RELIC_WAVES) {
+      if (w <= state.wave && w > (state.relicDraftWave || 0)) return w;
+    }
+    return 0;
+  }
+  function payWaveClearEconomy(opts = {}) {
+    const w = state.wave;
+    if (w <= 0 || (state.paidWave || 0) >= w) return null;
+    state.paidWave = w;
+    const scrapWaveRaw = Math.floor(
+      BALANCE.scrapWaveBase + w * BALANCE.scrapWavePer + metaBonuses().scrapWaveAdd
+    );
+    const scrapWave = Math.floor(scrapWaveRaw * (runIsDaily ? DAILY.scrapWaveMul : 1));
+    // Scrap Interest: +6% banked scrap (cap +35), boosted by Forge Vault relic (+5%, +25 cap each)
+    const vaults = relicCount("scrap_vault");
+    const intRate = 0.06 + vaults * 0.05;
+    const intCap = 35 + vaults * 25;
+    const interest = Math.min(intCap, Math.floor(state.scrap * intRate));
+    // Flawless Wave Bonus only when wave actually clears with 0 leaks (not when rushing mid-wave).
+    let flawlessBonus = 0;
+    let healed = false;
+    if (!opts.rushed) {
+      if ((state.waveLeaks || 0) === 0) {
+        state.flawlessStreak = (state.flawlessStreak || 0) + 1;
+        if (state.runStats) state.runStats.flawlessWaves = (state.runStats.flawlessWaves || 0) + 1;
+        flawlessBonus = Math.max(4, Math.round(scrapWave * 0.15));
+        if (state.flawlessStreak % 3 === 0 && state.hp < (state.maxHp || 20)) {
+          state.hp += 1;
+          healed = true;
+        }
+      } else {
+        state.flawlessStreak = 0;
+      }
+    }
+    state.scrap += scrapWave + interest + flawlessBonus;
+    if (state.runStats) state.runStats.interestEarned = (state.runStats.interestEarned || 0) + interest;
+    return { scrapWave, interest, flawlessBonus, healed };
+  }
+  function canCallNextWave() {
+    return (
+      state.mode === "playing" &&
+      !state.awaitingStart &&
+      !!state.seed &&
+      !(runIsDaily && state.wave >= DAILY.waveCap)
+    );
+  }
   function earlyWaveBonus() {
-    if (state.betweenWaves <= 0) return 0;
-    return Math.max(5, Math.round(state.betweenWaves * (4 + state.wave * 0.5)));
+    if (!canCallNextWave()) return 0;
+    if (state.betweenWaves > 0) {
+      return Math.max(5, Math.round(state.betweenWaves * (4 + state.wave * 0.5)));
+    }
+    const active = state.spawnQueue.length + livingEnemyCount();
+    return Math.max(8, Math.round((3.8 + Math.min(20, active) * 0.28) * (3 + state.wave * 0.45)));
   }
   function syncNextWaveBtn() {
     const btn = els.btnNextWave;
     if (!btn) return;
-    const canCall =
-      state.mode === "playing" &&
-      !state.awaitingStart &&
+    const show =
+      canCallNextWave() &&
       !state.selectedTower &&
       state.movingTower == null &&
-      !state.armedAbility &&
-      state.spawnQueue.length === 0 &&
-      state.betweenWaves > 0.25 &&
-      !(runIsDaily && state.wave >= DAILY.waveCap);
-    btn.classList.toggle("hidden", !canCall);
-    if (canCall) {
-      btn.textContent = `Wave ${state.wave + 1} (+${earlyWaveBonus()})`;
+      !state.armedAbility;
+    btn.classList.toggle("hidden", !show);
+    if (!show) return;
+    const nextW = state.wave + 1;
+    const plan = wavePlan(state.seed, nextW, state.difficulty);
+    const queuedFull = state.spawnQueue.length >= MAX_STACKED_SPAWNS;
+    const cooling = (state.sendWaveCd || 0) > 0;
+    const isRush = state.betweenWaves <= 0 && (state.spawnQueue.length > 0 || livingEnemyCount() > 0);
+    btn.disabled = queuedFull || cooling;
+    btn.classList.toggle("is-boss", !!plan.isBoss);
+    btn.classList.toggle("is-rush", !plan.isBoss && isRush);
+    if (queuedFull) {
+      btn.textContent = "Queue Full";
+    } else {
+      const bonus = earlyWaveBonus();
+      const tag = plan.isBoss ? " BOSS" : "";
+      btn.textContent = `▶ W${nextW}${tag} +${bonus}`;
     }
+    const mutTxt = plan.isBoss ? "BOSS Wave" : (plan.mutator ? `${plan.mutator.label}: ${plan.mutator.desc}` : `Wave ${nextW}`);
+    btn.title = `${mutTxt} — send immediately [Space]`;
   }
   function syncWavePreview() {
     const el = els.wavePreview;
     if (!el) return;
+    // Prep only: during combat the docked strip holds Abilities + always-available Send Next Wave.
     const show =
       state.mode === "playing" &&
       !!state.seed &&
+      !!state.awaitingStart &&
       !state.selectedTower &&
       state.movingTower == null &&
       !state.armedAbility &&
-      (state.awaitingStart || (state.spawnQueue.length === 0 && state.betweenWaves > 0.2)) &&
       !(runIsDaily && state.wave >= DAILY.waveCap);
     el.classList.toggle("hidden", !show);
     if (!show) return;
@@ -1699,28 +1766,38 @@
   }
   function syncBossBar() {
     if (!els.bossBar) return;
-    if (state.mode !== "playing") { els.bossBar.classList.add("hidden"); return; }
+    if (state.mode !== "playing") {
+      els.bossBar.classList.add("hidden");
+      if (els.app) els.app.dataset.boss = "0";
+      return;
+    }
     let boss = null;
     for (const e of state.enemies) {
       if (!e.alive || !isBossEnemy(e)) continue;
       if (!boss || e.dist > boss.dist) boss = e;
     }
-    if (!boss) { els.bossBar.classList.add("hidden"); return; }
+    if (!boss) {
+      els.bossBar.classList.add("hidden");
+      if (els.app) els.app.dataset.boss = "0";
+      return;
+    }
     els.bossBar.classList.remove("hidden");
+    if (els.app) els.app.dataset.boss = "1";
     const hpPct = Math.max(0, Math.min(100, (boss.hp / Math.max(1, boss.maxHp)) * 100));
     const trailPct = Math.max(hpPct, Math.min(100, ((boss.hpTrail != null ? boss.hpTrail : boss.hp) / Math.max(1, boss.maxHp)) * 100));
     const shPct = boss.shieldMax > 0 ? Math.max(0, Math.min(100, (boss.shield / boss.shieldMax) * 100)) : 0;
     const totalBosses = livingBossCount();
-    els.bossName.textContent = `${boss.label}${totalBosses > 1 ? ` (×${totalBosses})` : ""}`;
+    els.bossName.textContent = `${boss.label}${totalBosses > 1 ? ` ×${totalBosses}` : ""}`;
     const r = enemyResist(boss);
     const weaks = Object.entries(r).filter(([, v]) => v >= 1.2).sort((a, b) => b[1] - a[1]).slice(0, 2)
       .map(([k]) => ELEMENTS[k] ? ELEMENTS[k].name : k);
-    els.bossWeak.textContent = weaks.length ? `Weak: ${weaks.join(" · ")}` : "";
+    els.bossWeak.textContent = weaks.length ? weaks.join("·") : "";
     els.bossFill.style.width = `${hpPct.toFixed(1)}%`;
     els.bossTrail.style.width = `${trailPct.toFixed(1)}%`;
     els.bossShield.style.width = `${shPct.toFixed(1)}%`;
     const tip = BOSS_TIPS[boss.type] || "";
-    els.bossTip.innerHTML = `<span>${tip}</span><span>${formatCompact(Math.ceil(boss.hp))} / ${formatCompact(boss.maxHp)}</span>`;
+    if (els.bossBar) els.bossBar.title = tip;
+    if (els.bossTip) els.bossTip.textContent = `${formatCompact(Math.ceil(boss.hp))}`;
   }
   let lastRelicStripSig = "";
   function syncRelicStrip() {
@@ -1734,33 +1811,61 @@
     if (sig === lastRelicStripSig) return;
     lastRelicStripSig = sig;
     const counts = {};
-    for (const id of list) counts[id] = (counts[id] || 0) + 1;
-    el.innerHTML = "";
-    for (const [id, n] of Object.entries(counts)) {
+    let bestRarity = "common";
+    let leadGlyph = "✦";
+    for (const id of list) {
+      counts[id] = (counts[id] || 0) + 1;
       const def = RELICS.find((r) => r.id === id);
-      if (!def) continue;
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = `relic-chip rarity-${def.rarity || "common"}`;
-      btn.title = `${def.name}${n > 1 ? ` ×${n}` : ""}: ${def.desc}`;
-      btn.innerHTML = `${def.glyph}${n > 1 ? `<span class="relic-chip-n">${n}</span>` : ""}`;
-      btn.addEventListener("click", () => {
-        sfx.ui();
-        toast(`${def.name}${n > 1 ? ` ×${n}` : ""} — ${def.desc}`);
-      });
-      el.appendChild(btn);
+      if (def) {
+        if (def.rarity === "epic") { bestRarity = "epic"; leadGlyph = def.glyph; }
+        else if (def.rarity === "rare" && bestRarity === "common") { bestRarity = "rare"; leadGlyph = def.glyph; }
+        else if (bestRarity === "common") { leadGlyph = def.glyph; }
+      }
     }
+    const summaryParts = Object.entries(counts).map(([id, n]) => {
+      const def = RELICS.find((r) => r.id === id);
+      return def ? `${def.name}${n > 1 ? ` ×${n}` : ""}` : id;
+    });
+    el.innerHTML = "";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `relic-chip rarity-${bestRarity}`;
+    btn.title = `Active Relics: ${summaryParts.join(" · ")}`;
+    btn.innerHTML = `<span>${leadGlyph}</span><span>×${list.length}</span>`;
+    btn.addEventListener("click", () => {
+      sfx.ui();
+      toast(`Relics: ${summaryParts.join(" · ")}`);
+    });
+    el.appendChild(btn);
   }
 
   function callNextWaveEarly() {
-    if (state.mode !== "playing" || state.awaitingStart || state.spawnQueue.length > 0 || state.betweenWaves <= 0) return;
-    if (runIsDaily && state.wave >= DAILY.waveCap) return;
+    if (!canCallNextWave()) return;
+    if ((state.sendWaveCd || 0) > 0) return;
+    if (state.spawnQueue.length >= MAX_STACKED_SPAWNS) {
+      toast("Wave queue full — clear some foes first");
+      sfx.cancel();
+      return;
+    }
+    const isMidWave = state.betweenWaves <= 0 && (state.spawnQueue.length > 0 || livingEnemyCount() > 0);
     const bonus = earlyWaveBonus();
+    let clearPay = null;
+    if (isMidWave) {
+      clearPay = payWaveClearEconomy({ rushed: true });
+    }
     state.scrap += bonus;
     state.betweenWaves = 0;
+    state.sendWaveCd = 0.5;
     sfx.streak();
-    toast(`Early wave! +${bonus} scrap`);
-    beginWave();
+    if (isMidWave && clearPay) {
+      const bits = [`W${state.wave + 1} Rush +${bonus}`];
+      if (clearPay.scrapWave > 0) bits.push(`+${clearPay.scrapWave} wave`);
+      if (clearPay.interest > 0) bits.push(`+${clearPay.interest} int`);
+      toast(bits.join(" · "));
+    } else {
+      toast(`Early wave! +${bonus} scrap`);
+    }
+    beginWave({ append: isMidWave });
     updateHUD();
     saveRun();
   }
@@ -2100,7 +2205,7 @@
       relicRerolls: state.relicRerolls || 0, relicDraftSalt: state.relicDraftSalt || 0,
       meteorCd: state.meteorCd || 0, surgeCd: state.surgeCd || 0, surgeT: state.surgeT || 0, novaCd: state.novaCd || 0,
       streak: state.streak || 0, streakT: state.streakT || 0, streakTier: state.streakTier || 0,
-      waveLeaks: state.waveLeaks || 0, flawlessStreak: state.flawlessStreak || 0,
+      waveLeaks: state.waveLeaks || 0, flawlessStreak: state.flawlessStreak || 0, paidWave: state.paidWave || 0,
       runStats: state.runStats || defaultRunStats(),
       hazards: (state.hazards || []).map((h) => ({ ...h })),
       towers: state.towers.map((t) => ({
@@ -2182,6 +2287,8 @@
       state.streakTier = data.streakTier || 0;
       state.waveLeaks = data.waveLeaks || 0;
       state.flawlessStreak = data.flawlessStreak || 0;
+      state.paidWave = data.paidWave || 0;
+      state.sendWaveCd = 0;
       state.runStats = { ...defaultRunStats(), ...(data.runStats || {}) };
       state.hitstopT = 0;
       lastRelicStripSig = "";
@@ -2292,7 +2399,7 @@
     state.armedAbility = null;
     state.movingTower = null;
     state.streak = 0; state.streakT = 0; state.streakTier = 0;
-    state.waveLeaks = 0; state.flawlessStreak = 0;
+    state.waveLeaks = 0; state.flawlessStreak = 0; state.paidWave = 0; state.sendWaveCd = 0;
     state.runStats = defaultRunStats();
     state.hitstopT = 0;
     lastRelicStripSig = "";
@@ -2527,8 +2634,9 @@
     state.relics = []; state.selectedBuilt = null; state.selectedTower = null;
     state.armedAbility = null; state.movingTower = null;
     state.pendingRelicDraft = false; state.relicRerolls = 0;
-    state.flawlessStreak = 0; state.hitstopT = 0;
+    state.flawlessStreak = 0; state.hitstopT = 0; state.paidWave = 0; state.sendWaveCd = 0;
     lastRelicStripSig = "";
+    if (els.app) els.app.dataset.boss = "0";
     if (els.bossBar) els.bossBar.classList.add("hidden");
     if (els.relicStrip) els.relicStrip.classList.add("hidden");
     if (els.wavePreview) els.wavePreview.classList.add("hidden");
@@ -2769,6 +2877,9 @@
       syncLargeTap();
       toast(settings.largeTap ? "Large taps on" : "Large taps off");
     });
+    bindPref("opt-autowave", "autoWave", () => {
+      toast(settings.autoWave ? "Auto-send waves on" : "Auto-send waves off");
+    });
     const musicEl = $("opt-music");
     if (musicEl) {
       musicEl.checked = !!settings.music;
@@ -2895,7 +3006,7 @@
     if (els.streakPill) {
       const showStreak = state.mode === "playing" && state.streak >= 5 && state.streakT > 0;
       els.streakPill.classList.toggle("hidden", !showStreak);
-      if (showStreak) els.streakPill.textContent = `STREAK ×${state.streak}`;
+      if (showStreak) els.streakPill.textContent = `🔥 ×${state.streak}`;
     }
     refreshTowerButtons();
     updateInspect();
@@ -3171,6 +3282,11 @@
   }
 
   function showBanner(text) {
+    if (els.toast) {
+      clearTimeout(toast._t);
+      els.toast.classList.remove("show");
+      els.toast.classList.add("hidden");
+    }
     const b = els.banner;
     if (!b) return;
     b.textContent = text;
@@ -3183,6 +3299,11 @@
     }, 1100);
   }
   function toast(text) {
+    if (els.banner) {
+      clearTimeout(showBanner._t);
+      els.banner.classList.remove("show");
+      els.banner.classList.add("hidden");
+    }
     const t = els.toast;
     t.textContent = text;
     t.classList.remove("hidden");
@@ -3850,13 +3971,15 @@
     syncUpgradeNodes(justBoughtId);
   }
 
-  function beginWave() {
+  function beginWave(opts = {}) {
     if (runIsDaily && state.wave >= DAILY.waveCap) return;
+    const append = !!(opts && opts.append && state.spawnQueue.length > 0);
     state.wave += 1;
-    state.waveLeaks = 0;
+    if (!append) state.waveLeaks = 0;
     const plan = wavePlan(state.seed, state.wave, state.difficulty);
-    state.waveInterval = plan.interval || 0.75;
-    state.spawnQueue = [];
+    const nextIv = plan.interval || 0.75;
+    state.waveInterval = append ? Math.min(state.waveInterval || nextIv, nextIv) : nextIv;
+    if (!append) state.spawnQueue = [];
     const laneN = (state.path && state.path.spawnN) || plan.spawnLanes || 1;
     const mutId = plan.mutator ? plan.mutator.id : null;
     let laneCursor = 0;
@@ -3872,7 +3995,9 @@
         });
       }
     }
-    state.spawnTimer = 0.35; state.betweenWaves = 0; state.awaitingStart = false;
+    if (!append) state.spawnTimer = 0.35;
+    else state.spawnTimer = Math.min(state.spawnTimer, 0.25);
+    state.betweenWaves = 0; state.awaitingStart = false;
     syncStartBtn();
     let banner = `W${state.wave}`;
     if (plan.bossN > 1) {
@@ -3883,6 +4008,8 @@
     } else if (plan.isBoss) {
       const b = plan.mix.find((p) => isBossType(p.type));
       banner = `${((b && ENEMY[b.type]) || {}).label || "Boss"} · W${state.wave}`;
+      const bTip = b && BOSS_TIPS[b.type];
+      if (bTip && !append) toast(bTip);
     } else if (plan.mutator) {
       banner = `${plan.mutator.label} · W${state.wave}`;
     }
@@ -4721,6 +4848,7 @@
     state.time += step; state.frame++;
 
     // Active abilities & streak timers
+    if (state.sendWaveCd > 0) state.sendWaveCd = Math.max(0, state.sendWaveCd - dt);
     if (!state.awaitingStart) {
       if (state.meteorCd > 0) state.meteorCd = Math.max(0, state.meteorCd - step);
       if (state.surgeCd > 0) state.surgeCd = Math.max(0, state.surgeCd - step);
@@ -4763,41 +4891,19 @@
             return;
           }
           state.betweenWaves = nextWaveDelay();
-          const scrapWaveRaw = Math.floor(
-            BALANCE.scrapWaveBase + state.wave * BALANCE.scrapWavePer + metaBonuses().scrapWaveAdd
-          );
-          const scrapWave = Math.floor(scrapWaveRaw * (runIsDaily ? DAILY.scrapWaveMul : 1));
-          // Scrap Interest: +6% banked scrap (cap +35), boosted by Forge Vault relic (+5%, +25 cap each)
-          const vaults = relicCount("scrap_vault");
-          const intRate = 0.06 + vaults * 0.05;
-          const intCap = 35 + vaults * 25;
-          const interest = Math.min(intCap, Math.floor(state.scrap * intRate));
-          // Flawless Wave Bonus: 0 leaks -> +15% wave scrap + heal 1 HP every 3 flawless waves in a row!
-          let flawlessBonus = 0;
-          let healed = false;
-          if ((state.waveLeaks || 0) === 0) {
-            state.flawlessStreak = (state.flawlessStreak || 0) + 1;
-            if (state.runStats) state.runStats.flawlessWaves = (state.runStats.flawlessWaves || 0) + 1;
-            flawlessBonus = Math.max(4, Math.round(scrapWave * 0.15));
-            if (state.flawlessStreak % 3 === 0 && state.hp < (state.maxHp || 20)) {
-              state.hp += 1;
-              healed = true;
-            }
-          } else {
-            state.flawlessStreak = 0;
+          const pay = payWaveClearEconomy({ rushed: false });
+          if (pay) {
+            const bonusBits = [`+${pay.scrapWave} wave`];
+            if (pay.interest > 0) bonusBits.push(`+${pay.interest} int`);
+            if (pay.flawlessBonus > 0) bonusBits.push(`Flawless +${pay.flawlessBonus}${pay.healed ? " · +1 HP" : ""}`);
+            toast(bonusBits.join(" · "));
+            if (pay.flawlessBonus > 0) sfx.streak();
           }
-          state.scrap += scrapWave + interest + flawlessBonus;
-          if (state.runStats) state.runStats.interestEarned = (state.runStats.interestEarned || 0) + interest;
 
-          const bonusBits = [`+${scrapWave} wave`];
-          if (interest > 0) bonusBits.push(`+${interest} int`);
-          if (flawlessBonus > 0) bonusBits.push(`Flawless +${flawlessBonus}${healed ? " · +1 HP" : ""}`);
-          toast(bonusBits.join(" · "));
-          if (flawlessBonus > 0) sfx.streak();
-
-          // Trigger roguelite Rift Relic draft at milestone waves!
-          if (RELIC_WAVES.includes(state.wave) && state.relicDraftWave < state.wave) {
-            state.relicDraftWave = state.wave;
+          // Trigger roguelite Rift Relic draft at milestone waves (never skipped even after wave stacking!)
+          const relicW = nextPendingRelicWave();
+          if (relicW > 0) {
+            state.relicDraftWave = relicW;
             openRelicDraft();
             return;
           }
@@ -7161,7 +7267,14 @@
       evt.preventDefault();
       ensureAudio();
       if (state.awaitingStart) playerStartWaves();
-      else if (state.spawnQueue.length === 0 && state.betweenWaves > 0.25) callNextWaveEarly();
+      else if (canCallNextWave()) callNextWaveEarly();
+    } else if (k === "g") {
+      settings.autoWave = !settings.autoWave;
+      saveSettings();
+      const cb = $("opt-autowave");
+      if (cb) cb.checked = settings.autoWave;
+      sfx.ui();
+      toast(settings.autoWave ? "Auto-send waves on" : "Auto-send waves off");
     } else if (k === "a") {
       autoLevelAllTowers();
     } else if (state.selectedBuilt != null) {

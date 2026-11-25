@@ -11,13 +11,13 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="application-name" content="Emberwell" />
   <meta name="description" content="Endless molten-rift tower defense with elemental combos, rift relics, and active powers. Play offline anywhere." />
-  <link rel="manifest" href="manifest.webmanifest?v=2.4.0" />
+  <link rel="manifest" href="manifest.webmanifest?v=2.5.0" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icons/icon-512.png" sizes="512x512" />
   <title>Emberwell — Molten Rift Tower Defense</title>
-  <script src="version.js?v=2.4.0"></script>
-  <link rel="stylesheet" href="styles.css?v=2.4.0" />
+  <script src="version.js?v=2.5.0"></script>
+  <link rel="stylesheet" href="styles.css?v=2.5.0" />
 </head>
 <body>
   <div id="app" data-ui="hub">
@@ -67,13 +67,13 @@
         <div class="boss-bar-top">
           <span id="boss-name" class="boss-name">Boss</span>
           <span id="boss-weak" class="boss-weak"></span>
+          <span id="boss-tip" class="boss-hp-num"></span>
         </div>
         <div class="boss-track">
           <span id="boss-trail" class="boss-trail"></span>
           <span id="boss-fill" class="boss-fill"></span>
           <span id="boss-shield" class="boss-shield"></span>
         </div>
-        <div id="boss-tip" class="boss-tip"></div>
       </div>
 
       <div id="banner" class="wave-chip hidden" aria-live="polite"></div>
@@ -87,8 +87,10 @@
         <p id="coach-text"></p>
         <button type="button" id="btn-coach-skip" class="text-btn">Skip</button>
       </div>
+    </main>
 
-      <!-- Active tactical controls floating cleanly at bottom of battlefield -->
+    <footer id="chrome-bottom">
+      <!-- Docked single-row tactical strip: 0px of battlefield canvas blocked! -->
       <div id="stage-controls" class="stage-controls">
         <div id="wave-preview" class="wave-preview hidden" aria-live="polite"></div>
         <div id="ability-bar" class="ability-bar hidden" aria-label="Rift abilities">
@@ -109,14 +111,12 @@
           </button>
         </div>
         <div class="stage-cta-row">
-          <button type="button" id="btn-next-wave" class="next-wave-btn hidden" aria-label="Call next wave early">Next Wave</button>
+          <button type="button" id="btn-next-wave" class="next-wave-btn hidden" aria-label="Send next wave" title="Send next wave immediately [Space]">Send W2</button>
           <button type="button" id="btn-place-cancel" class="place-cancel hidden" aria-label="Cancel placement">Cancel</button>
           <button type="button" id="btn-start-wave" class="start-wave hidden" aria-label="Start waves">Start Wave</button>
         </div>
       </div>
-    </main>
 
-    <footer id="chrome-bottom">
       <!-- Inspect drawer overlays the dock smoothly without resizing or squashing the battlefield -->
       <div id="inspect" class="inspect hidden" aria-live="polite" role="region" aria-label="Tower inspector">
         <div class="inspect-head">
@@ -337,6 +337,7 @@
               <label class="setting-toggle"><input type="checkbox" id="opt-haptics" /> Haptics</label>
               <label class="setting-toggle"><input type="checkbox" id="opt-batterysaver" /> Battery saver</label>
               <label class="setting-toggle"><input type="checkbox" id="opt-largetap" /> Large tap targets</label>
+              <label class="setting-toggle"><input type="checkbox" id="opt-autowave" /> Auto-send waves</label>
             </div>
             <p class="setting-hint">Choices save on this device. Battery saver caps particles, FX, and canvas DPR.</p>
           </div>
@@ -396,10 +397,10 @@
       </div>
     </section>
   </div>
-  <script src="game.js?v=2.4.0" defer></script>
+  <script src="game.js?v=2.5.0" defer></script>
   <script>
     (function () {
-      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "2.4.0";
+      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "2.5.0";
       var el = document.getElementById("app-version");
       if (el) el.textContent = "v" + ver;
       var sv = document.getElementById("settings-version");
