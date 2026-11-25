@@ -179,21 +179,42 @@
   const ABILITY_DEF = {
     meteor: { cd: 20, radius: 68, dmgBase: 155, dmgWave: 34, poolDur: 4.5 },
     surge: { cd: 26, dur: 6.2, rateMul: 0.64, critAdd: 0.22 },
+    nova: { cd: 22, dur: 2.8, dmgBase: 48, dmgWave: 13 },
+  };
+
+  const WAVE_MUTATORS = {
+    sky: { id: "sky", label: "Sky Raid", cls: "", desc: "Heavy flying Drone assault" },
+    phalanx: { id: "phalanx", label: "Iron Phalanx", cls: "", desc: "Dense armored column" },
+    swarm: { id: "swarm", label: "Swarm Rush", cls: "", desc: "Fast packed Swarm flood" },
+    hasted: { id: "hasted", label: "Hasted", cls: "", desc: "+18% speed · +15% scrap" },
+    carapace: { id: "carapace", label: "Carapace", cls: "", desc: "Mini-shields · +20% scrap" },
+    bounty: { id: "bounty", label: "Bounty Wave", cls: "bounty", desc: "+45% scrap drops!" },
+  };
+
+  const BOSS_TIPS = {
+    behemoth: "Heavy bulk · Earth & Arc punch armor",
+    emberwyrm: "Ashregen · Chill or Frost halts healing",
+    shellwarden: "Shield regens · Burst with Earth & Arc",
+    broodmother: "Spawns Swarms · Fire & splash clear fast",
+    galeheart: "Enrages at 45% HP · Frost & Earth counter",
   };
 
   const RELICS = [
-    { id: "volatile", name: "Volatile Core", tag: "On-Kill", glyph: "✦", desc: "Slain foes erupt for 18% max HP splash damage." },
-    { id: "combo_amp", name: "Resonant Matrix", tag: "Combos", glyph: "◈", desc: "Dual-socket towers deal +24% dmg & stronger combo blasts." },
-    { id: "cryo_vuln", name: "Brittle Chill", tag: "Control", glyph: "❄", desc: "Slowed or chilled foes take +25% bonus damage." },
-    { id: "twin_bolt", name: "Split Chamber", tag: "Turret", glyph: "»", desc: "Turrets fire an extra split bolt at 42% damage." },
-    { id: "lava_shell", name: "Magma Shells", tag: "Mortar", glyph: "●", desc: "Mortar shells leave scorching lava pools on impact." },
-    { id: "arc_fork", name: "Tesla Fork", tag: "Coil", glyph: "⚡", desc: "Coils chain to +1 extra target (+20% jump dmg)." },
-    { id: "sunder_beam", name: "Rift Sunder", tag: "Spire", glyph: "┃", desc: "Spire rails shred armor & deal +25% vs bosses." },
-    { id: "bounty", name: "Scrap Magnet", tag: "Economy", glyph: "⬡", desc: "+28% kill scrap and +45% boss bounty." },
-    { id: "rapid_rite", name: "Rift Conduit", tag: "Powers", glyph: "☄", desc: "Meteor & Surge recharge 35% faster and hit 35% harder." },
-    { id: "executioner", name: "Coup de Grace", tag: "Offense", glyph: "⚔", desc: "Foes under 25% HP take +65% damage." },
-    { id: "well_mend", name: "Wellheart Bloom", tag: "Instant", glyph: "♥", desc: "Restore +5 Wellheart HP and gain +90 scrap right now." },
-    { id: "overclock_all", name: "Forge Tempo", tag: "Offense", glyph: "▲", desc: "All towers gain +15% attack speed and +8% range." },
+    { id: "volatile", name: "Volatile Core", tag: "On-Kill", rarity: "epic", glyph: "✦", desc: "Slain foes erupt for 18% max HP splash damage." },
+    { id: "combo_amp", name: "Resonant Matrix", tag: "Combos", rarity: "epic", glyph: "◈", desc: "Dual-socket towers deal +24% dmg & +40% combo blasts." },
+    { id: "cryo_vuln", name: "Brittle Chill", tag: "Control", rarity: "rare", glyph: "❄", desc: "Slowed or chilled foes take +25% bonus damage." },
+    { id: "twin_bolt", name: "Split Chamber", tag: "Turret", rarity: "epic", glyph: "»", desc: "Turrets fire an extra split bolt at 42% damage." },
+    { id: "lava_shell", name: "Magma Shells", tag: "Mortar", rarity: "rare", glyph: "●", desc: "Mortar shells leave scorching lava pools on impact." },
+    { id: "arc_fork", name: "Tesla Fork", tag: "Coil", rarity: "rare", glyph: "⚡", desc: "Coils chain to +1 extra target (+20% jump dmg)." },
+    { id: "sunder_beam", name: "Rift Sunder", tag: "Spire", rarity: "rare", glyph: "┃", desc: "Spire rails shred armor & deal +25% vs bosses." },
+    { id: "bounty", name: "Scrap Magnet", tag: "Economy", rarity: "common", glyph: "⬡", desc: "+28% kill scrap and +45% boss bounty." },
+    { id: "scrap_vault", name: "Forge Vault", tag: "Economy", rarity: "common", glyph: "❖", desc: "+5% banked scrap interest (+25 cap) & +45 scrap now." },
+    { id: "rapid_rite", name: "Rift Conduit", tag: "Powers", rarity: "rare", glyph: "☄", desc: "Meteor, Surge & Nova recharge 35% faster and hit 35% harder." },
+    { id: "frostbite_nova", name: "Glacial Core", tag: "Control", rarity: "rare", glyph: "✧", desc: "Cryo Nova deals +85% shatter damage & freezes 40% longer." },
+    { id: "chain_catalyst", name: "Rift Catalyst", tag: "Combos", rarity: "epic", glyph: "⟳", desc: "Elemental combo procs shave 0.25s off all power cooldowns." },
+    { id: "executioner", name: "Coup de Grace", tag: "Offense", rarity: "common", glyph: "⚔", desc: "Foes under 25% HP take +65% damage." },
+    { id: "well_mend", name: "Wellheart Bloom", tag: "Instant", rarity: "common", glyph: "♥", desc: "Restore +5 Wellheart HP and gain +90 scrap right now." },
+    { id: "overclock_all", name: "Forge Tempo", tag: "Offense", rarity: "common", glyph: "▲", desc: "All towers gain +15% attack speed and +8% range." },
   ];
   const RELIC_WAVES = [3, 6, 10, 15, 20, 25, 30, 35, 40, 50, 60, 75, 90];
 
@@ -593,11 +614,17 @@
     btnMute: $("btn-mute"), btnPause: $("btn-pause"), btnSpeed: $("btn-speed"),
     speedLabel: $("speed-label"),
     btnSell: $("btn-sell"), btnUpgrade: $("btn-upgrade"), btnAutoLevel: $("btn-auto-level"),
+    btnMove: $("btn-move"),
     btnTargetMode: $("btn-target-mode"), btnInspectClose: $("btn-inspect-close"),
     btnNextWave: $("btn-next-wave"), abilityBar: $("ability-bar"),
-    btnMeteor: $("btn-ab-meteor"), btnSurge: $("btn-ab-surge"),
-    meteorFill: $("ab-meteor-fill"), surgeFill: $("ab-surge-fill"),
-    meteorLabel: $("ab-meteor-label"), surgeLabel: $("ab-surge-label"),
+    btnMeteor: $("btn-ab-meteor"), btnSurge: $("btn-ab-surge"), btnNova: $("btn-ab-nova"),
+    meteorFill: $("ab-meteor-fill"), surgeFill: $("ab-surge-fill"), novaFill: $("ab-nova-fill"),
+    meteorLabel: $("ab-meteor-label"), surgeLabel: $("ab-surge-label"), novaLabel: $("ab-nova-label"),
+    relicStrip: $("relic-strip"), wavePreview: $("wave-preview"),
+    bossBar: $("boss-bar"), bossName: $("boss-name"), bossWeak: $("boss-weak"),
+    bossTrail: $("boss-trail"), bossFill: $("boss-fill"), bossShield: $("boss-shield"), bossTip: $("boss-tip"),
+    btnRelicReroll: $("btn-relic-reroll"), btnRelicSalvage: $("btn-relic-salvage"),
+    overStats: $("over-stats"), overMvp: $("over-mvp"), overGoal: $("over-goal"), btnOverForge: $("btn-over-forge"),
     inspect: $("inspect"), inspectText: $("inspect-text"),
     coach: $("coach"), coachText: $("coach-text"),
   };
@@ -741,6 +768,8 @@
     boom: () => { toneSlide(140, 44, 0.18, "sine", 0.065); noiseBurst(0.16, 520, 0.055); },
     meteor: () => { toneSlide(190, 38, 0.34, "sawtooth", 0.075); noiseBurst(0.3, 950, 0.08); haptic([20, 30, 35]); },
     surge: () => { toneSlide(280, 880, 0.24, "triangle", 0.055); setTimeout(() => beep(1040, 0.14, "sine", 0.04), 90); haptic([12, 24, 18]); },
+    nova: () => { toneSlide(1320, 290, 0.28, "sine", 0.055); setTimeout(() => noiseBurst(0.18, 2200, 0.045), 30); haptic([14, 22, 18]); },
+    bossKill: () => { toneSlide(180, 46, 0.3, "sawtooth", 0.07); noiseBurst(0.24, 700, 0.065); setTimeout(() => beep(660, 0.12, "triangle", 0.05), 110); setTimeout(() => beep(990, 0.18, "triangle", 0.055), 190); haptic([24, 30, 36]); },
     relic: () => { beep(523, 0.08, "triangle", 0.045); setTimeout(() => beep(659, 0.08, "triangle", 0.045), 70); setTimeout(() => beep(784, 0.14, "triangle", 0.05), 140); haptic(14); },
     streak: () => { toneSlide(540, 960, 0.12, "triangle", 0.04); haptic(10); },
     kill: (streak = 0) => { const lift = Math.min(240, streak * 14); toneSlide(400 + lift, 180 + lift * 0.4, 0.075, "triangle", 0.032); haptic(6); },
@@ -814,6 +843,7 @@
       if (e.elementCostSelf) base.elementCostMul = (base.elementCostMul || 1) * e.elementCostSelf;
       if (e.levelCdSelf) base.levelCdMul = (base.levelCdMul || 1) * e.levelCdSelf;
       if (e.killScrapAura) base.killScrapAura = (base.killScrapAura || 0) + e.killScrapAura;
+      if (e.leakGuardNear) base.leakGuardNear = (base.leakGuardNear || 0) + e.leakGuardNear;
     }
   }
   function emptyMetaBonuses() {
@@ -1357,13 +1387,24 @@
     }
     for (const b of bossPacks) mix.push(b);
     const armorBias = (diff.id === "nightmare" ? 0.1 : 0) + (daily ? daily.armorBias : 0);
+    // Seeded Wave Mutators from Wave 4+ (adds build pivots & tactical telegraphing!)
+    let mutator = null;
+    if (wave >= 4 && !isBoss && rng() < 0.52) {
+      const mPool = ["sky", "phalanx", "swarm", "hasted", "carapace", "bounty"];
+      mutator = WAVE_MUTATORS[mPool[Math.floor(rng() * mPool.length)]];
+    }
     const weights = {
-      drone: 0.38 + rng() * 0.14,
-      crawler: 0.26,
-      armor: Math.min(0.55, 0.08 + wave * 0.028 + armorBias),
-      swarm: wave >= 3 ? 0.24 + rng() * 0.12 : 0,
+      drone: (mutator && mutator.id === "sky" ? 0.95 : 0.38) + rng() * 0.14,
+      crawler: mutator && (mutator.id === "sky" || mutator.id === "swarm") ? 0.12 : 0.26,
+      armor: mutator && mutator.id === "phalanx"
+        ? 0.92
+        : Math.min(0.55, 0.08 + wave * 0.028 + armorBias),
+      swarm: mutator && mutator.id === "swarm"
+        ? 1.15
+        : (wave >= 3 ? 0.24 + rng() * 0.12 : 0),
     };
-    let left = Math.max(0, count - bossN);
+    const mutCountMul = mutator && mutator.id === "swarm" ? 1.25 : 1;
+    let left = Math.max(0, Math.round(count * mutCountMul) - bossN);
     const fodder = [];
     while (left > 0) {
       const r = rng();
@@ -1390,12 +1431,19 @@
     } else {
       for (const f of fodder) mix.push(f);
     }
+    const counts = {};
+    for (const pack of mix) counts[pack.type] = (counts[pack.type] || 0) + pack.n;
+    const mutSpeedMul = mutator && mutator.id === "hasted" ? 1.18 : 1;
+    const mutRewardMul = mutator && mutator.id === "bounty" ? 1.45
+      : mutator && mutator.id === "carapace" ? 1.2
+      : mutator && mutator.id === "hasted" ? 1.15
+      : 1;
     const rewardFade = 1 / (1 + deep * BALANCE.rewardDeepFade);
     const layoutId = daily ? daily.layout : diff.id;
     return {
-      count, interval, mix, difficulty, isBoss, bossN,
-      speedMul: diff.speedMul * (1 + Math.min(0.42, deep * 0.003)) * (daily ? daily.speedMul : 1),
-      rewardMul: diff.rewardMul * rewardFade * BALANCE.scrapKillScale * (daily ? daily.rewardMul : 1),
+      count, interval, mix, counts, difficulty, isBoss, bossN, mutator,
+      speedMul: diff.speedMul * (1 + Math.min(0.42, deep * 0.003)) * (daily ? daily.speedMul : 1) * mutSpeedMul,
+      rewardMul: diff.rewardMul * rewardFade * BALANCE.scrapKillScale * (daily ? daily.rewardMul : 1) * mutRewardMul,
       spawnLanes: (state.path && state.path.spawnN) || spawnCountForDifficulty(layoutId),
     };
   }
@@ -1410,24 +1458,28 @@
     for (const e of state.enemies) if (e.alive && isBossEnemy(e)) n++;
     return n;
   }
-  /** Gap after a wave's spawn queue empties before the next wave — overlaps are intentional. */
+  /** Breathing gap after wave clears so players can inspect Wave Intel & call early for bonus scrap. */
   function nextWaveDelay() {
-    const living = livingEnemyCount();
-    // Slightly longer when the field is already crowded, but never gated on a full clear.
-    const crowd = Math.min(2.2, living * 0.08);
-    return 3.2 + crowd;
+    return 4.8;
+  }
+
+  function defaultRunStats() {
+    return { kills: 0, bosses: 0, combos: 0, peakStreak: 0, flawlessWaves: 0, totalDmg: 0, interestEarned: 0 };
   }
 
   const state = {
     mode: "hub", seed: null, difficulty: "normal", path: null,
-    w: 390, h: 620, hp: 20, scrap: 130, score: 0, wave: 0,
-    selectedTower: null, selectedBuilt: null,
+    w: 390, h: 620, hp: 20, maxHp: 20, scrap: 130, score: 0, wave: 0,
+    selectedTower: null, selectedBuilt: null, movingTower: null,
     towers: [], enemies: [], projectiles: [], fx: [], particles: [], hazards: [],
-    spawnQueue: [], spawnTimer: 0, betweenWaves: 0, awaitingStart: false, time: 0, frame: 0,
-    shake: 0, flash: 0, ghost: null,
-    relics: [], relicDraftWave: 0,
-    meteorCd: 0, surgeCd: 0, surgeT: 0, armedAbility: null,
+    spawnQueue: [], spawnTimer: 0, waveInterval: 0.75, betweenWaves: 0, awaitingStart: false, time: 0, frame: 0,
+    shake: 0, flash: 0, hitstopT: 0, ghost: null,
+    relics: [], relicDraftWave: 0, pendingRelicDraft: false, relicRerolls: 0, relicDraftSalt: 0,
+    meteorCd: 0, surgeCd: 0, surgeT: 0, novaCd: 0, armedAbility: null,
     streak: 0, streakT: 0, streakTier: 0,
+    waveLeaks: 0, flawlessStreak: 0,
+    runStats: defaultRunStats(),
+    lastRunWasDaily: false,
     terrainDirty: true,
   };
 
@@ -1578,9 +1630,11 @@
   function syncPlaceCancel() {
     const btn = $("btn-place-cancel");
     if (!btn) return;
-    const show = state.mode === "playing" && (!!state.selectedTower || !!state.armedAbility);
+    const show = state.mode === "playing" && (!!state.selectedTower || !!state.armedAbility || state.movingTower != null);
     btn.classList.toggle("hidden", !show);
-    if (show) btn.textContent = state.armedAbility ? "Cancel Aim" : "Cancel";
+    if (show) {
+      btn.textContent = state.movingTower != null ? "Cancel Move" : state.armedAbility ? "Cancel Aim" : "Cancel";
+    }
   }
   function syncStartBtn() {
     const btn = $("btn-start-wave");
@@ -1591,7 +1645,7 @@
   }
   function earlyWaveBonus() {
     if (state.betweenWaves <= 0) return 0;
-    return Math.max(4, Math.round(state.betweenWaves * (3.5 + state.wave * 0.45)));
+    return Math.max(5, Math.round(state.betweenWaves * (4 + state.wave * 0.5)));
   }
   function syncNextWaveBtn() {
     const btn = els.btnNextWave;
@@ -1600,6 +1654,7 @@
       state.mode === "playing" &&
       !state.awaitingStart &&
       !state.selectedTower &&
+      state.movingTower == null &&
       !state.armedAbility &&
       state.spawnQueue.length === 0 &&
       state.betweenWaves > 0.25 &&
@@ -1609,6 +1664,94 @@
       btn.textContent = `Wave ${state.wave + 1} (+${earlyWaveBonus()})`;
     }
   }
+  function syncWavePreview() {
+    const el = els.wavePreview;
+    if (!el) return;
+    const show =
+      state.mode === "playing" &&
+      !!state.seed &&
+      !state.selectedTower &&
+      state.movingTower == null &&
+      !state.armedAbility &&
+      (state.awaitingStart || (state.spawnQueue.length === 0 && state.betweenWaves > 0.2)) &&
+      !(runIsDaily && state.wave >= DAILY.waveCap);
+    el.classList.toggle("hidden", !show);
+    if (!show) return;
+    const nextW = state.wave + 1;
+    const plan = wavePlan(state.seed, nextW, state.difficulty);
+    const parts = [];
+    if (plan.isBoss) {
+      const bNames = [...new Set(plan.mix.filter((p) => isBossType(p.type)).map((p) => (ENEMY[p.type] || {}).label || "Boss"))];
+      parts.push(`<span class="wp-mut boss">BOSS: ${bNames.join(" + ")}</span>`);
+    } else if (plan.mutator) {
+      parts.push(`<span class="wp-mut ${plan.mutator.cls || ""}" title="${plan.mutator.desc}">${plan.mutator.label}</span>`);
+    } else {
+      parts.push(`<span class="wp-item"><strong>W${nextW}</strong></span>`);
+    }
+    const order = ["drone", "crawler", "armor", "swarm"];
+    for (const k of order) {
+      const n = (plan.counts && plan.counts[k]) || 0;
+      if (!n) continue;
+      const def = ENEMY[k];
+      parts.push(`<span class="wp-item"><span class="wp-dot" style="background:${def.color}"></span>${def.label} ×${n}</span>`);
+    }
+    el.innerHTML = parts.join("");
+  }
+  function syncBossBar() {
+    if (!els.bossBar) return;
+    if (state.mode !== "playing") { els.bossBar.classList.add("hidden"); return; }
+    let boss = null;
+    for (const e of state.enemies) {
+      if (!e.alive || !isBossEnemy(e)) continue;
+      if (!boss || e.dist > boss.dist) boss = e;
+    }
+    if (!boss) { els.bossBar.classList.add("hidden"); return; }
+    els.bossBar.classList.remove("hidden");
+    const hpPct = Math.max(0, Math.min(100, (boss.hp / Math.max(1, boss.maxHp)) * 100));
+    const trailPct = Math.max(hpPct, Math.min(100, ((boss.hpTrail != null ? boss.hpTrail : boss.hp) / Math.max(1, boss.maxHp)) * 100));
+    const shPct = boss.shieldMax > 0 ? Math.max(0, Math.min(100, (boss.shield / boss.shieldMax) * 100)) : 0;
+    const totalBosses = livingBossCount();
+    els.bossName.textContent = `${boss.label}${totalBosses > 1 ? ` (×${totalBosses})` : ""}`;
+    const r = enemyResist(boss);
+    const weaks = Object.entries(r).filter(([, v]) => v >= 1.2).sort((a, b) => b[1] - a[1]).slice(0, 2)
+      .map(([k]) => ELEMENTS[k] ? ELEMENTS[k].name : k);
+    els.bossWeak.textContent = weaks.length ? `Weak: ${weaks.join(" · ")}` : "";
+    els.bossFill.style.width = `${hpPct.toFixed(1)}%`;
+    els.bossTrail.style.width = `${trailPct.toFixed(1)}%`;
+    els.bossShield.style.width = `${shPct.toFixed(1)}%`;
+    const tip = BOSS_TIPS[boss.type] || "";
+    els.bossTip.innerHTML = `<span>${tip}</span><span>${formatCompact(Math.ceil(boss.hp))} / ${formatCompact(boss.maxHp)}</span>`;
+  }
+  let lastRelicStripSig = "";
+  function syncRelicStrip() {
+    const el = els.relicStrip;
+    if (!el) return;
+    const list = state.relics || [];
+    const show = state.mode === "playing" && list.length > 0;
+    el.classList.toggle("hidden", !show);
+    if (!show) return;
+    const sig = list.join(",");
+    if (sig === lastRelicStripSig) return;
+    lastRelicStripSig = sig;
+    const counts = {};
+    for (const id of list) counts[id] = (counts[id] || 0) + 1;
+    el.innerHTML = "";
+    for (const [id, n] of Object.entries(counts)) {
+      const def = RELICS.find((r) => r.id === id);
+      if (!def) continue;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `relic-chip rarity-${def.rarity || "common"}`;
+      btn.title = `${def.name}${n > 1 ? ` ×${n}` : ""}: ${def.desc}`;
+      btn.innerHTML = `${def.glyph}${n > 1 ? `<span class="relic-chip-n">${n}</span>` : ""}`;
+      btn.addEventListener("click", () => {
+        sfx.ui();
+        toast(`${def.name}${n > 1 ? ` ×${n}` : ""} — ${def.desc}`);
+      });
+      el.appendChild(btn);
+    }
+  }
+
   function callNextWaveEarly() {
     if (state.mode !== "playing" || state.awaitingStart || state.spawnQueue.length > 0 || state.betweenWaves <= 0) return;
     if (runIsDaily && state.wave >= DAILY.waveCap) return;
@@ -1635,6 +1778,7 @@
     if (!show) return;
     const mMax = ABILITY_DEF.meteor.cd * abilityCdMul();
     const sMax = ABILITY_DEF.surge.cd * abilityCdMul();
+    const nMax = ABILITY_DEF.nova.cd * abilityCdMul();
     if (els.btnMeteor) {
       const ready = state.meteorCd <= 0;
       const armed = state.armedAbility === "meteor";
@@ -1657,6 +1801,15 @@
       if (els.surgeFill) els.surgeFill.style.width = (ready || active) ? "0%" : `${pct.toFixed(0)}%`;
       if (els.surgeLabel) els.surgeLabel.textContent = active ? `Surge ${Math.ceil(state.surgeT)}s` : ready ? "Surge" : `${Math.ceil(state.surgeCd)}s`;
     }
+    if (els.btnNova) {
+      const ready = state.novaCd <= 0;
+      els.btnNova.classList.toggle("ready", ready);
+      els.btnNova.classList.toggle("cooling", !ready);
+      els.btnNova.disabled = !ready;
+      const pct = ready ? 100 : Math.max(0, Math.min(100, (1 - state.novaCd / nMax) * 100));
+      if (els.novaFill) els.novaFill.style.width = ready ? "0%" : `${pct.toFixed(0)}%`;
+      if (els.novaLabel) els.novaLabel.textContent = ready ? "Nova" : `${Math.ceil(state.novaCd)}s`;
+    }
   }
   function armMeteor() {
     if (state.mode !== "playing" || state.awaitingStart || state.meteorCd > 0) return;
@@ -1667,6 +1820,7 @@
     } else {
       state.selectedTower = null;
       state.selectedBuilt = null;
+      state.movingTower = null;
       state.armedAbility = "meteor";
       state.ghost = null;
       sfx.ui();
@@ -1698,10 +1852,11 @@
     pushHazard({ kind: "magma", x, y, r: rad * 0.72, t: ABILITY_DEF.meteor.poolDur, dps: Math.max(16, dmg * 0.16) });
     pushCombatFx({ kind: "blast", x, y, t: 0.48, r: rad, color: "#ff7a32" });
     pushCombatFx({ kind: "ring", x, y, t: 0.52, r0: 10, r1: rad * 1.15, color: "#ffe08a" });
-    state.fx.push({ kind: "text", x, y: y - 16, t: 0.7, text: hits ? `METEOR ×${hits}` : "METEOR", color: "#ffd166" });
+    state.fx.push({ kind: "text", x, y: y - 16, t: 0.78, text: hits ? `METEOR ×${hits}` : "METEOR", color: "#ffd166", scale: 1.25 });
     spawnParticles(x, y, "#ff8c3a", 28, 160);
     spawnParticles(x, y, "#ffe08a", 16, 110);
     triggerScreenFlash(0.14);
+    state.hitstopT = Math.max(state.hitstopT || 0, 0.038);
     addShake(1.3);
     sfx.meteor();
     updateHUD();
@@ -1709,66 +1864,183 @@
   }
   function triggerSurge() {
     if (state.mode !== "playing" || state.awaitingStart || state.surgeCd > 0 || state.surgeT > 0) return;
-    state.surgeT = ABILITY_DEF.surge.dur;
+    const durBonus = 1 + 0.2 * relicCount("rapid_rite");
+    state.surgeT = ABILITY_DEF.surge.dur * durBonus;
     state.surgeCd = ABILITY_DEF.surge.cd * abilityCdMul();
     for (const t of state.towers) {
       pushCombatFx({ kind: "ring", x: t.x, y: t.y, t: 0.5, r0: 8, r1: 42, color: "#ffd166" });
       spawnParticles(t.x, t.y, "#ffb854", 8, 70);
     }
-    showBanner("Ember Surge · +55% speed");
+    const pct = Math.round((1 / Math.max(0.35, ABILITY_DEF.surge.rateMul * Math.pow(0.9, relicCount("rapid_rite"))) - 1) * 100);
+    showBanner(`Ember Surge · +${pct}% speed`);
     sfx.surge();
     addShake(0.45);
     updateHUD();
     saveRun();
   }
+  function triggerNova() {
+    if (state.mode !== "playing" || state.awaitingStart || state.novaCd > 0) return;
+    state.novaCd = ABILITY_DEF.nova.cd * abilityCdMul();
+    const glacial = relicCount("frostbite_nova");
+    const dmg = (ABILITY_DEF.nova.dmgBase + state.wave * ABILITY_DEF.nova.dmgWave) * abilityDmgMul() * (1 + 0.85 * glacial);
+    const dur = ABILITY_DEF.nova.dur * (1 + 0.4 * glacial);
+    const cx = state.w * 0.5, cy = state.h * 0.5;
+    let hits = 0;
+    for (const e of state.enemies) {
+      if (!e.alive) continue;
+      const p = enemyPos(e);
+      dealDirectDamage(e, dmg, null, { color: "#92cef0", label: null });
+      e.shred = Math.min(0.55, (e.shred || 0) + 0.16);
+      applyFreezeChill(e, 0.42, dur, 0.85 * (1 + 0.35 * glacial), { aoe: true });
+      spawnParticles(p.x, p.y, "#92cef0", 6, 75);
+      hits++;
+    }
+    pushCombatFx({ kind: "ring", x: cx, y: cy, t: 0.55, r0: 14, r1: Math.max(state.w, state.h) * 0.65, color: "#92cef0" });
+    pushCombatFx({ kind: "ring", x: cx, y: cy, t: 0.45, r0: 6, r1: Math.max(state.w, state.h) * 0.42, color: "#dff6ff" });
+    showBanner(hits ? `Cryo Nova · ${hits} chilled` : "Cryo Nova");
+    sfx.nova();
+    addShake(0.6);
+    updateHUD();
+    saveRun();
+  }
 
-  function openRelicDraft() {
+  function relicSynergyHint(r) {
+    const towers = state.towers || [];
+    if (!towers.length) return "";
+    if (r.id === "twin_bolt") {
+      const n = towers.filter((t) => t.type === "turret").length;
+      return n ? `Matches ${n} Turret${n > 1 ? "s" : ""}` : "";
+    }
+    if (r.id === "lava_shell") {
+      const n = towers.filter((t) => t.type === "mortar").length;
+      return n ? `Matches ${n} Mortar${n > 1 ? "s" : ""}` : "";
+    }
+    if (r.id === "arc_fork") {
+      const n = towers.filter((t) => t.type === "coil").length;
+      return n ? `Matches ${n} Coil${n > 1 ? "s" : ""}` : "";
+    }
+    if (r.id === "sunder_beam") {
+      const n = towers.filter((t) => t.type === "spire").length;
+      return n ? `Matches ${n} Spire${n > 1 ? "s" : ""}` : "";
+    }
+    if (r.id === "combo_amp" || r.id === "chain_catalyst") {
+      const n = towers.filter((t) => (t.elements || []).length >= 2).length;
+      return n ? `Matches ${n} combo tower${n > 1 ? "s" : ""}` : "";
+    }
+    if (r.id === "cryo_vuln") {
+      const n = towers.filter((t) => t.type === "coil" || (t.elements || []).some((el) => el === "water" || el === "frost")).length;
+      return n ? `Matches ${n} chill/slow tower${n > 1 ? "s" : ""}` : "";
+    }
+    if (r.id === "well_mend" && state.hp < (state.maxHp || 20)) {
+      return `Heals Wellheart (${state.hp}/${state.maxHp || 20})`;
+    }
+    return "";
+  }
+  function relicRerollCost() {
+    return (state.relicRerolls || 0) === 0 ? 0 : 35;
+  }
+  function openRelicDraft(opts = {}) {
     const wrap = $("relic-choices");
     if (!wrap || !els.relic) return;
-    // Pick 3 distinct relics (seeded per run + wave for Daily fairness).
-    const rng = mulberry32(hashSeed(`${state.seed}:relic:${state.wave}`));
+    state.pendingRelicDraft = true;
+    const salt = state.relicDraftSalt || 0;
+    const rng = mulberry32(hashSeed(`${state.seed}:relic:${state.wave}:${salt}`));
+    // Weighted draw by rarity (Common 1.0, Rare 0.8, Epic 0.62 — higher waves tilt rarer!)
+    const epicBoost = Math.min(0.45, state.wave * 0.015);
     const pool = RELICS.slice();
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(rng() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
+    const picks = [];
+    while (picks.length < 3 && pool.length) {
+      let totalW = 0;
+      const weights = pool.map((r) => {
+        const w = r.rarity === "epic" ? 0.62 + epicBoost : r.rarity === "rare" ? 0.85 : 1.0;
+        totalW += w;
+        return w;
+      });
+      let roll = rng() * totalW;
+      let idx = 0;
+      for (let i = 0; i < pool.length; i++) {
+        roll -= weights[i];
+        if (roll <= 0) { idx = i; break; }
+      }
+      picks.push(pool.splice(idx, 1)[0]);
     }
-    const picks = pool.slice(0, 3);
     const sub = $("relic-subtitle");
     if (sub) sub.textContent = `Wave ${state.wave} cleared — pick 1 Rift Relic for this run.`;
     wrap.innerHTML = "";
     for (const r of picks) {
       const owned = relicCount(r.id);
+      const syn = relicSynergyHint(r);
       const card = document.createElement("button");
       card.type = "button";
-      card.className = "relic-card";
+      card.className = `relic-card rarity-${r.rarity || "common"}`;
       card.innerHTML =
         `<span class="relic-badge" aria-hidden="true">${r.glyph}</span>` +
         `<span class="relic-copy">` +
           `<span class="relic-name"><span>${r.name}${owned ? ` ×${owned + 1}` : ""}</span><span class="relic-tag">${r.tag}</span></span>` +
           `<span class="relic-desc">${r.desc}</span>` +
+          (syn ? `<span class="relic-synergy">★ ${syn}</span>` : "") +
         `</span>`;
       card.addEventListener("click", () => applyRelic(r));
       wrap.appendChild(card);
     }
+    if (els.btnRelicReroll) {
+      const cost = relicRerollCost();
+      els.btnRelicReroll.textContent = cost === 0 ? "Reroll (Free)" : `Reroll · ${cost}`;
+      els.btnRelicReroll.disabled = cost > 0 && state.scrap < cost;
+    }
+    if (els.btnRelicSalvage) {
+      const salvage = 55 + state.wave * 4;
+      els.btnRelicSalvage.textContent = `Salvage +${salvage}`;
+    }
     state.mode = "relic";
     showScreen("relic");
-    sfx.relic();
+    saveRun();
+    if (!opts.silent) sfx.relic();
+  }
+  function rerollRelicDraft() {
+    if (state.mode !== "relic") return;
+    const cost = relicRerollCost();
+    if (cost > 0 && state.scrap < cost) { toast(`Need ${cost} scrap`); return; }
+    state.scrap -= cost;
+    state.relicRerolls = (state.relicRerolls || 0) + 1;
+    state.relicDraftSalt = (state.relicDraftSalt || 0) + 1;
+    sfx.ui();
+    openRelicDraft({ silent: true });
+    updateHUD();
+  }
+  function finishRelicDraft() {
+    state.pendingRelicDraft = false;
+    if (!state.awaitingStart && !state.spawnQueue.length && livingEnemyCount() === 0 && state.betweenWaves <= 0) {
+      state.betweenWaves = BALANCE.betweenWaves;
+    }
+    state.mode = "playing";
+    showScreen(null);
+    updateHUD();
+    saveRun();
+  }
+  function salvageRelicDraft() {
+    if (state.mode !== "relic") return;
+    const salvage = 55 + state.wave * 4;
+    state.scrap += salvage;
+    finishRelicDraft();
+    toast(`Salvaged +${salvage} scrap`);
+    sfx.buy();
   }
   function applyRelic(r) {
     if (!state.relics) state.relics = [];
     state.relics.push(r.id);
     if (r.id === "well_mend") {
       state.hp += 5;
+      state.maxHp = Math.max(state.maxHp || 20, state.hp);
       state.scrap += 90;
+    } else if (r.id === "scrap_vault") {
+      state.scrap += 45;
     } else if (r.id === "overclock_all") {
       for (const t of state.towers) applyTowerLevelStats(t);
     }
-    state.mode = "playing";
-    showScreen(null);
+    finishRelicDraft();
     toast(`Relic: ${r.name}`);
     sfx.buy();
-    updateHUD();
-    saveRun();
   }
 
   function playerStartWaves() {
@@ -1782,9 +2054,10 @@
     advanceCoach(1);
   }
   function cancelPlacement(silent) {
-    if (!state.selectedTower && !state.ghost && !state.armedAbility) return;
+    if (!state.selectedTower && !state.ghost && !state.armedAbility && state.movingTower == null) return;
     state.selectedTower = null;
     state.armedAbility = null;
+    state.movingTower = null;
     state.ghost = null;
     placePtr = null;
     updateHUD();
@@ -1818,21 +2091,33 @@
     return {
       seed: state.seed, difficulty: state.difficulty || "normal",
       isDaily: !!runIsDaily, dailyKey: runDailyKey || null,
-      hp: state.hp, scrap: state.scrap, score: state.score, wave: state.wave,
+      hp: state.hp, maxHp: state.maxHp || state.hp, scrap: state.scrap, score: state.score, wave: state.wave,
       betweenWaves: state.betweenWaves, awaitingStart: !!state.awaitingStart,
-      spawnTimer: state.spawnTimer, spawnQueue: state.spawnQueue,
+      spawnTimer: state.spawnTimer, waveInterval: state.waveInterval || 0.75, spawnQueue: state.spawnQueue,
+      enemySeq: state.enemySeq || 0,
       relics: state.relics || [], relicDraftWave: state.relicDraftWave || 0,
-      meteorCd: state.meteorCd || 0, surgeCd: state.surgeCd || 0, surgeT: state.surgeT || 0,
+      pendingRelicDraft: !!state.pendingRelicDraft,
+      relicRerolls: state.relicRerolls || 0, relicDraftSalt: state.relicDraftSalt || 0,
+      meteorCd: state.meteorCd || 0, surgeCd: state.surgeCd || 0, surgeT: state.surgeT || 0, novaCd: state.novaCd || 0,
+      streak: state.streak || 0, streakT: state.streakT || 0, streakTier: state.streakTier || 0,
+      waveLeaks: state.waveLeaks || 0, flawlessStreak: state.flawlessStreak || 0,
+      runStats: state.runStats || defaultRunStats(),
+      hazards: (state.hazards || []).map((h) => ({ ...h })),
       towers: state.towers.map((t) => ({
         type: t.type, nx: t.x / state.w, ny: t.y / state.h,
         level: t.level, cooldown: t.cooldown, levelCd: t.levelCd || 0,
         elements: t.elements || [], targetMode: t.targetMode || "first",
+        aim: typeof t.aim === "number" ? t.aim : -Math.PI / 2,
+        investedScrap: t.investedScrap || towerStats(t.type).cost,
+        totalDmg: t.totalDmg || 0, kills: t.kills || 0, combos: t.combos || 0,
       })),
       enemies: state.enemies.map((e) => ({
-        type: e.type, dist: e.dist, hp: e.hp, maxHp: e.maxHp, speed: e.speed, lane: e.lane || 0,
+        id: e.id, type: e.type, dist: e.dist, hp: e.hp, maxHp: e.maxHp, speed: e.speed, lane: e.lane || 0,
         slow: e.slow, slowT: e.slowT, burn: e.burn, burnT: e.burnT,
         chillT: e.chillT, shred: e.shred, knockCd: e.knockCd || 0,
-        stunT: e.stunT || 0, stunCd: e.stunCd || 0, freezeT: e.freezeT || 0,
+        stunT: e.stunT || 0, stunCd: e.stunCd || 0, freezeT: e.freezeT || 0, freezeCd: e.freezeCd || 0,
+        ccDR: e.ccDR || 0, brittleT: e.brittleT || 0, rimeShield: e.rimeShield || 0, plasmaMark: e.plasmaMark || 0,
+        bountyTag: !!e.bountyTag,
         reward: e.reward, tags: e.tags,
         resist: e.resist, bossIndex: e.bossIndex, bossTotal: e.bossTotal, color: e.color, r: e.r,
         ability: e.ability, shield: e.shield, shieldMax: e.shieldMax, shieldCd: e.shieldCd,
@@ -1856,6 +2141,7 @@
   }
   function hydrateTower(t) {
     const level = t.level || 1;
+    const baseCost = towerStats(t.type).cost;
     const tower = {
       type: t.type, x: t.nx * state.w, y: t.ny * state.h, nx: t.nx, ny: t.ny,
       level, cooldown: t.cooldown || 0, levelCd: t.levelCd || 0,
@@ -1863,6 +2149,10 @@
       targetMode: TARGET_MODES.includes(t.targetMode) ? t.targetMode : "first",
       aim: typeof t.aim === "number" ? t.aim : -Math.PI / 2,
       recoil: 0,
+      investedScrap: t.investedScrap || baseCost,
+      totalDmg: t.totalDmg || 0,
+      kills: t.kills || 0,
+      combos: t.combos || 0,
     };
     applyTowerLevelStats(tower);
     return tower;
@@ -1878,25 +2168,42 @@
       meta.selectedDifficulty = state.difficulty;
       state.relics = Array.isArray(data.relics) ? [...data.relics] : [];
       state.relicDraftWave = data.relicDraftWave || 0;
+      state.pendingRelicDraft = !!data.pendingRelicDraft;
+      state.relicRerolls = data.relicRerolls || 0;
+      state.relicDraftSalt = data.relicDraftSalt || 0;
       state.meteorCd = data.meteorCd || 0;
       state.surgeCd = data.surgeCd || 0;
       state.surgeT = data.surgeT || 0;
+      state.novaCd = data.novaCd || 0;
       state.armedAbility = null;
-      state.streak = 0; state.streakT = 0; state.streakTier = 0;
+      state.movingTower = null;
+      state.streak = data.streak || 0;
+      state.streakT = data.streakT || 0;
+      state.streakTier = data.streakTier || 0;
+      state.waveLeaks = data.waveLeaks || 0;
+      state.flawlessStreak = data.flawlessStreak || 0;
+      state.runStats = { ...defaultRunStats(), ...(data.runStats || {}) };
+      state.hitstopT = 0;
+      lastRelicStripSig = "";
       state.path = generatePath(state.seed, state.w, state.h, runLayoutDiffId());
       state.terrainDirty = true;
-      state.hp = data.hp; state.scrap = data.scrap; state.score = data.score; state.wave = data.wave;
+      state.hp = data.hp; state.maxHp = data.maxHp || Math.max(20, data.hp || 20);
+      state.scrap = data.scrap; state.score = data.score; state.wave = data.wave;
       state.betweenWaves = data.betweenWaves || 0;
       state.awaitingStart = data.awaitingStart != null
         ? !!data.awaitingStart
         : (data.wave === 0 && !(data.spawnQueue && data.spawnQueue.length));
       state.spawnTimer = data.spawnTimer || 0;
+      state.waveInterval = data.waveInterval || 0.75;
       state.spawnQueue = data.spawnQueue || [];
       state.towers = (data.towers || []).map(hydrateTower);
-      state.enemies = (data.enemies || []).map((e) => {
+      let maxId = data.enemySeq || 0;
+      state.enemies = (data.enemies || []).map((e, idx) => {
         const def = ENEMY[e.type] || ENEMY.drone;
+        const id = e.id != null ? e.id : (idx + 1);
+        if (id > maxId) maxId = id;
         return {
-          ...def, type: e.type, dist: e.dist, hp: e.hp, maxHp: e.maxHp, hpTrail: e.hp,
+          ...def, id, type: e.type, dist: e.dist, hp: e.hp, maxHp: e.maxHp, hpTrail: e.hp,
           speed: e.speed || def.speed, tags: e.tags || def.tags,
           color: e.color || def.color, r: e.r || def.r,
           resist: e.resist || { ...(def.resist || {}) },
@@ -1907,11 +2214,15 @@
           abilityT: e.abilityT || 0, enraged: !!e.enraged, baseSpeed: e.baseSpeed || e.speed,
           slow: e.slow || 1, slowT: e.slowT || 0, burn: e.burn || 0, burnT: e.burnT || 0,
           chillT: e.chillT || 0, shred: e.shred || 0, knockCd: e.knockCd || 0,
-          stunT: e.stunT || 0, stunCd: e.stunCd || 0, freezeT: e.freezeT || 0,
+          stunT: e.stunT || 0, stunCd: e.stunCd || 0, freezeT: e.freezeT || 0, freezeCd: e.freezeCd || 0,
+          ccDR: e.ccDR || 0, brittleT: e.brittleT || 0, rimeShield: e.rimeShield || 0, plasmaMark: e.plasmaMark || 0,
+          bountyTag: !!e.bountyTag,
           matchFxAt: 0, reward: e.reward, alive: true, hitFlash: 0, lane: e.lane || 0,
         };
       });
-      state.projectiles = []; state.fx = []; state.particles = []; state.hazards = [];
+      state.enemySeq = maxId;
+      state.projectiles = []; state.fx = []; state.particles = [];
+      state.hazards = Array.isArray(data.hazards) ? data.hazards.map((h) => ({ ...h })) : [];
       state.selectedBuilt = null; state.selectedTower = null;
       state.mode = "paused";
       syncStartBtn();
@@ -1959,6 +2270,7 @@
     syncDifficultyUnlocks();
     runIsDaily = !!opts.daily;
     runDailyKey = opts.dailyKey || null;
+    state.lastRunWasDaily = runIsDaily;
     if (!runIsDaily) {
       if (!isDifficultyUnlocked(meta.selectedDifficulty)) meta.selectedDifficulty = "normal";
       state.difficulty = meta.selectedDifficulty || "normal";
@@ -1970,17 +2282,27 @@
     }
     state.relics = [];
     state.relicDraftWave = 0;
+    state.pendingRelicDraft = false;
+    state.relicRerolls = 0;
+    state.relicDraftSalt = 0;
     state.meteorCd = 0;
     state.surgeCd = 0;
     state.surgeT = 0;
+    state.novaCd = 0;
     state.armedAbility = null;
+    state.movingTower = null;
     state.streak = 0; state.streakT = 0; state.streakTier = 0;
+    state.waveLeaks = 0; state.flawlessStreak = 0;
+    state.runStats = defaultRunStats();
+    state.hitstopT = 0;
+    lastRelicStripSig = "";
     state.path = generatePath(state.seed, state.w, state.h, runLayoutDiffId());
     state.terrainDirty = true;
     const diff = currentDiff();
     const mb = metaBonuses();
     const baseHp = runIsDaily ? 18 : diff.id === "nightmare" ? 16 : diff.id === "hard" ? 18 : 20;
     state.hp = baseHp + mb.baseHpAdd;
+    state.maxHp = state.hp;
     const scrapMul = runIsDaily ? 0.92
       : diff.id === "nightmare" ? 0.85
       : diff.id === "hard" ? 0.95
@@ -1988,7 +2310,7 @@
     state.scrap = Math.floor(BALANCE.scrapStart * scrapMul + mb.scrapStartAdd);
     state.score = 0; state.wave = 0;
     state.towers = []; state.enemies = []; state.projectiles = []; state.fx = []; state.particles = []; state.hazards = []; state.enemySeq = 0;
-    state.spawnQueue = []; state.spawnTimer = 0; state.betweenWaves = 0;
+    state.spawnQueue = []; state.spawnTimer = 0; state.waveInterval = 0.75; state.betweenWaves = 0;
     state.awaitingStart = true; // Prep: place freely; waves wait for Start.
     state.selectedBuilt = null; state.selectedTower = null; state.ghost = null;
     placePtr = null;
@@ -2007,13 +2329,49 @@
   function continueRun() {
     resize();
     if (!loadRun()) { toast("No saved run"); return; }
+    if (state.pendingRelicDraft) {
+      openRelicDraft({ silent: true });
+      updateHUD();
+      return;
+    }
     showScreen("pause"); updateHUD();
+  }
+  function anyForgeUpgradeAffordable() {
+    for (const tree of Object.values(UPGRADE_TREES)) {
+      if (treeHasAffordable(tree, tree)) return true;
+    }
+    return false;
+  }
+  function nextRunGoal(wave, diffId) {
+    // Prefer difficulty unlock first, then next unclaimed milestone.
+    if (!isDifficultyUnlocked("hard")) {
+      const cur = Math.max((meta.bestByDifficulty && meta.bestByDifficulty.normal && meta.bestByDifficulty.normal.wave) || 0, diffId === "normal" ? wave : 0);
+      return { label: "Unlock Hard Mode", cur: Math.min(10, cur), target: 10, reward: "Hard Mode" };
+    }
+    if (!isDifficultyUnlocked("nightmare")) {
+      const cur = Math.max((meta.bestByDifficulty && meta.bestByDifficulty.hard && meta.bestByDifficulty.hard.wave) || 0, diffId === "hard" ? wave : 0);
+      return { label: "Unlock Nightmare", cur: Math.min(12, cur), target: 12, reward: "Nightmare" };
+    }
+    const claimed = meta.milestones || {};
+    for (const m of MILESTONES) {
+      if (claimed[m.id]) continue;
+      if (m.kind === "wave") {
+        const rec = (meta.bestByDifficulty && meta.bestByDifficulty[m.difficulty]) || { wave: 0 };
+        const cur = Math.min(m.wave, m.difficulty === diffId ? Math.max(rec.wave, wave) : rec.wave);
+        return { label: m.label, cur, target: m.wave, reward: `+${m.chips}c` };
+      }
+      if (m.kind === "dailies") {
+        return { label: m.label, cur: Math.min(m.count, meta.dailiesCompleted || 0), target: m.count, reward: `+${m.chips}c` };
+      }
+    }
+    return null;
   }
   function endRun(abandoned, opts = {}) {
     const wave = state.wave, score = state.score;
     const victory = !!opts.victory && !abandoned;
     const diff = DIFFICULTIES[state.difficulty] || DIFFICULTIES.normal;
     const wasDaily = runIsDaily;
+    state.lastRunWasDaily = wasDaily;
     const dailyBonus = wasDaily && !abandoned
       ? (wave >= 8 ? 12 : 0) + (victory ? DAILY.clearBonus : 0)
       : 0;
@@ -2031,7 +2389,8 @@
         newly.push(DIFFICULTIES[id].name);
       }
     }
-    if (wasDaily && runDailyKey) {
+    // Only count Daily completion when actually played (not abandoned on Wave 0).
+    if (wasDaily && runDailyKey && !abandoned && wave >= 1) {
       if (meta.lastDailyKey !== runDailyKey) {
         meta.dailiesCompleted = (meta.dailiesCompleted || 0) + 1;
         meta.lastDailyKey = runDailyKey;
@@ -2051,6 +2410,8 @@
     clearRun();
     state.mode = "over";
     hideCoach(false);
+    if (els.bossBar) els.bossBar.classList.add("hidden");
+    if (els.relicStrip) els.relicStrip.classList.add("hidden");
     if (els.overTitle) {
       els.overTitle.textContent = victory
         ? "Rift Sealed"
@@ -2065,6 +2426,60 @@
       `+${Math.max(0, chips)} chips` +
       (dailyBonus ? ` · daily +${dailyBonus}` : "") +
       (newly.length ? ` · ${newly.join(", ")}` : "");
+
+    // Render Run Breakdown Stats Grid
+    const rs = state.runStats || defaultRunStats();
+    if (els.overStats) {
+      const cells = [
+        ["Kills", formatCompact(rs.kills || 0)],
+        ["Bosses", String(rs.bosses || 0)],
+        ["Combos", formatCompact(rs.combos || 0)],
+        ["Peak Streak", `×${rs.peakStreak || 0}`],
+        ["Flawless", String(rs.flawlessWaves || 0)],
+        ["Total DMG", formatCompact(Math.round(rs.totalDmg || 0))],
+      ];
+      els.overStats.innerHTML = cells.map(([k, v]) => `<div class="over-stat"><span class="k">${k}</span><span class="v">${v}</span></div>`).join("");
+    }
+    // Render MVP Tower Spotlight
+    if (els.overMvp) {
+      let mvp = null;
+      for (const t of state.towers) {
+        if ((t.totalDmg || 0) > 0 && (!mvp || (t.totalDmg || 0) > (mvp.totalDmg || 0))) mvp = t;
+      }
+      if (mvp) {
+        els.overMvp.classList.remove("hidden");
+        const comboTag = (mvp.elements && mvp.elements.length >= 2 && COMBO_SHORT[comboKey(mvp.elements)])
+          ? ` · ${COMBO_SHORT[comboKey(mvp.elements)]}`
+          : (mvp.elements && mvp.elements.length === 1 ? ` · ${ELEMENTS[mvp.elements[0]].name}` : "");
+        els.overMvp.innerHTML =
+          `<div><div class="over-mvp-tag">★ MVP Tower</div><div class="over-mvp-title">${BASE_TOWER[mvp.type].name} Lv${mvp.level}${comboTag}</div></div>` +
+          `<div class="over-mvp-meta"><strong>${formatCompact(Math.round(mvp.totalDmg))} DMG</strong><br>${mvp.kills || 0} kills</div>`;
+      } else {
+        els.overMvp.classList.add("hidden");
+      }
+    }
+    // Render Next Unlock / Milestone Goal Bar
+    if (els.overGoal) {
+      const goal = nextRunGoal(wave, diff.id);
+      if (goal) {
+        const pct = Math.max(4, Math.min(100, Math.round((goal.cur / Math.max(1, goal.target)) * 100)));
+        const rewardSuffix = goal.reward && !goal.label.includes(goal.reward) ? ` (${goal.reward})` : "";
+        els.overGoal.classList.remove("hidden");
+        els.overGoal.innerHTML =
+          `<div class="over-goal-row"><span>Next: ${goal.label}${rewardSuffix}</span><span>${goal.cur}/${goal.target}</span></div>` +
+          `<div class="over-goal-bar"><div class="over-goal-fill" style="width:${pct}%"></div></div>`;
+      } else {
+        els.overGoal.classList.add("hidden");
+      }
+    }
+    const btnAgain = $("btn-again");
+    if (btnAgain) btnAgain.textContent = wasDaily ? "Retry Daily Rift" : "New Run";
+    if (els.btnOverForge) {
+      const canSpend = anyForgeUpgradeAffordable();
+      els.btnOverForge.classList.toggle("has-afford", canSpend);
+      els.btnOverForge.textContent = canSpend ? `Forge (${formatCompact(meta.chips)}c)` : "Forge";
+    }
+
     showScreen("over"); refreshHub();
     sfx.over();
     addShake(victory ? 0.55 : 1.1);
@@ -2110,7 +2525,13 @@
     state.towers = []; state.enemies = []; state.projectiles = [];
     state.fx = []; state.particles = []; state.hazards = [];
     state.relics = []; state.selectedBuilt = null; state.selectedTower = null;
-    state.armedAbility = null;
+    state.armedAbility = null; state.movingTower = null;
+    state.pendingRelicDraft = false; state.relicRerolls = 0;
+    state.flawlessStreak = 0; state.hitstopT = 0;
+    lastRelicStripSig = "";
+    if (els.bossBar) els.bossBar.classList.add("hidden");
+    if (els.relicStrip) els.relicStrip.classList.add("hidden");
+    if (els.wavePreview) els.wavePreview.classList.add("hidden");
     treeScrollMemory.clear();
     upgradeTab = "forge";
     forgeLane = "offense";
@@ -2481,6 +2902,9 @@
     syncPlaceCancel();
     syncStartBtn();
     syncNextWaveBtn();
+    syncWavePreview();
+    syncBossBar();
+    syncRelicStrip();
     syncAbilitiesUI();
   }
   function refreshTowerButtons() {
@@ -2498,9 +2922,26 @@
     return Math.floor(base * (0.62 + t.level * 0.58 + Math.pow(Math.max(0, t.level - 3), 1.35) * 0.35));
   }
   function towerSellValue(t) {
-    const elBonus = (t.elements || []).length * 15;
-    const sellBase = Math.floor((t.sell || 30) * (0.7 + t.level * 0.15) + elBonus * 0.5);
-    return Math.max(1, Math.floor(sellBase * metaBonuses().sellMul));
+    // Fair 75% refund of total invested scrap (build + levels + sockets), boosted by sell Forge nodes.
+    const invested = t.investedScrap || towerStats(t.type).cost;
+    const base = Math.max(t.sell || 20, Math.round(invested * 0.75));
+    return Math.max(1, Math.min(Math.round(invested * 0.95), Math.floor(base * metaBonuses().sellMul)));
+  }
+  function moveTowerCost() {
+    return state.awaitingStart ? 0 : 15;
+  }
+  function startMoveTower() {
+    if (state.mode !== "playing" || state.selectedBuilt == null) return;
+    const cost = moveTowerCost();
+    if (state.scrap < cost) { toast(`Need ${cost} scrap to move`); sfx.cancel(); return; }
+    state.movingTower = state.selectedBuilt;
+    state.selectedBuilt = null;
+    state.selectedTower = null;
+    state.armedAbility = null;
+    state.ghost = null;
+    sfx.ui();
+    toast(cost === 0 ? "Tap new spot to relocate (Free)" : `Tap new spot to relocate (−${cost})`);
+    updateHUD();
   }
   function towerLevelReady(t) {
     return !t || !t.levelCd || t.levelCd <= 0;
@@ -2546,6 +2987,10 @@
       slow: base.slow, slowDur: base.slowDur, crit: base.crit, burn: base.burn,
       chain: base.chain, pierce: base.pierce, bossBonus: base.bossBonus,
       color: base.color, sell: base.sell,
+      elementCostMul: base.elementCostMul || 1,
+      levelCdMul: base.levelCdMul || 1,
+      killScrapAura: base.killScrapAura || 0,
+      leakGuardNear: base.leakGuardNear || 0,
     });
   }
   function levelTower(t, opts = {}) {
@@ -2553,6 +2998,7 @@
     const cost = upgradeCost(t);
     if (state.scrap < cost) return false;
     state.scrap -= cost;
+    t.investedScrap = (t.investedScrap || towerStats(t.type).cost) + cost;
     t.level += 1;
     if (!opts.skipCd) {
       const selfMul = t.levelCdMul || 1;
@@ -2619,6 +3065,7 @@
       if (best < 0) break;
       const t = state.towers[best];
       state.scrap -= bestCost;
+      t.investedScrap = (t.investedScrap || towerStats(t.type).cost) + bestCost;
       t.level += 1;
       applyTowerLevelStats(t);
       spent += bestCost;
@@ -2647,10 +3094,11 @@
     updateHUD();
     saveRun();
   }
-  function elementCost(t) {
+  function elementCost(t, elId) {
     const mb = metaBonuses();
     const second = !!(t.elements && t.elements.length);
-    const base = second ? ELEMENT_SECOND_COST : ELEMENTS.fire.cost;
+    const elBase = elId && ELEMENTS[elId] ? ELEMENTS[elId].cost : ELEMENTS.fire.cost;
+    const base = second ? (ELEMENT_SECOND_COST + Math.max(0, elBase - 28)) : elBase;
     const selfMul = t.elementCostMul || 1;
     const pathMul = second ? mb.elementCostMul * mb.elementSecondMul : mb.elementCostMul;
     return Math.max(8, Math.floor(base * pathMul * selfMul));
@@ -2660,21 +3108,31 @@
     const sel = state.selectedBuilt != null ? state.towers[state.selectedBuilt] : null;
     if (!sel || state.mode !== "playing") {
       els.inspect.classList.add("hidden");
+      if (els.app) els.app.dataset.inspect = "0";
       return;
     }
     els.inspect.classList.remove("hidden");
+    if (els.app) els.app.dataset.inspect = "1";
     const elsList = sel.elements || [];
     const dps = Math.round(sel.damage / Math.max(0.1, sel.fireRate));
-    const socketCost = elementCost(sel);
-    const nextTxt = elsList.length < MAX_ELEMENTS ? ` · Socket ${socketCost}` : " · Full";
+    const dmgTxt = formatCompact(Math.round(sel.totalDmg || 0));
+    const killsTxt = sel.kills || 0;
+    const nextTxt = elsList.length < MAX_ELEMENTS ? ` · Socket ${elementCost(sel, "fire")}+` : " · Full";
     els.inspectText.innerHTML =
-      `<strong>${BASE_TOWER[sel.type].name}</strong> Lv${sel.level} · ${dps} DPS · Rng ${Math.round(sel.range)}` +
+      `<strong>${BASE_TOWER[sel.type].name}</strong> Lv${sel.level} · ${dps} DPS · ${dmgTxt} DMG · ${killsTxt}K` +
       `<span class="inspect-sub">${describeCombo(elsList)}${nextTxt}</span>`;
+
+    if (els.btnMove) {
+      const mc = moveTowerCost();
+      els.btnMove.textContent = mc === 0 ? "Move" : `Move ${mc}`;
+      els.btnMove.disabled = state.scrap < mc;
+      els.btnMove.title = mc === 0 ? "Relocate tower free during Prep [V]" : `Relocate tower for ${mc} scrap [V]`;
+    }
 
     if (els.btnTargetMode) {
       const mode = sel.targetMode || "first";
       els.btnTargetMode.textContent = TARGET_LABELS[mode] || "First";
-      els.btnTargetMode.title = `Targeting: ${TARGET_LABELS[mode] || "First"} (tap to cycle)`;
+      els.btnTargetMode.title = `Targeting: ${TARGET_LABELS[mode] || "First"} [T]`;
     }
 
     els.btnSell.disabled = false;
@@ -2687,16 +3145,17 @@
       ? `Cooldown ${Math.ceil(sel.levelCd || 0)}s`
       : state.scrap < upCost
         ? `Need ${upCost} scrap`
-        : `Level up for ${upCost} scrap`;
+        : `Level up for ${upCost} scrap [U]`;
     syncAutoLevelBtn();
     document.querySelectorAll(".el-btn").forEach((btn) => {
       const el = btn.dataset.el;
       const def = ELEMENTS[el];
       const owned = elsList.includes(el);
       const full = elsList.length >= MAX_ELEMENTS;
+      const cost = elementCost(sel, el);
       const label = def ? def.name : (el[0].toUpperCase() + el.slice(1));
       btn.classList.toggle("active", owned);
-      btn.disabled = owned || (full && !owned) || state.scrap < socketCost;
+      btn.disabled = owned || (full && !owned) || state.scrap < cost;
       if (owned) {
         btn.innerHTML = `<span>${label} ✓</span>`;
       } else if (elsList.length === 1) {
@@ -2705,9 +3164,9 @@
           ? `<span>${label}</span><span class="el-combo-hint">→ ${preview}</span>`
           : `<span>${label}</span>`;
       } else {
-        btn.innerHTML = `<span>${label}</span>`;
+        btn.innerHTML = `<span>${label}</span><span class="el-combo-hint">${cost}</span>`;
       }
-      if (def) btn.title = `${def.name}: ${def.tip}`;
+      if (def) btn.title = `${def.name} (${cost} scrap): ${def.tip}`;
     });
   }
 
@@ -3394,9 +3853,12 @@
   function beginWave() {
     if (runIsDaily && state.wave >= DAILY.waveCap) return;
     state.wave += 1;
+    state.waveLeaks = 0;
     const plan = wavePlan(state.seed, state.wave, state.difficulty);
+    state.waveInterval = plan.interval || 0.75;
     state.spawnQueue = [];
     const laneN = (state.path && state.path.spawnN) || plan.spawnLanes || 1;
+    const mutId = plan.mutator ? plan.mutator.id : null;
     let laneCursor = 0;
     for (const pack of plan.mix) {
       for (let i = 0; i < pack.n; i++) {
@@ -3406,7 +3868,7 @@
           type: pack.type, difficulty: plan.difficulty,
           speedMul: plan.speedMul, rewardMul: plan.rewardMul,
           bossIndex: pack.bossIndex, bossTotal: pack.bossTotal, bossHpShare: pack.bossHpShare,
-          lane,
+          lane, mutId,
         });
       }
     }
@@ -3421,6 +3883,8 @@
     } else if (plan.isBoss) {
       const b = plan.mix.find((p) => isBossType(p.type));
       banner = `${((b && ENEMY[b.type]) || {}).label || "Boss"} · W${state.wave}`;
+    } else if (plan.mutator) {
+      banner = `${plan.mutator.label} · W${state.wave}`;
     }
     if (livingBossCount() > 0 && plan.isBoss) banner = `Overlap · ${banner}`;
     if (runIsDaily && state.wave >= DAILY.waveCap) banner = `Final · ${banner}`;
@@ -3441,7 +3905,9 @@
     const packSlow = boss && bossTotal > 1 ? Math.max(0.78, 1 - (bossTotal - 1) * 0.07) : 1;
     const r = boss && bossTotal > 1 ? def.r * (0.9 + (bossIndex % 3) * 0.04) : def.r;
     const ability = def.ability || null;
-    const shieldMax = ability === "carapace" ? Math.floor(hp * 0.28) : 0;
+    const shieldMax = ability === "carapace"
+      ? Math.floor(hp * 0.28)
+      : (meta.mutId === "carapace" ? Math.floor(hp * 0.2) : 0);
     state.enemySeq = (state.enemySeq || 0) + 1;
     state.enemies.push({
       id: state.enemySeq,
@@ -3454,9 +3920,10 @@
       label: def.label || type,
       ability, bossIndex, bossTotal,
       shield: shieldMax, shieldMax, shieldCd: 0,
+      bountyTag: meta.mutId === "bounty",
       abilityT: 1.5 + Math.random() * 1.5,
       enraged: false,
-      slow: 1, slowT: 0, burn: 0, burnT: 0, chillT: 0, shred: 0, knockCd: 0,
+      slow: 1, slowT: 0, burn: 0, burnT: 0, burnTower: null, chillT: 0, shred: 0, knockCd: 0,
       stunT: 0, stunCd: 0, freezeT: 0, freezeCd: 0, ccDR: 0,
       brittleT: 0, rimeShield: 0, plasmaMark: 0, matchFxAt: 0, alive: true, hitFlash: 0,
       lane: meta.lane || 0,
@@ -3573,12 +4040,35 @@
       level: 1, cooldown: 0, levelCd: 0, elements: [], targetMode: "first",
       aim: -Math.PI / 2, recoil: 0, turnRate: stats.turnRate || 3.5,
       lockId: null, acquireT: 0,
+      investedScrap: stats.cost, totalDmg: 0, kills: 0, combos: 0,
     });
     burstPlace(x, y, stats.color);
     sfx.place();
     state.selectedTower = null;
     updateHUD(); saveRun();
     advanceCoach(0);
+  }
+  function moveTowerTo(idx, x, y) {
+    const t = state.towers[idx];
+    if (!t || !state.path) return false;
+    const cost = moveTowerCost();
+    if (state.scrap < cost) { toast(`Need ${cost} scrap`); return false; }
+    if (!placementOk(x, y, idx)) {
+      if (hitsObstacle(x, y, TOWER_PLACE_R)) toast("Blocked by rock");
+      else if (distToPathNetwork(state.path, x, y) < pathPlacementClear()) toast("Too close to the road");
+      else toast("Invalid spot");
+      return false;
+    }
+    state.scrap -= cost;
+    t.x = x; t.y = y; t.nx = x / state.w; t.ny = y / state.h;
+    t.lockId = null; t.acquireT = 0;
+    state.movingTower = null;
+    state.selectedBuilt = idx;
+    burstPlace(x, y, t.color);
+    sfx.place();
+    toast(cost ? `Relocated (−${cost})` : "Relocated");
+    updateHUD(); saveRun();
+    return true;
   }
 
   function canTarget(tower, enemy) {
@@ -3675,8 +4165,51 @@
     }
 
     if (enemy.shred > 0) mul *= 1 + Math.min(0.5, enemy.shred);
+    if ((enemy.plasmaMark || 0) > 0) mul *= 1.18;
     if (key === "water+wind" && enemy.chillT > 0) mul *= 1.75;
     return mul;
+  }
+
+  function noteComboProc(tower) {
+    if (tower) tower.combos = (tower.combos || 0) + 1;
+    if (state.runStats) state.runStats.combos = (state.runStats.combos || 0) + 1;
+    const cat = relicCount("chain_catalyst");
+    if (cat > 0) {
+      const trim = 0.25 * cat;
+      if (state.meteorCd > 0) state.meteorCd = Math.max(0, state.meteorCd - trim);
+      if (state.surgeCd > 0) state.surgeCd = Math.max(0, state.surgeCd - trim);
+      if (state.novaCd > 0) state.novaCd = Math.max(0, state.novaCd - trim);
+    }
+  }
+
+  /** Shield-respecting, telemetry-tracked direct damage for combos, DoT, hazards, Volatile Core, and Cryo Nova. */
+  function dealDirectDamage(e, rawDmg, tower, opts = {}) {
+    if (!e || !e.alive || rawDmg <= 0) return 0;
+    let dmg = rawDmg;
+    let totalApplied = 0;
+    if (e.shield > 0) {
+      const absorbed = Math.min(e.shield, dmg);
+      e.shield -= absorbed;
+      dmg -= absorbed;
+      totalApplied += absorbed;
+      e.shieldCd = 4.5;
+    }
+    if (dmg > 0) {
+      e.hp -= dmg;
+      totalApplied += dmg;
+    }
+    if (totalApplied > 0) {
+      if (tower && typeof tower.totalDmg === "number") tower.totalDmg += totalApplied;
+      if (state.runStats) state.runStats.totalDmg = (state.runStats.totalDmg || 0) + totalApplied;
+    }
+    if (settings.hitFlash !== false && !opts.silentFlash) e.hitFlash = Math.max(e.hitFlash || 0, 0.08);
+    if (e.hp <= 0) {
+      const magma = opts.magma != null
+        ? opts.magma
+        : (tower && comboKey(tower.elements || []) === "earth+fire" ? Math.max(16, totalApplied * 0.9) : 0);
+      killEnemy(e, { ...opts, magma, killer: tower || opts.killer || null });
+    }
+    return totalApplied;
   }
 
   function applyOnHitEffects(tower, enemy, dealt, hitOpts = {}) {
@@ -3691,11 +4224,13 @@
       const v = r[el] == null ? 1 : r[el];
       return Math.max(0.25, Math.min(1.6, v));
     };
+    const cAmp = 1 + 0.4 * relicCount("combo_amp");
 
     // Primary sockets — single-target potency unless this hit is splash.
     if (has("fire") || tower.burn) {
       const rf = resistFactor("fire");
       const burn = ((has("fire") ? 8 : 0) + (tower.burn || 0)) * rf * (aoeHit ? 0.7 : 1);
+      if (burn >= enemy.burn) enemy.burnTower = tower;
       enemy.burn = Math.max(enemy.burn, burn);
       enemy.burnT = Math.max(enemy.burnT, (key === "fire+wind" ? 3.0 : 2.0) * Math.min(1.2, rf));
     }
@@ -3725,148 +4260,145 @@
       applyFreezeChill(enemy, 1 - (1 - 0.38) * rf, 1.35, 0.7, st);
     }
 
-    // Distinct pair combos (mechanic + VFX) — avoid stacking the same hard CC.
+    // Distinct pair combos (mechanic + VFX) — all scaled by Resonant Matrix (combo_amp) and shield-aware!
     if (key === "fire+water") {
-      // Geyser: damage + shove FORWARD along path (anti-stall).
-      enemy.hp -= dealt * 0.22;
-      enemy.dist += isBossEnemy(enemy) ? 6 : 14;
-      comboBurst(p.x, p.y, "#9ad0e8", "GEYSER");
+      // Geyser: scalding steam blast + BACKWARD knockback (fixed from forward shove!).
+      noteComboProc(tower);
+      dealDirectDamage(enemy, dealt * 0.26 * cAmp, tower);
+      applyKnock(enemy, 12, st);
+      comboBurst(p.x, p.y, "#9ad0e8", "GEYSER!");
       for (const e of state.enemies) {
         if (!e.alive || e === enemy) continue;
         const q = enemyPos(e);
-        if (Math.hypot(q.x - p.x, q.y - p.y) < 40) {
-          e.hp -= dealt * 0.18;
-          e.dist += isBossEnemy(e) ? 3 : 8;
-          if (e.hp <= 0) killEnemy(e);
+        if (Math.hypot(q.x - p.x, q.y - p.y) < 44) {
+          dealDirectDamage(e, dealt * 0.2 * cAmp, tower);
+          applyKnock(e, 7, { aoe: true });
         }
       }
-      if (enemy.hp <= 0) killEnemy(enemy);
     } else if (key === "earth+water") {
-      // Mire: leave sticky zone (soft slow only via hazard).
-      pushHazard({ kind: "mire", x: p.x, y: p.y, r: 46, t: 3.2, slow: 0.72 });
-      comboBurst(p.x, p.y, ELEMENTS.earth.color, "MIRE");
+      noteComboProc(tower);
+      pushHazard({ kind: "mire", x: p.x, y: p.y, r: 46, t: 3.2 * (1 + 0.15 * relicCount("combo_amp")), slow: 0.72 });
+      comboBurst(p.x, p.y, ELEMENTS.earth.color, "MIRE!");
       applyMoveSlow(enemy, 0.72, 0.8, { aoe: true });
     } else if (key === "fire+wind" && enemy.burnT > 0) {
+      noteComboProc(tower);
+      const spreadBurn = Math.max(6, enemy.burn * 0.85, (tower.damage || 20) * 0.22) * cAmp;
       for (const e of state.enemies) {
         if (!e.alive || e === enemy) continue;
         const q = enemyPos(e);
-        if (Math.hypot(q.x - p.x, q.y - p.y) < 55) {
-          e.burn = Math.max(e.burn, 6);
-          e.burnT = Math.max(e.burnT, 1.8);
+        if (Math.hypot(q.x - p.x, q.y - p.y) < 58) {
+          if (spreadBurn >= e.burn) e.burnTower = tower;
+          e.burn = Math.max(e.burn, spreadBurn);
+          e.burnT = Math.max(e.burnT, 2.0);
         }
       }
-      pushCombatFx({ kind: "ring", x: p.x, y: p.y, t: 0.4, r0: 10, r1: 56, color: "#e85d4c" });
-      state.fx.push({ kind: "text", x: p.x, y: p.y - 18, t: 0.45, text: "WILDFIRE", color: "#e85d4c" });
+      pushCombatFx({ kind: "ring", x: p.x, y: p.y, t: 0.4, r0: 10, r1: 58, color: "#e85d4c" });
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 18, t: 0.5, text: "WILDFIRE!", color: "#e85d4c", scale: 1.12 });
     } else if (key === "arc+fire") {
-      // Plasma: execute mark — bonus damage if low HP.
-      enemy.plasmaMark = Math.max(enemy.plasmaMark || 0, 2.4);
+      // Plasma: marks foe for +18% incoming damage & executes low-HP foes!
+      noteComboProc(tower);
+      enemy.plasmaMark = Math.max(enemy.plasmaMark || 0, 2.8);
       let bonus = 0;
-      if (enemy.hp / enemy.maxHp < 0.35) bonus = dealt * (isBossEnemy(enemy) ? 0.35 : 0.7);
+      if (enemy.hp / enemy.maxHp < 0.35) bonus = dealt * (isBossEnemy(enemy) ? 0.38 : 0.72) * cAmp;
       if (bonus) {
-        enemy.hp -= bonus;
-        state.fx.push({ kind: "text", x: p.x, y: p.y - 22, t: 0.5, text: "PLASMA", color: ELEMENTS.arc.color });
+        dealDirectDamage(enemy, bonus, tower);
+        state.fx.push({ kind: "text", x: p.x, y: p.y - 22, t: 0.55, text: "PLASMA!", color: ELEMENTS.arc.color, scale: 1.18 });
         pushCombatFx({ kind: "beam", x: tower.x, y: tower.y, x2: p.x, y2: p.y, t: 0.14, color: "#ffe08a" });
-        if (enemy.hp <= 0) killEnemy(enemy);
       } else {
         pushCombatFx({ kind: "spark", x: p.x, y: p.y, t: 0.28, color: ELEMENTS.arc.color });
       }
     } else if (key === "arc+water") {
-      // Conduct: splash damage, tiny stumble (AoE CC nerfed).
+      noteComboProc(tower);
       for (const e of state.enemies) {
         if (!e.alive || e === enemy) continue;
         const q = enemyPos(e);
-        if (Math.hypot(q.x - p.x, q.y - p.y) < 48) {
-          e.hp -= dealt * 0.3;
+        if (Math.hypot(q.x - p.x, q.y - p.y) < 50) {
+          dealDirectDamage(e, dealt * 0.32 * cAmp, tower);
           applyStun(e, 0.16, { aoe: true });
-          if (e.hp <= 0) killEnemy(e);
         }
       }
-      comboBurst(p.x, p.y, ELEMENTS.arc.color, "CONDUCT");
+      comboBurst(p.x, p.y, ELEMENTS.arc.color, "CONDUCT!");
     } else if (key === "arc+earth") {
-      // Fracture: shred pulse — not a stun lock.
+      noteComboProc(tower);
       enemy.shred = Math.min(0.5, (enemy.shred || 0) + 0.16);
       applyMoveSlow(enemy, 0.7, 0.55, st);
       for (const e of state.enemies) {
         if (!e.alive || e === enemy) continue;
         const q = enemyPos(e);
-        if (Math.hypot(q.x - p.x, q.y - p.y) < 50) {
-          e.shred = Math.min(0.5, (e.shred || 0) + 0.1);
+        if (Math.hypot(q.x - p.x, q.y - p.y) < 52) {
+          e.shred = Math.min(0.5, (e.shred || 0) + 0.12);
           applyMoveSlow(e, 0.78, 0.4, { aoe: true });
         }
       }
       pushCombatFx({ kind: "ring", x: p.x, y: p.y, t: 0.4, r0: 8, r1: 52, color: ELEMENTS.earth.color });
-      state.fx.push({ kind: "text", x: p.x, y: p.y - 18, t: 0.45, text: "FRACTURE", color: ELEMENTS.earth.color });
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 18, t: 0.48, text: "FRACTURE!", color: ELEMENTS.earth.color, scale: 1.12 });
     } else if (key === "arc+wind") {
       let bestD = Infinity, second = null;
       for (const e of state.enemies) {
         if (!e.alive || e === enemy) continue;
         const q = enemyPos(e);
         const d = Math.hypot(q.x - p.x, q.y - p.y);
-        if (d < 70 && d < bestD) { bestD = d; second = e; }
+        if (d < 72 && d < bestD) { bestD = d; second = e; }
       }
       if (second) {
+        noteComboProc(tower);
         const q = enemyPos(second);
-        second.hp -= dealt * 0.55;
-        if (settings.hitFlash !== false) second.hitFlash = 0.1;
+        dealDirectDamage(second, dealt * 0.55 * cAmp, tower);
         applyStun(second, 0.14, { aoe: true });
-        state.fx.push({ kind: "beam", x: p.x, y: p.y, x2: q.x, y2: q.y, t: 0.12, color: ELEMENTS.arc.color });
+        state.fx.push({ kind: "beam", arc: true, x: p.x, y: p.y, x2: q.x, y2: q.y, t: 0.14, color: ELEMENTS.arc.color });
         pushCombatFx({ kind: "spark", x: q.x, y: q.y, t: 0.22, color: ELEMENTS.arc.color });
-        state.fx.push({ kind: "text", x: q.x, y: q.y - 16, t: 0.4, text: "SURGE", color: ELEMENTS.arc.color });
-        if (second.hp <= 0) killEnemy(second);
+        state.fx.push({ kind: "text", x: q.x, y: q.y - 16, t: 0.45, text: "SURGE!", color: ELEMENTS.arc.color, scale: 1.12 });
       }
     } else if (key === "arc+frost") {
-      // Brittle: next hit amp — no stun+freeze stack.
+      noteComboProc(tower);
       enemy.brittleT = Math.max(enemy.brittleT || 0, 2.8);
       applyMoveSlow(enemy, 0.65, 0.9, st);
-      state.fx.push({ kind: "text", x: p.x, y: p.y - 20, t: 0.45, text: "BRITTLE", color: ELEMENTS.frost.color });
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 20, t: 0.45, text: "BRITTLE!", color: ELEMENTS.frost.color, scale: 1.1 });
       pushCombatFx({ kind: "ring", x: p.x, y: p.y, t: 0.35, r0: 6, r1: 28, color: ELEMENTS.frost.color });
     } else if (key === "frost+water") {
-      // Rime: temporary shell that pops for damage (not deep freeze).
       if ((enemy.rimeShield || 0) <= 0) {
-        enemy.rimeShield = Math.max(18, dealt * 0.45);
+        enemy.rimeShield = Math.max(18, dealt * 0.45 * cAmp);
         state.fx.push({ kind: "text", x: p.x, y: p.y - 18, t: 0.45, text: "RIME", color: ELEMENTS.frost.color });
         pushCombatFx({ kind: "ring", x: p.x, y: p.y, t: 0.4, r0: 4, r1: 26, color: "#c8e8f8" });
       } else {
+        noteComboProc(tower);
         const pop = enemy.rimeShield;
         enemy.rimeShield = 0;
         for (const e of state.enemies) {
           if (!e.alive) continue;
           const q = enemyPos(e);
-          if (Math.hypot(q.x - p.x, q.y - p.y) < 44) {
-            e.hp -= pop * (e === enemy ? 1 : 0.55);
+          if (Math.hypot(q.x - p.x, q.y - p.y) < 46) {
+            dealDirectDamage(e, pop * (e === enemy ? 1 : 0.58), tower);
             applyMoveSlow(e, 0.7, 0.5, { aoe: true });
-            if (e.hp <= 0) killEnemy(e);
           }
         }
-        comboBurst(p.x, p.y, ELEMENTS.frost.color, "POP");
+        comboBurst(p.x, p.y, ELEMENTS.frost.color, "RIME POP!");
       }
       applyMoveSlow(enemy, 0.62, 1.0, st);
     } else if (key === "earth+frost") {
-      // Spike: armor pierce damage, light chill.
-      const pierce = dealt * (enemy.tags.includes("armored") ? 0.45 : 0.2);
-      enemy.hp -= pierce;
+      noteComboProc(tower);
+      const pierce = dealt * (enemy.tags.includes("armored") ? 0.45 : 0.22) * cAmp;
+      dealDirectDamage(enemy, pierce, tower);
       enemy.shred = Math.min(0.5, (enemy.shred || 0) + 0.14);
       applyMoveSlow(enemy, 0.68, 0.7, st);
-      state.fx.push({ kind: "text", x: p.x, y: p.y - 20, t: 0.45, text: "SPIKE", color: ELEMENTS.earth.color });
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 20, t: 0.48, text: "SPIKE!", color: ELEMENTS.earth.color, scale: 1.12 });
       pushCombatFx({ kind: "spark", x: p.x, y: p.y, t: 0.3, color: ELEMENTS.frost.color });
-      if (enemy.hp <= 0) killEnemy(enemy);
     } else if (key === "frost+wind") {
-      // Whiteout: scramble facing + soft chill (AoE).
+      noteComboProc(tower);
       for (const e of state.enemies) {
         if (!e.alive) continue;
         const q = enemyPos(e);
         if (Math.hypot(q.x - p.x, q.y - p.y) > 58) continue;
         applyMoveSlow(e, 0.7, 1.0, { aoe: true });
         e.chillT = Math.max(e.chillT || 0, 1.0);
-        // Nudge along path — keeps pressure, not a pin.
-        e.dist += (Math.random() - 0.35) * (isBossEnemy(e) ? 4 : 10);
-        e.dist = Math.max(0, e.dist);
+        applyKnock(e, isBossEnemy(e) ? 3 : 7, { aoe: true });
       }
-      comboBurst(p.x, p.y, ELEMENTS.frost.color, "WHITEOUT");
+      comboBurst(p.x, p.y, ELEMENTS.frost.color, "WHITEOUT!");
     } else if (key === "fire+frost" && enemy.tags.includes("armored")) {
+      noteComboProc(tower);
       enemy.shred = Math.min(0.5, (enemy.shred || 0) + 0.2);
-      if (Math.random() < 0.45) {
-        state.fx.push({ kind: "text", x: p.x, y: p.y - 22, t: 0.4, text: "MELT", color: ELEMENTS.frost.color });
+      if (Math.random() < 0.5) {
+        state.fx.push({ kind: "text", x: p.x, y: p.y - 22, t: 0.45, text: "MELT!", color: ELEMENTS.frost.color, scale: 1.1 });
       }
     }
   }
@@ -3875,24 +4407,56 @@
     if (!e.alive) return;
     e.alive = false;
     const p = enemyPos(e);
+    const killer = opts.killer || null;
+    if (killer && typeof killer.kills === "number") killer.kills += 1;
+    if (state.runStats) {
+      state.runStats.kills = (state.runStats.kills || 0) + 1;
+      if (isBossEnemy(e)) state.runStats.bosses = (state.runStats.bosses || 0) + 1;
+    }
     let scrapGain = e.reward * metaBonuses().scrapKillMul;
     const bounty = relicCount("bounty");
     if (bounty > 0) {
       scrapGain *= Math.pow(1.28, bounty);
       if (isBossEnemy(e)) scrapGain *= Math.pow(1.45, bounty);
     }
+    // Proximity-checked Brass Recycle killScrapAura
     let aura = 0;
-    for (const t of state.towers) aura = Math.max(aura, t.killScrapAura || 0);
+    for (const t of state.towers) {
+      if (!t.killScrapAura) continue;
+      if (Math.hypot(t.x - p.x, t.y - p.y) <= (t.range || 100) * 1.25) {
+        aura = Math.max(aura, t.killScrapAura);
+      }
+    }
     if (aura) scrapGain *= 1 + aura;
-    state.scrap += Math.max(1, Math.floor(scrapGain));
+    // Boss Bounty bonus!
+    if (isBossEnemy(e)) scrapGain *= 1.25;
+    const gained = Math.max(1, Math.floor(scrapGain));
+    state.scrap += gained;
     state.score += e.reward * 2 + Math.floor(state.wave);
+
+    // Floating gold scrap popup on notable kills (bosses, armored, bounty wave, or every 3rd kill so screen stays crisp)
+    if (isBossEnemy(e) || e.bountyTag || e.tags.includes("armored") || (state.runStats && state.runStats.kills % 3 === 0)) {
+      state.fx.push({
+        kind: "text",
+        x: p.x + (Math.random() - 0.5) * 10,
+        y: p.y - (isBossEnemy(e) ? 28 : 10),
+        t: isBossEnemy(e) ? 0.95 : 0.62,
+        text: `+${gained}⬡`,
+        color: "#ffd97d",
+        scale: isBossEnemy(e) ? 1.3 : 0.95,
+      });
+    }
 
     // Kill-streak momentum & ability recharge on kill!
     state.streak = (state.streak || 0) + 1;
+    if (state.runStats && state.streak > (state.runStats.peakStreak || 0)) {
+      state.runStats.peakStreak = state.streak;
+    }
     state.streakT = 2.6;
-    const cdTrim = (isBossEnemy(e) ? 2.5 : 0.32) * (1 + 0.35 * relicCount("rapid_rite"));
+    const cdTrim = (isBossEnemy(e) ? 2.8 : 0.34) * (1 + 0.35 * relicCount("rapid_rite"));
     if (state.meteorCd > 0) state.meteorCd = Math.max(0, state.meteorCd - cdTrim);
     if (state.surgeCd > 0) state.surgeCd = Math.max(0, state.surgeCd - cdTrim);
+    if (state.novaCd > 0) state.novaCd = Math.max(0, state.novaCd - cdTrim);
 
     const streakMarks = [8, 16, 25, 40, 60, 90, 125];
     const nextMark = streakMarks[state.streakTier || 0];
@@ -3901,22 +4465,32 @@
       const bonus = 8 + state.streakTier * 6;
       state.scrap += bonus;
       state.score += bonus * 3;
-      state.fx.push({ kind: "text", x: p.x, y: p.y - 26, t: 0.75, text: `STREAK ×${nextMark} +${bonus}`, color: "#ffd166" });
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 26, t: 0.85, text: `STREAK ×${nextMark} +${bonus}⬡`, color: "#ffd166", scale: 1.2 });
       sfx.streak();
     }
 
     pushCombatFx({ kind: "pop", x: p.x, y: p.y, t: 0.4, color: e.color });
-    spawnParticles(p.x, p.y, e.color, isBossEnemy(e) ? 30 : 12, isBossEnemy(e) ? 150 : 90);
+    spawnParticles(p.x, p.y, e.color, isBossEnemy(e) ? 34 : 12, isBossEnemy(e) ? 160 : 90);
     if (isBossEnemy(e)) {
-      spawnParticles(p.x, p.y, "#ffd166", 18, 120);
-      addShake(1.2);
-      sfx.boom();
+      spawnParticles(p.x, p.y, "#ffd166", 24, 140);
+      pushCombatFx({ kind: "ring", x: p.x, y: p.y, t: 0.6, r0: 12, r1: 84, color: "#ffd97d" });
+      state.hitstopT = Math.max(state.hitstopT || 0, 0.052);
+      // Boss Bounty: heal +1 Wellheart if hurt!
+      let bossMsg = `BOSS SLAIN! +${gained}⬡`;
+      if (state.hp < (state.maxHp || 20)) {
+        state.hp += 1;
+        bossMsg += " · +1 HP";
+      }
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 42, t: 1.05, text: bossMsg, color: "#ffd97d", scale: 1.32 });
+      showBanner(`${e.label} Slain!`);
+      addShake(1.35);
+      sfx.bossKill();
     } else {
       addShake(0.2);
       sfx.kill(state.streak);
     }
 
-    // Volatile Core relic: slain foes explode for splash damage (non-recursive).
+    // Volatile Core relic: slain foes explode for splash damage (non-recursive, shield-aware).
     const vol = relicCount("volatile");
     if (vol > 0 && !opts.fromVolatile) {
       const blastDmg = Math.max(12, e.maxHp * 0.18 * vol);
@@ -3924,29 +4498,30 @@
         if (!o.alive) continue;
         const q = enemyPos(o);
         if (Math.hypot(q.x - p.x, q.y - p.y) < 52) {
-          o.hp -= blastDmg;
-          if (settings.hitFlash !== false) o.hitFlash = 0.08;
-          if (o.hp <= 0) killEnemy(o, { fromVolatile: true });
+          dealDirectDamage(o, blastDmg, killer, { fromVolatile: true });
         }
       }
       pushCombatFx({ kind: "blast", x: p.x, y: p.y, t: 0.34, r: 52, color: "#ffb854" });
     }
 
     if (opts.magma) {
+      noteComboProc(killer);
       const cAmp = 1 + 0.4 * relicCount("combo_amp");
-      pushHazard({ kind: "magma", x: p.x, y: p.y, r: 48, t: 2.8, dps: Math.max(12, opts.magma * 0.42 * cAmp) });
+      pushHazard({ kind: "magma", x: p.x, y: p.y, r: 48, t: 2.8, dps: Math.max(12, opts.magma * 0.42 * cAmp), tower: killer });
       for (const o of state.enemies) {
         if (!o.alive) continue;
         const q = enemyPos(o);
         if (Math.hypot(q.x - p.x, q.y - p.y) < 50) {
-          o.hp -= opts.magma * 0.55 * cAmp;
-          o.burn = Math.max(o.burn, 5);
-          o.burnT = Math.max(o.burnT, 1.5);
-          if (o.hp <= 0) killEnemy(o);
+          dealDirectDamage(o, opts.magma * 0.55 * cAmp, killer, { magma: 0 });
+          if (o.alive) {
+            o.burn = Math.max(o.burn, 5);
+            o.burnT = Math.max(o.burnT, 1.5);
+            if (!o.burnTower) o.burnTower = killer;
+          }
         }
       }
       pushCombatFx({ kind: "blast", x: p.x, y: p.y, t: 0.4, r: 50, color: "#ee6450" });
-      state.fx.push({ kind: "text", x: p.x, y: p.y - 16, t: 0.5, text: "MAGMA", color: "#ee6450" });
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 16, t: 0.55, text: "MAGMA!", color: "#ee6450", scale: 1.18 });
       spawnParticles(p.x, p.y, "#ee6450", 16, 100);
     }
   }
@@ -3956,38 +4531,46 @@
     const matchMul = damageMultiplier(tower, e);
     let dmg = amount * matchMul;
     let didCrit = false;
-    const surgeCrit = state.surgeT > 0 ? ABILITY_DEF.surge.critAdd : 0;
+    const surgeCrit = state.surgeT > 0 ? ABILITY_DEF.surge.critAdd * abilityDmgMul() : 0;
     const critChance = (opts.critChance || 0) + surgeCrit;
     if (critChance > 0 && Math.random() < critChance) {
       dmg *= 2;
       didCrit = true;
       const p = enemyPos(e);
-      state.fx.push({ kind: "text", x: p.x, y: p.y - 14, t: 0.5, text: "CRIT", color: "#ffb854" });
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 16, t: 0.55, text: "CRIT!", color: "#ffd166", scale: 1.24 });
       addShake(0.36);
     }
     if ((e.brittleT || 0) > 0) {
       dmg *= 1.4;
       e.brittleT = 0;
       const bp = enemyPos(e);
-      state.fx.push({ kind: "text", x: bp.x, y: bp.y - 16, t: 0.4, text: "CRACK", color: ELEMENTS.frost.color });
+      state.fx.push({ kind: "text", x: bp.x, y: bp.y - 16, t: 0.45, text: "CRACK!", color: ELEMENTS.frost.color, scale: 1.15 });
     }
     if (comboKey(tower.elements || []) === "water+wind" && e.chillT > 0) {
+      noteComboProc(tower);
       const p = enemyPos(e);
-      state.fx.push({ kind: "text", x: p.x, y: p.y - 18, t: 0.45, text: "SHATTER", color: "#50c2cf" });
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 18, t: 0.5, text: "SHATTER!", color: "#50c2cf", scale: 1.18 });
     }
+    let shieldAbsorbed = 0;
     if (e.shield > 0) {
-      const absorbed = Math.min(e.shield, dmg);
-      e.shield -= absorbed;
-      dmg -= absorbed;
+      shieldAbsorbed = Math.min(e.shield, dmg);
+      e.shield -= shieldAbsorbed;
+      dmg -= shieldAbsorbed;
       e.shieldCd = 4.5;
+      if (shieldAbsorbed > 0) {
+        if (tower && typeof tower.totalDmg === "number") tower.totalDmg += shieldAbsorbed;
+        if (state.runStats) state.runStats.totalDmg = (state.runStats.totalDmg || 0) + shieldAbsorbed;
+      }
       if (dmg <= 0) {
         if (settings.hitFlash !== false) e.hitFlash = 0.08;
         const sp = enemyPos(e);
-        pushCombatFx({ kind: "spark", x: sp.x, y: sp.y, t: 0.2, color: "#d8d0c4" });
-        return absorbed;
+        pushCombatFx({ kind: "spark", x: sp.x, y: sp.y, t: 0.2, color: "#92cef0" });
+        return shieldAbsorbed;
       }
     }
     e.hp -= dmg;
+    if (tower && typeof tower.totalDmg === "number") tower.totalDmg += dmg;
+    if (state.runStats) state.runStats.totalDmg = (state.runStats.totalDmg || 0) + dmg;
     if (settings.hitFlash !== false) e.hitFlash = 0.12;
     applyOnHitEffects(tower, e, dmg, { aoe: !!opts.aoe });
     const p = enemyPos(e);
@@ -4009,7 +4592,7 @@
     }
     if (settings.dmgNumbers !== false && dmg >= 1) {
       const shown = Math.max(1, Math.round(dmg));
-      let numColor = didCrit ? "#ffb854" : (opts.color || "#f5eee6");
+      let numColor = didCrit ? "#ffd166" : (opts.color || "#f5eee6");
       if (!didCrit && elsArr.length) {
         if (matchMul >= 1.25) numColor = "#9fe0b0";
         else if (matchMul <= 0.75) numColor = "#9a9088";
@@ -4021,15 +4604,16 @@
         t: 0.55,
         text: String(shown),
         color: numColor,
+        scale: didCrit ? 1.18 : 0.96,
       });
     }
     spawnParticles(p.x, p.y, opts.color || tower.color, 4, 55);
     sfx.hit();
     if (e.hp <= 0) {
       const magma = comboKey(tower.elements || []) === "earth+fire" ? dmg * 0.9 : 0;
-      killEnemy(e, { magma });
+      killEnemy(e, { magma, killer: tower });
     }
-    return dmg;
+    return dmg + shieldAbsorbed;
   }
 
   function fireTower(tower, target) {
@@ -4051,7 +4635,7 @@
       if (totalChains > 0) {
         const hitSet = new Set([target]);
         let prev = p;
-        const jumpMul = 0.7 + 0.15 * relicCount("arc_fork");
+        const jumpMul = 0.7 + 0.2 * relicCount("arc_fork");
         for (let c = 0; c < totalChains; c++) {
           let nextE = null, bestD = Infinity;
           for (const e of state.enemies) {
@@ -4127,6 +4711,11 @@
       if (state.flash > 0) state.flash = Math.max(0, state.flash - dt);
       return;
     }
+    if (state.hitstopT > 0) {
+      state.hitstopT = Math.max(0, state.hitstopT - dt);
+      if (state.shake > 0) state.shake = Math.max(0, state.shake - dt * 8);
+      return;
+    }
     const speed = normalizeSpeed(settings.gameSpeed);
     const step = dt * speed;
     state.time += step; state.frame++;
@@ -4136,6 +4725,7 @@
       if (state.meteorCd > 0) state.meteorCd = Math.max(0, state.meteorCd - step);
       if (state.surgeCd > 0) state.surgeCd = Math.max(0, state.surgeCd - step);
       if (state.surgeT > 0) state.surgeT = Math.max(0, state.surgeT - step);
+      if (state.novaCd > 0) state.novaCd = Math.max(0, state.novaCd - step);
     }
     if (state.streakT > 0) {
       state.streakT -= step;
@@ -4154,37 +4744,64 @@
 
       if (state.spawnQueue.length) {
         state.spawnTimer -= step;
-        const plan = wavePlan(state.seed, Math.max(1, state.wave), state.difficulty);
+        const iv = state.waveInterval || 0.75;
         if (state.spawnTimer <= 0) {
           const next = state.spawnQueue.shift();
           spawnEnemy(next.type, next.difficulty, next.speedMul || 1, next.rewardMul || 1, next);
           if (isBossType(next.type)) {
-            state.spawnTimer = plan.interval * (3.2 + (next.bossIndex || 0) * 0.75);
+            state.spawnTimer = iv * (3.2 + (next.bossIndex || 0) * 0.75);
           } else {
-            state.spawnTimer = plan.interval * (next.type === "swarm" ? 0.35 : 1);
+            state.spawnTimer = iv * (next.type === "swarm" ? 0.35 : 1);
           }
         }
       } else if (state.betweenWaves <= 0 && state.wave > 0) {
         state.enemies = state.enemies.filter((e) => e.alive);
-        // Daily hard-stops at waveCap: wait for a clear field, then victory.
-        if (runIsDaily && state.wave >= DAILY.waveCap) {
-          if (livingEnemyCount() === 0) {
+        // Wait for wave to actually clear before paying wave bonus, interest, flawless reward & Relic Draft!
+        if (livingEnemyCount() === 0) {
+          if (runIsDaily && state.wave >= DAILY.waveCap) {
             endRun(false, { victory: true });
             return;
           }
-        } else {
           state.betweenWaves = nextWaveDelay();
-          const scrapWave = Math.floor(
+          const scrapWaveRaw = Math.floor(
             BALANCE.scrapWaveBase + state.wave * BALANCE.scrapWavePer + metaBonuses().scrapWaveAdd
           );
-          state.scrap += Math.floor(scrapWave * (runIsDaily ? DAILY.scrapWaveMul : 1));
-          saveRun();
+          const scrapWave = Math.floor(scrapWaveRaw * (runIsDaily ? DAILY.scrapWaveMul : 1));
+          // Scrap Interest: +6% banked scrap (cap +35), boosted by Forge Vault relic (+5%, +25 cap each)
+          const vaults = relicCount("scrap_vault");
+          const intRate = 0.06 + vaults * 0.05;
+          const intCap = 35 + vaults * 25;
+          const interest = Math.min(intCap, Math.floor(state.scrap * intRate));
+          // Flawless Wave Bonus: 0 leaks -> +15% wave scrap + heal 1 HP every 3 flawless waves in a row!
+          let flawlessBonus = 0;
+          let healed = false;
+          if ((state.waveLeaks || 0) === 0) {
+            state.flawlessStreak = (state.flawlessStreak || 0) + 1;
+            if (state.runStats) state.runStats.flawlessWaves = (state.runStats.flawlessWaves || 0) + 1;
+            flawlessBonus = Math.max(4, Math.round(scrapWave * 0.15));
+            if (state.flawlessStreak % 3 === 0 && state.hp < (state.maxHp || 20)) {
+              state.hp += 1;
+              healed = true;
+            }
+          } else {
+            state.flawlessStreak = 0;
+          }
+          state.scrap += scrapWave + interest + flawlessBonus;
+          if (state.runStats) state.runStats.interestEarned = (state.runStats.interestEarned || 0) + interest;
+
+          const bonusBits = [`+${scrapWave} wave`];
+          if (interest > 0) bonusBits.push(`+${interest} int`);
+          if (flawlessBonus > 0) bonusBits.push(`Flawless +${flawlessBonus}${healed ? " · +1 HP" : ""}`);
+          toast(bonusBits.join(" · "));
+          if (flawlessBonus > 0) sfx.streak();
+
           // Trigger roguelite Rift Relic draft at milestone waves!
           if (RELIC_WAVES.includes(state.wave) && state.relicDraftWave < state.wave) {
             state.relicDraftWave = state.wave;
             openRelicDraft();
             return;
           }
+          saveRun();
         }
       }
     }
@@ -4208,12 +4825,12 @@
       if (e.ccDR > 0) e.ccDR = Math.max(0, e.ccDR - BALANCE.ccDrDecay * step);
       if (e.burnT > 0) {
         e.burnT -= step;
-        e.hp -= e.burn * step;
         if (Math.random() < step * 8) {
           const p = enemyPos(e);
           spawnParticles(p.x, p.y, "#ee6450", 1, 30);
         }
-        if (e.hp <= 0) killEnemy(e);
+        dealDirectDamage(e, e.burn * step, e.burnTower || null, { silentFlash: true });
+        if (!e.alive) continue;
       }
       // Boss abilities
       if (e.ability === "ashregen") {
@@ -4232,7 +4849,7 @@
           const adds = state.enemies.filter((o) => o.alive && o.type === "swarm").length;
           if (adds < 14) {
             const childDiff = Math.max(0.85, (e.maxHp / (ENEMY.broodmother.hp || 840)) * 0.55);
-            broodSpawns.push({ dist: e.dist, diff: childDiff, color: e.color });
+            broodSpawns.push({ dist: e.dist, diff: childDiff, color: e.color, lane: e.lane || 0 });
           }
         }
       } else if (e.ability === "tempest") {
@@ -4240,7 +4857,7 @@
           e.enraged = true;
           e.speed = (e.baseSpeed || e.speed) * 1.4;
           const p = enemyPos(e);
-          state.fx.push({ kind: "text", x: p.x, y: p.y - 16, t: 0.6, text: "TEMPEST", color: "#50c2cf" });
+          state.fx.push({ kind: "text", x: p.x, y: p.y - 16, t: 0.65, text: "TEMPEST!", color: "#50c2cf", scale: 1.2 });
           spawnParticles(p.x, p.y, "#50c2cf", 14, 90);
         }
         if (e.enraged) e.knockCd = Math.max(e.knockCd, 0.3);
@@ -4258,9 +4875,20 @@
       }
       if (e.dist >= enemyPathTotal(e)) {
         e.alive = false;
+        state.waveLeaks = (state.waveLeaks || 0) + 1;
+        state.flawlessStreak = 0;
         {
           const mb = metaBonuses();
-          const raw = isBossEnemy(e) ? 5 - mb.bossLeakReduce : 1 - mb.leakReduce;
+          let guard = 0;
+          const ex = state.path && state.path.exit;
+          if (ex) {
+            for (const t of state.towers) {
+              if (t.leakGuardNear && Math.hypot(t.x - ex.x, t.y - ex.y) <= (t.range || 100) * 1.35) {
+                guard = Math.max(guard, t.leakGuardNear);
+              }
+            }
+          }
+          const raw = isBossEnemy(e) ? 5 - mb.bossLeakReduce - guard : 1 - mb.leakReduce;
           state.hp -= Math.max(1, raw);
         }
         pushCombatFx({ kind: "leak", t: 0.5 });
@@ -4272,7 +4900,7 @@
     }
     for (const b of broodSpawns) {
       for (let i = 0; i < 2; i++) {
-        spawnEnemy("swarm", b.diff, 1, 0.7);
+        spawnEnemy("swarm", b.diff, 1, 0.7, { lane: b.lane || 0 });
         const child = state.enemies[state.enemies.length - 1];
         child.dist = Math.max(0, b.dist - 18 - i * 10);
       }
@@ -4291,17 +4919,19 @@
           if (Math.hypot(q.x - h.x, q.y - h.y) > h.r) continue;
           if (h.kind === "mire") applyMoveSlow(e, h.slow || 0.72, 0.25, { aoe: true, soft: true });
           if (h.kind === "magma") {
-            e.hp -= (h.dps || 12) * step;
-            e.burn = Math.max(e.burn, 4);
-            e.burnT = Math.max(e.burnT, 0.6);
-            if (e.hp <= 0) killEnemy(e);
+            dealDirectDamage(e, (h.dps || 12) * step, h.tower || null, { silentFlash: true, magma: 0 });
+            if (e.alive) {
+              e.burn = Math.max(e.burn, 4);
+              e.burnT = Math.max(e.burnT, 0.6);
+              if (h.tower && !e.burnTower) e.burnTower = h.tower;
+            }
           }
         }
       }
       state.hazards = state.hazards.filter((h) => h.t > 0);
     }
 
-    const surgeRateMul = state.surgeT > 0 ? ABILITY_DEF.surge.rateMul : 1;
+    const surgeRateMul = state.surgeT > 0 ? ABILITY_DEF.surge.rateMul * Math.pow(0.9, relicCount("rapid_rite")) : 1;
     for (const tower of state.towers) {
       if (tower.levelCd > 0) tower.levelCd = Math.max(0, tower.levelCd - dt);
       if (tower.recoil > 0) tower.recoil = Math.max(0, tower.recoil - step * 4.5);
@@ -5089,9 +5719,11 @@
       ctx.restore();
       return;
     }
-    if (!state.ghost || !state.selectedTower || !state.path) return;
+    const moving = state.movingTower != null ? state.towers[state.movingTower] : null;
+    if (!state.ghost || (!state.selectedTower && !moving) || !state.path) return;
     const { x, y, ok } = state.ghost;
-    const stats = towerStats(state.selectedTower);
+    const ghostType = moving ? moving.type : state.selectedTower;
+    const stats = moving || towerStats(ghostType);
     ctx.save();
     ctx.globalAlpha = 0.34;
     ctx.beginPath();
@@ -5120,9 +5752,9 @@
     ctx.translate(x, y);
     ctx.scale(0.92, 0.92);
     drawTower({
-      x: 0, y: 0, type: state.selectedTower, aim: -Math.PI / 2,
-      recoil: 0, level: 1, elements: [],
-    }, false);
+      x: 0, y: 0, type: ghostType, aim: moving ? moving.aim : -Math.PI / 2,
+      recoil: 0, level: moving ? moving.level : 1, elements: moving ? (moving.elements || []) : [],
+    }, false, false);
     ctx.restore();
     if (!ok) {
       ctx.save();
@@ -5143,7 +5775,7 @@
     return Math.sin(state.time * 3 + (e.dist || 0) * 0.05) * 2;
   }
 
-  function drawTower(t, selected) {
+  function drawTower(t, selected, isMvp = false) {
     ctx.save();
     ctx.translate(t.x, t.y);
     const aim = typeof t.aim === "number" ? t.aim : -Math.PI / 2;
@@ -5153,6 +5785,27 @@
     const attack = recoil > 0.08;
     ctx.translate(0, idle * 0.2);
     ctx.scale(1.12, 1.12);
+
+    if (isMvp) {
+      // Crisp tiny golden crown floating above the battlefield MVP tower
+      const cy = -24 + Math.sin(state.time * 3.6) * 1.1;
+      ctx.save();
+      ctx.fillStyle = "#ffd97d";
+      ctx.strokeStyle = "#3a2208";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-5.5, cy + 4);
+      ctx.lineTo(-6.5, cy - 2);
+      ctx.lineTo(-2.5, cy + 1);
+      ctx.lineTo(0, cy - 3.5);
+      ctx.lineTo(2.5, cy + 1);
+      ctx.lineTo(6.5, cy - 2);
+      ctx.lineTo(5.5, cy + 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
 
     if (state.surgeT > 0) {
       ctx.strokeStyle = `rgba(255, 206, 94, ${0.42 + pulse * 0.35})`;
@@ -5488,6 +6141,22 @@
     ctx.ellipse(0, e.r * 0.85, e.r * 0.9, e.r * 0.28, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    if (e.bountyTag) {
+      ctx.strokeStyle = "rgba(255, 217, 125, 0.72)";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(0, 0, e.r + 3.5 + Math.sin(state.time * 7 + e.id) * 1.2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    if ((e.plasmaMark || 0) > 0) {
+      ctx.strokeStyle = "rgba(224, 195, 84, 0.75)";
+      ctx.setLineDash([4, 3]);
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(0, 0, e.r + 6.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
     if (e.tags.includes("flying")) {
       ctx.strokeStyle = "rgba(126,201,160,0.4)";
       ctx.setLineDash([3, 3]);
@@ -5957,7 +6626,7 @@
     }
 
     if (isBossEnemy(e)) {
-      const tag = (e.label || "Boss").slice(0, 10);
+      const tag = (e.label || "Boss").slice(0, 12);
       ctx.fillStyle = "rgba(0,0,0,0.62)";
       const tw = Math.max(30, tag.length * 5.4);
       roundRect(-tw / 2, e.r + 3, tw, 11, 3); ctx.fill();
@@ -5985,6 +6654,11 @@
     drawRiftPath();
     drawGhostPlacement();
 
+    let mvpIdx = -1, mvpDmg = 150;
+    for (let i = 0; i < state.towers.length; i++) {
+      const d = state.towers[i].totalDmg || 0;
+      if (d > mvpDmg) { mvpDmg = d; mvpIdx = i; }
+    }
     for (let i = 0; i < state.towers.length; i++) {
       const t = state.towers[i];
       if (state.selectedBuilt === i) {
@@ -6000,7 +6674,14 @@
         ctx.setLineDash([]);
         ctx.restore();
       }
-      drawTower(t, state.selectedBuilt === i);
+      if (state.movingTower === i) {
+        ctx.save();
+        ctx.globalAlpha = 0.38;
+        drawTower(t, false, false);
+        ctx.restore();
+      } else {
+        drawTower(t, state.selectedBuilt === i, i === mvpIdx);
+      }
     }
     for (const e of state.enemies) {
       if (!e.alive) continue;
@@ -6132,12 +6813,14 @@
         ctx.beginPath(); ctx.arc(f.x, f.y, 18 + (0.5 - a) * 40, 0, Math.PI * 2); ctx.stroke();
         ctx.globalAlpha = 1;
       } else if (f.kind === "text") {
-        ctx.globalAlpha = Math.min(1, a * 3);
-        ctx.font = "800 11.5px Bricolage Grotesque, Avenir Next, sans-serif";
+        const sc = f.scale || 1;
+        const px = Math.round(11.5 * sc * 10) / 10;
+        ctx.globalAlpha = Math.min(1, a * 2.8);
+        ctx.font = `800 ${px}px Bricolage Grotesque, Avenir Next, sans-serif`;
         ctx.textAlign = "center";
-        const ty = f.y - (0.5 - a) * 22;
-        ctx.fillStyle = "rgba(10,8,6,0.75)";
-        ctx.fillText(f.text, f.x + 1, ty + 1);
+        const ty = f.y - (0.55 - a) * (20 + sc * 5);
+        ctx.fillStyle = "rgba(10,8,6,0.82)";
+        ctx.fillText(f.text, f.x + 1, ty + 1.2);
         ctx.fillStyle = f.color;
         ctx.fillText(f.text, f.x, ty);
         ctx.globalAlpha = 1;
@@ -6167,21 +6850,23 @@
       clientY: t.clientY,
     };
   }
-  function placementOk(x, y) {
+  function placementOk(x, y, ignoreIdx = -1) {
     if (!state.path) return false;
     // Reject when the tower disk would overlap painted road (center clearance = roadHalf + footprint).
     if (distToPathNetwork(state.path, x, y) < pathPlacementClear()) return false;
     if (hitsObstacle(x, y, TOWER_PLACE_R)) return false;
     if (x < 16 || y < 16 || x > state.w - 16 || y > state.h - 16) return false;
-    for (const t of state.towers) {
+    for (let i = 0; i < state.towers.length; i++) {
+      if (i === ignoreIdx) continue;
+      const t = state.towers[i];
       if (Math.hypot(t.x - x, t.y - y) < TOWER_PLACE_R * 2) return false;
     }
     return true;
   }
 
   // Gentle magnetic nudge so placing inside road turns or beside towers nestles into the nearest valid pocket.
-  function resolvePlacement(x, y) {
-    if (placementOk(x, y)) return { x, y, ok: true };
+  function resolvePlacement(x, y, ignoreIdx = -1) {
+    if (placementOk(x, y, ignoreIdx)) return { x, y, ok: true };
     const radii = [5, 10, 15];
     const steps = 12;
     for (const r of radii) {
@@ -6191,7 +6876,7 @@
         const a = (i / steps) * Math.PI * 2;
         const nx = x + Math.cos(a) * r;
         const ny = y + Math.sin(a) * r;
-        if (placementOk(nx, ny)) {
+        if (placementOk(nx, ny, ignoreIdx)) {
           const d = Math.hypot(nx - x, ny - y);
           if (d < bestDist) {
             bestDist = d;
@@ -6217,6 +6902,15 @@
       placePtr = { id: evt.pointerId, x0: clientX, y0: clientY, x, y, dragged: false, ability: "meteor" };
       state.ghost = { x, y, ok: true };
       try { canvas.setPointerCapture(evt.pointerId); } catch { /* */ }
+      return;
+    }
+
+    if (state.movingTower != null) {
+      const snap = resolvePlacement(x, y, state.movingTower);
+      placePtr = { id: evt.pointerId, x0: clientX, y0: clientY, x: snap.x, y: snap.y, dragged: false, moving: state.movingTower };
+      state.ghost = snap;
+      try { canvas.setPointerCapture(evt.pointerId); } catch { /* */ }
+      updateHUD();
       return;
     }
 
@@ -6261,6 +6955,10 @@
       if (placePtr.ability === "meteor") {
         placePtr.x = x; placePtr.y = y;
         state.ghost = { x, y, ok: true };
+      } else if (placePtr.moving != null) {
+        const snap = resolvePlacement(x, y, placePtr.moving);
+        placePtr.x = snap.x; placePtr.y = snap.y;
+        state.ghost = snap;
       } else if (state.selectedTower) {
         const snap = resolvePlacement(x, y);
         placePtr.x = snap.x; placePtr.y = snap.y;
@@ -6275,6 +6973,13 @@
       }
       return;
     }
+    if (state.movingTower != null) {
+      if (evt.pointerType === "mouse") {
+        const { x, y } = canvasPos(evt);
+        state.ghost = resolvePlacement(x, y, state.movingTower);
+      }
+      return;
+    }
     if (!state.selectedTower) { state.ghost = null; return; }
     if (evt.pointerType === "mouse") {
       const { x, y } = canvasPos(evt);
@@ -6285,6 +6990,7 @@
   function finishPlacePointer(evt, canceled) {
     if (!placePtr || placePtr.id !== evt.pointerId) return;
     const isMeteor = placePtr.ability === "meteor";
+    const movingIdx = placePtr.moving != null ? placePtr.moving : null;
     const { x, y } = state.ghost || placePtr;
     placePtr = null;
     try { canvas.releasePointerCapture(evt.pointerId); } catch { /* */ }
@@ -6293,6 +6999,17 @@
         fireMeteorAt(x, y);
       } else {
         state.ghost = null;
+      }
+      updateHUD();
+      return;
+    }
+    if (movingIdx != null) {
+      const snap = !canceled ? resolvePlacement(x, y, movingIdx) : { x, y, ok: false };
+      state.ghost = null;
+      if (snap.ok) {
+        moveTowerTo(movingIdx, snap.x, snap.y);
+      } else if (!canceled) {
+        toast("Invalid — keep off the road & rocks");
       }
       updateHUD();
       return;
@@ -6324,6 +7041,7 @@
         return;
       }
       state.armedAbility = null;
+      state.movingTower = null;
       state.selectedTower = type;
       state.selectedBuilt = null;
       state.ghost = null;
@@ -6362,6 +7080,30 @@
       triggerSurge();
     });
   }
+  if (els.btnNova) {
+    els.btnNova.addEventListener("click", () => {
+      ensureAudio();
+      triggerNova();
+    });
+  }
+  if (els.btnRelicReroll) {
+    els.btnRelicReroll.addEventListener("click", () => {
+      ensureAudio();
+      rerollRelicDraft();
+    });
+  }
+  if (els.btnRelicSalvage) {
+    els.btnRelicSalvage.addEventListener("click", () => {
+      ensureAudio();
+      salvageRelicDraft();
+    });
+  }
+  if (els.btnMove) {
+    els.btnMove.addEventListener("click", () => {
+      ensureAudio();
+      startMoveTower();
+    });
+  }
   if (els.btnTargetMode) {
     els.btnTargetMode.addEventListener("click", () => {
       if (state.selectedBuilt == null) return;
@@ -6382,9 +7124,54 @@
     });
   }
   document.addEventListener("keydown", (evt) => {
+    if (evt.metaKey || evt.ctrlKey || evt.altKey) return;
+    const tag = (evt.target && evt.target.tagName) || "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    const k = evt.key.toLowerCase();
     if (evt.key === "Escape") {
-      if (state.selectedTower || state.armedAbility) cancelPlacement(false);
-      else if (state.selectedBuilt != null) { state.selectedBuilt = null; updateHUD(); }
+      if (state.selectedTower || state.armedAbility || state.movingTower != null) { cancelPlacement(false); return; }
+      if (state.selectedBuilt != null) { state.selectedBuilt = null; updateHUD(); return; }
+      if (state.mode === "playing") { state.mode = "paused"; saveRun(); showScreen("pause"); return; }
+      if (state.mode === "paused") { state.mode = "playing"; showScreen(null); syncStartBtn(); return; }
+      return;
+    }
+    if (k === "p" && (state.mode === "playing" || state.mode === "paused")) {
+      evt.preventDefault();
+      els.btnPause.click();
+      return;
+    }
+    if (k === "m") {
+      els.btnMute.click();
+      return;
+    }
+    if (state.mode !== "playing") return;
+    if (k === "1" || k === "2" || k === "3" || k === "4") {
+      const types = ["turret", "mortar", "coil", "spire"];
+      const btn = document.querySelector(`.tower-btn[data-tower="${types[Number(k) - 1]}"]`);
+      if (btn) btn.click();
+    } else if (k === "q") {
+      ensureAudio(); armMeteor();
+    } else if (k === "w") {
+      ensureAudio(); triggerSurge();
+    } else if (k === "e") {
+      ensureAudio(); triggerNova();
+    } else if (k === "f") {
+      ensureAudio(); cycleSpeed();
+    } else if (evt.key === " ") {
+      evt.preventDefault();
+      ensureAudio();
+      if (state.awaitingStart) playerStartWaves();
+      else if (state.spawnQueue.length === 0 && state.betweenWaves > 0.25) callNextWaveEarly();
+    } else if (k === "a") {
+      autoLevelAllTowers();
+    } else if (state.selectedBuilt != null) {
+      if (k === "u") els.btnUpgrade.click();
+      else if (k === "t" && els.btnTargetMode) els.btnTargetMode.click();
+      else if (k === "v" && els.btnMove) startMoveTower();
+      else if (k === "x" || evt.key === "Delete" || evt.key === "Backspace") {
+        evt.preventDefault();
+        els.btnSell.click();
+      }
     }
   });
 
@@ -6396,16 +7183,17 @@
       if (!t.elements) t.elements = [];
       if (t.elements.includes(el)) return;
       if (t.elements.length >= MAX_ELEMENTS) { toast("Max 2 elements"); return; }
-      const cost = elementCost(t);
-      if (state.scrap < cost) { toast("Need more scrap"); return; }
+      const cost = elementCost(t, el);
+      if (state.scrap < cost) { toast(`Need ${cost} scrap`); return; }
       state.scrap -= cost;
+      t.investedScrap = (t.investedScrap || towerStats(t.type).cost) + cost;
       t.elements.push(el);
       burstPlace(t.x, t.y, ELEMENTS[el].color);
       const combo = describeCombo(t.elements);
       toast(combo);
       if (t.elements.length >= 2) {
         const short = COMBO_SHORT[comboKey(t.elements)] || "COMBO";
-        state.fx.push({ kind: "text", x: t.x, y: t.y - 28, t: 0.85, text: short, color: ELEMENTS[el].color });
+        state.fx.push({ kind: "text", x: t.x, y: t.y - 28, t: 0.9, text: `${short}!`, color: ELEMENTS[el].color, scale: 1.24 });
         pushCombatFx({ kind: "ring", x: t.x, y: t.y, t: 0.45, r0: 12, r1: 48, color: ELEMENTS[el].color });
         haptic([10, 40, 18]);
       }
@@ -6441,6 +7229,7 @@
   });
   $("btn-resume").addEventListener("click", () => {
     if (!state.seed) loadRun();
+    if (state.pendingRelicDraft) { openRelicDraft({ silent: true }); return; }
     state.mode = "playing"; showScreen(null); syncStartBtn(); saveRun();
   });
   els.btnMute.addEventListener("click", () => {
@@ -6516,7 +7305,24 @@
   }
   $("btn-to-hub").addEventListener("click", () => { saveRun(); state.mode = "hub"; showScreen("hub"); refreshHub(); hideCoach(false); });
   $("btn-abandon").addEventListener("click", () => endRun(true));
-  $("btn-again").addEventListener("click", () => { clearRun(); resize(); startNewRun(); });
+  $("btn-again").addEventListener("click", () => {
+    clearRun();
+    resize();
+    if (state.lastRunWasDaily) {
+      startNewRun({ daily: true, dailyKey: dailyKey() });
+      toast("Daily rift · " + dailyKey());
+    } else {
+      startNewRun();
+    }
+  });
+  if (els.btnOverForge) {
+    els.btnOverForge.addEventListener("click", () => {
+      state.mode = "hub";
+      showScreen("upgrades");
+      renderUpgrades();
+      sfx.ui();
+    });
+  }
   $("btn-over-hub").addEventListener("click", () => { state.mode = "hub"; showScreen("hub"); refreshHub(); });
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => { upgradeTab = tab.dataset.tab; renderUpgrades(); sfx.ui(); });
@@ -6530,7 +7336,7 @@
   window.addEventListener("resize", () => {
     resize();
     if (state.mode === "playing" || state.mode === "paused") updateHUD();
-    if (els.screens.upgrades && !els.screens.upgrades.classList.contains("hidden")) scheduleTreeConnectors();
+    if (els.upgrades && !els.upgrades.classList.contains("hidden")) scheduleTreeConnectors();
   });
 
   let last = performance.now();
