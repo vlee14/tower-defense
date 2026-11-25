@@ -13,7 +13,7 @@ Endless mobile-first tower defense along a molten rift. Baked basalt terrain, sc
 - **Economy & Skill Rewards**: earn **Scrap Interest** (+6% banked scrap per wave, up to +35), **Flawless Wave** bonuses (+15% scrap, +1 HP every 3 flawless waves), **Send Next Wave Anytime** (even mid-wave to stack waves for risk-reward rush bonus scrap — never wait!), optional **Auto-send waves** (`[G]` or Settings), and **Kill Streak** scrap bursts.
 - **Desktop Keyboard Shortcuts**: `1–4` towers, `Q / W / E` powers, `Space` start/send next wave anytime, `F` speed, `G` auto-send waves, `P` pause, `M` mute, `U / A / T / V / X` inspector upgrade / up-all / target / move / sell, `Esc` cancel/close.
 - Open the **Field Manual** (hub or pause) anytime to browse all 15 elemental combos, tower stats, and boss resistances/abilities.
-- **Forge & Trees**: spend chips across 5 Forge lanes and per-tower trees, with 100% chip-refund **Respec** anytime.
+- **Forge, Trees & Rift Mastery**: spend chips across 5 Forge lanes and per-tower trees, then pour surplus chips into infinite **Rift Mastery** infusions (`×1`/`×5`/`Max` bulk buy, earning **Ascension** tiers) and repeatable **Rift Blessings** (start your next non-Daily run with 1–3 Rift Relic drafts in Prep), with 100% chip-refund **Respec** anytime.
 - **Settings**: audio volume, ambient music, screen shake, visual FX toggles, haptics, Battery saver, Large tap targets, **Auto-send waves**, and **Reset All Progress** (with confirmation).
 - **Daily Rift**: shared UTC date seed, harder layout & scaling, hard-stops at wave **100**.
 
