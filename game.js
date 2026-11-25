@@ -500,9 +500,56 @@
       tags: ["ground", "armored", "boss", "fast"], label: "Galeheart", ability: "tempest",
       resist: { fire: 1.15, water: 0.85, earth: 1.2, wind: 0.3, arc: 1.1, frost: 1.3 },
     },
+    hoarder: {
+      hp: 170, speed: 78, reward: 88, r: 14, color: "#ffd166", shape: "hoarder",
+      tags: ["ground", "fast", "loot"], label: "Rift Hoarder", noLeak: true,
+      resist: { fire: 1.0, water: 1.0, earth: 1.0, wind: 1.0, arc: 1.0, frost: 1.0 },
+    },
   };
   // Save/compat alias
   ENEMY.boss = ENEMY.behemoth;
+
+  // Map Power Shrines / Rift Runes — deterministic terrain power tiles rewarding clever tower placement.
+  const RUNE_DEFS = {
+    ember:  { id: "ember",  name: "Ember Forge",    short: "+25% DMG",              color: "#ff8c42", glyph: "▲", dmgMul: 1.25 },
+    chrono: { id: "chrono", name: "Chrono Conduit", short: "+22% SPD",              color: "#50c2cf", glyph: "⚡", rateMul: 1 / 1.22 },
+    lens:   { id: "lens",   name: "Aether Lens",    short: "+22% RNG · +15% Crit",  color: "#ffd166", glyph: "◎", rangeMul: 1.22, critAdd: 0.15 },
+    prism:  { id: "prism",  name: "Prism Nexus",    short: "−35% Sock · +30% Combo", color: "#c494ff", glyph: "❖", socketCostMul: 0.65, comboMul: 1.30 },
+  };
+  const RUNE_IDS = Object.keys(RUNE_DEFS);
+
+  // Level-5 Branching Tower Evolutions — 2 dramatic specializations per tower type (free unlock at Lv5).
+  const EVO_UNLOCK_LEVEL = 5;
+  const TOWER_EVOLUTIONS = {
+    turret: [
+      { id: "gatling",  name: "Gatling",  tag: "+35% SPD · Lock Ramp",  desc: "+35% attack speed; consecutive shots on the same foe ramp up to +50% faster.", color: "#ffb854" },
+      { id: "shrapnel", name: "Shrapnel", tag: "+15% DMG · 3-Bolt Fan", desc: "+15% damage; every 3rd shot blasts a 3-bolt shrapnel fan.", color: "#ff7a45" },
+    ],
+    mortar: [
+      { id: "cluster",  name: "Cluster",  tag: "Splits → 3 Bomblets",   desc: "Shells split on impact into 3 rapid mini-bomblets around the blast.", color: "#8ae8a0" },
+      { id: "thermo",   name: "Thermo",   tag: "+45% DMG · Heavy Shred", desc: "+45% blast damage, wider blast & +35% armor shred per shell.", color: "#ff9b54" },
+    ],
+    coil: [
+      { id: "storm",    name: "Storm",    tag: "+2 Chains · +25% Arc",  desc: "+2 lightning chain jumps and +25% jump range.", color: "#7ceef8" },
+      { id: "cryo",     name: "Cryo",     tag: "Deep Chill · +22% Vuln", desc: "Heavy frost slow and marks hit foes for +22% incoming damage.", color: "#a8dcff" },
+    ],
+    spire: [
+      { id: "exec",     name: "Exec",     tag: "2.55× Crit · <18% Exec", desc: "+12% crit, 2.55× crit multiplier & executes non-boss foes below 18% HP.", color: "#ffe082" },
+      { id: "piercer",  name: "Piercer",  tag: "∞ Pierce · +32% Boss",  desc: "Infinite lane pierce, minimal falloff & +32% damage vs Bosses and Armored.", color: "#d6b4ff" },
+    ],
+  };
+  function getEvolutionDef(type, evoId) {
+    const list = TOWER_EVOLUTIONS[type];
+    if (!list || !evoId) return null;
+    return list.find((e) => e.id === evoId) || null;
+  }
+
+  // Board Composition Synergies — army-wide traits rewarding diverse & evolved builds.
+  const BOARD_SYNERGIES = [
+    { id: "full_arsenal",  name: "Full Arsenal",  req: "All 4 tower types placed",   short: "+12% All SPD",       rateMul: 1 / 1.12 },
+    { id: "prismatic_web", name: "Prismatic Web", req: "3+ distinct dual combos",    short: "+15% Elem & Combo",  elemMul: 1.15 },
+    { id: "twin_bastion",  name: "Twin Bastion",  req: "2+ evolved Lv5+ towers",     short: "+12% All Crit",      critAdd: 0.12 },
+  ];
 
   const BOSS_ROSTER = ["behemoth", "emberwyrm", "shellwarden", "broodmother", "galeheart"];
   function isBossType(type) {
@@ -755,7 +802,7 @@
   const els = {
     app: $("app"),
     hp: $("hp"), scrap: $("scrap"), wave: $("wave"), score: $("score"),
-    banner: $("banner"), toast: $("toast"), streakPill: $("streak-pill"),
+    banner: $("banner"), toast: $("toast"), streakPill: $("streak-pill"), bountyPill: $("bounty-pill"),
     hub: $("screen-hub"), upgrades: $("screen-upgrades"), pause: $("screen-pause"),
     over: $("screen-over"), codex: $("screen-codex"), settings: $("screen-settings"),
     relic: $("screen-relic"),
@@ -776,7 +823,7 @@
     bossTrail: $("boss-trail"), bossFill: $("boss-fill"), bossShield: $("boss-shield"), bossTip: $("boss-tip"),
     btnRelicReroll: $("btn-relic-reroll"), btnRelicSalvage: $("btn-relic-salvage"),
     overStats: $("over-stats"), overMvp: $("over-mvp"), overGoal: $("over-goal"), btnOverForge: $("btn-over-forge"),
-    inspect: $("inspect"), inspectText: $("inspect-text"),
+    inspect: $("inspect"), inspectText: $("inspect-text"), evolveBar: $("evolve-bar"),
     coach: $("coach"), coachText: $("coach-text"),
   };
 
@@ -1428,11 +1475,63 @@
       obstacles.push({ x, y, r });
     }
 
+    // Power Shrines / Rift Runes: 2–3 glowing terrain tiles rewarding tactical tower placement.
+    // Drawn after obstacles so existing road & rock layouts stay 100% deterministic.
+    const runes = [];
+    const runeN = diff.id === "nightmare" ? 2 : 3;
+    const runePool = RUNE_IDS.slice();
+    for (let i = runePool.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [runePool[i], runePool[j]] = [runePool[j], runePool[i]];
+    }
+    const runeClear = Math.max(ROAD_HALF_W + TOWER_PLACE_R, pathClear) + 2;
+    const runeSpotOk = (x, y) => {
+      if (x < 22 || y < 24 || x > w - 22 || y > h - 24) return false;
+      if (distToPathNetwork({ lanes }, x, y) < runeClear) return false;
+      if (obstacles.some((o) => Math.hypot(o.x - x, o.y - y) < (o.r || 16) + TOWER_PLACE_R + 4)) return false;
+      if (spawns.some((s) => Math.hypot(s.x - x, s.y - y) < 38)) return false;
+      if (exit && Math.hypot(exit.x - x, exit.y - y) < 42) return false;
+      if (runes.some((r) => Math.hypot(r.x - x, r.y - y) < 54)) return false;
+      return true;
+    };
+    // Prefer strategic bend/merge pads first, then fallback to open terrain spots.
+    const padCands = pads.slice();
+    for (let i = padCands.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [padCands[i], padCands[j]] = [padCands[j], padCands[i]];
+    }
+    for (const p of padCands) {
+      if (runes.length >= runeN) break;
+      if (runeSpotOk(p.x, p.y)) {
+        runes.push({ x: p.x, y: p.y, type: runePool[runes.length % runePool.length], r: 16 });
+      }
+    }
+    for (let tries = 0; tries < 48 && runes.length < runeN; tries++) {
+      const x = 26 + rng() * (w - 52);
+      const y = h * 0.14 + rng() * (h * 0.72);
+      if (runeSpotOk(x, y)) {
+        runes.push({ x, y, type: runePool[runes.length % runePool.length], r: 16 });
+      }
+    }
+
     return {
       points: main.points, lengths: main.lengths, total: main.total,
-      lanes, pads, obstacles, spawns: spawns.slice(0, lanes.length), merges, exit,
+      lanes, pads, obstacles, runes, spawns: spawns.slice(0, lanes.length), merges, exit,
       spawnN: lanes.length, motif, layout: diff.id, pathClear: diff.pathClear,
     };
+  }
+  function runeAtPoint(x, y, rad = 15) {
+    const runes = (state.path && state.path.runes) || [];
+    let best = null, bestD = rad;
+    for (const r of runes) {
+      const d = Math.hypot(r.x - x, r.y - y);
+      if (d <= bestD) { bestD = d; best = r; }
+    }
+    return best;
+  }
+  function runeForTower(t) {
+    if (!t) return null;
+    return runeAtPoint(t.x, t.y, 15);
   }
   function densify(pts, step) {
     const out = [pts[0]];
@@ -1611,6 +1710,11 @@
     } else {
       for (const f of fodder) mix.push(f);
     }
+    // Rare Golden Loot Goblin: Rift Hoarder (never damages Wellheart if it escapes; big loot if slain!)
+    if (wave >= 4 && rng() < 0.25) {
+      const idx = Math.max(1, Math.min(mix.length, Math.floor(mix.length * 0.55)));
+      mix.splice(idx, 0, { type: "hoarder", n: 1 });
+    }
     const counts = {};
     for (const pack of mix) counts[pack.type] = (counts[pack.type] || 0) + pack.n;
     const mutSpeedMul = mutator && mutator.id === "hasted" ? 1.18 : 1;
@@ -1644,7 +1748,10 @@
   }
 
   function defaultRunStats() {
-    return { kills: 0, bosses: 0, combos: 0, peakStreak: 0, flawlessWaves: 0, totalDmg: 0, interestEarned: 0 };
+    return {
+      kills: 0, bosses: 0, combos: 0, peakStreak: 0, flawlessWaves: 0,
+      totalDmg: 0, interestEarned: 0, bonusChips: 0, hoarders: 0, bounties: 0,
+    };
   }
 
   const state = {
@@ -1656,6 +1763,8 @@
     sendWaveCd: 0, paidWave: 0,
     shake: 0, flash: 0, hitstopT: 0, ghost: null,
     relics: [], relicDraftWave: 0, pendingRelicDraft: false, relicRerolls: 0, relicDraftSalt: 0, blessingDrafts: 0,
+    synergies: [], synBuffs: { rateMul: 1, elemMul: 1, critAdd: 0 },
+    waveBounty: null,
     meteorCd: 0, surgeCd: 0, surgeT: 0, novaCd: 0, armedAbility: null,
     streak: 0, streakT: 0, streakTier: 0,
     waveLeaks: 0, flawlessStreak: 0,
@@ -1869,6 +1978,9 @@
           state.hp += 1;
           healed = true;
         }
+        if (state.waveBounty && state.waveBounty.kind === "flawless" && !state.waveBounty.done && !state.waveBounty.failed) {
+          completeWaveBounty();
+        }
       } else {
         state.flawlessStreak = 0;
       }
@@ -1876,6 +1988,141 @@
     state.scrap += scrapWave + interest + flawlessBonus;
     if (state.runStats) state.runStats.interestEarned = (state.runStats.interestEarned || 0) + interest;
     return { scrapWave, interest, flawlessBonus, healed };
+  }
+  function computeBoardSynergies() {
+    const types = new Set();
+    const combos = new Set();
+    let evolved = 0;
+    for (const t of state.towers || []) {
+      types.add(t.type);
+      if (t.elements && t.elements.length >= 2) combos.add(comboKey(t.elements));
+      if (t.evolution) evolved += 1;
+    }
+    const active = [];
+    if (types.size >= 4) active.push(BOARD_SYNERGIES[0]);
+    if (combos.size >= 3) active.push(BOARD_SYNERGIES[1]);
+    if (evolved >= 2) active.push(BOARD_SYNERGIES[2]);
+    return active;
+  }
+  function refreshBoardSynergies(opts = {}) {
+    const prev = new Set(state.synergies || []);
+    const active = computeBoardSynergies();
+    const nextIds = active.map((s) => s.id);
+    state.synergies = nextIds;
+    let rateMul = 1, elemMul = 1, critAdd = 0;
+    for (const s of active) {
+      if (s.rateMul) rateMul *= s.rateMul;
+      if (s.elemMul) elemMul *= s.elemMul;
+      if (s.critAdd) critAdd += s.critAdd;
+    }
+    state.synBuffs = { rateMul, elemMul, critAdd };
+    if (!opts.silent) {
+      for (const s of active) {
+        if (!prev.has(s.id)) {
+          toast(`Synergy: ${s.name} (${s.short})`);
+          sfx.relic();
+        }
+      }
+    }
+    lastRelicStripSig = "";
+    return active;
+  }
+  function rollWaveBounty(wave, plan) {
+    if (!wave || wave < 3) return null;
+    const isBoss = !!(plan && plan.isBoss);
+    if (!isBoss && wave % 3 !== 0) return null;
+    const rng = mulberry32(hashSeed(`${state.seed}:bounty:${wave}:${state.difficulty}`));
+    if (isBoss) {
+      const scrap = Math.round(62 + wave * 2.6);
+      const chips = Math.min(28, 12 + Math.floor(wave * 0.4));
+      return {
+        wave, kind: "boss_blitz", label: "Slay Boss <65% path",
+        cur: 0, target: 1, scrap, chips, reroll: 0,
+        done: false, failed: false, doneT: 0,
+      };
+    }
+    const pool = ["flawless", "combo", "streak"];
+    const kind = pool[Math.floor(rng() * pool.length)];
+    if (kind === "flawless") {
+      return {
+        wave, kind, label: "Zero-leak wave",
+        cur: 0, target: 1, scrap: Math.round(42 + wave * 2.2), chips: 0, reroll: 0,
+        done: false, failed: false, doneT: 0,
+      };
+    }
+    if (kind === "combo") {
+      const target = 5 + Math.min(7, Math.floor(wave / 5));
+      return {
+        wave, kind, label: "Trigger combos",
+        cur: 0, target, scrap: Math.round(38 + wave * 2.0), chips: 0, reroll: 1,
+        done: false, failed: false, doneT: 0,
+      };
+    }
+    const target = 10 + Math.min(16, Math.floor(wave / 2));
+    return {
+      wave, kind: "streak", label: `Hit ×${target} streak`,
+      cur: Math.min(target, state.streak || 0), target, scrap: Math.round(40 + wave * 2.1), chips: 0, reroll: 0,
+      done: false, failed: false, doneT: 0,
+    };
+  }
+  function completeWaveBounty() {
+    const b = state.waveBounty;
+    if (!b || b.done || b.failed) return;
+    b.done = true;
+    b.cur = b.target;
+    b.doneT = 2.6;
+    const parts = [];
+    if (b.scrap > 0) {
+      state.scrap += b.scrap;
+      parts.push(`+${b.scrap}⬡`);
+    }
+    if (b.chips > 0) {
+      if (state.runStats) state.runStats.bonusChips = (state.runStats.bonusChips || 0) + b.chips;
+      parts.push(`+${b.chips}c`);
+    }
+    if (b.reroll > 0) {
+      state.relicRerolls = (state.relicRerolls || 0) - b.reroll;
+      parts.push(`+${b.reroll} Free Reroll`);
+    }
+    if (state.runStats) state.runStats.bounties = (state.runStats.bounties || 0) + 1;
+    state.score += Math.round((b.scrap || 40) * 3);
+    sfx.relic();
+    toast(`Contract Done! ${parts.join(" · ")}`);
+    syncBountyPill();
+  }
+  function failFlawlessBounty() {
+    const b = state.waveBounty;
+    if (b && b.kind === "flawless" && !b.done && !b.failed) {
+      b.failed = true;
+      b.doneT = 1.6;
+      syncBountyPill();
+    }
+  }
+  function syncBountyPill() {
+    const el = els.bountyPill;
+    if (!el) return;
+    const b = state.waveBounty;
+    const coachVisible = els.coach && !els.coach.classList.contains("hidden");
+    const show = state.mode === "playing" && !state.awaitingStart && !!b && !coachVisible && (!b.done && !b.failed || (b.doneT || 0) > 0);
+    el.classList.toggle("hidden", !show);
+    if (!show) return;
+    el.classList.toggle("done", !!b.done);
+    el.classList.toggle("failed", !!b.failed);
+    const rewBits = [];
+    if (b.scrap) rewBits.push(`+${b.scrap}⬡`);
+    if (b.chips) rewBits.push(`+${b.chips}c`);
+    if (b.reroll) rewBits.push("+Reroll");
+    const rewTxt = rewBits.join(" ");
+    if (b.done) {
+      el.innerHTML = `<span class="bp-ico">✓</span><span>Contract: ${b.label}</span><span class="bp-rew">${rewTxt}</span>`;
+    } else if (b.failed) {
+      el.innerHTML = `<span class="bp-ico">✕</span><span>Contract failed</span>`;
+    } else {
+      const prog = (b.kind === "combo" || b.kind === "streak")
+        ? `<span class="bp-prog">${Math.min(b.cur || 0, b.target)}/${b.target}</span>`
+        : "";
+      el.innerHTML = `<span class="bp-ico">★</span><span>${b.label}</span>${prog}<span class="bp-rew">${rewTxt}</span>`;
+    }
   }
   function canCallNextWave() {
     return (
@@ -1995,39 +2242,56 @@
     const el = els.relicStrip;
     if (!el) return;
     const list = state.relics || [];
-    const show = state.mode === "playing" && list.length > 0;
+    const syns = state.synergies || [];
+    const show = state.mode === "playing" && (list.length > 0 || syns.length > 0);
     el.classList.toggle("hidden", !show);
     if (!show) return;
-    const sig = list.join(",");
+    const sig = list.join(",") + "|" + syns.join(",");
     if (sig === lastRelicStripSig) return;
     lastRelicStripSig = sig;
-    const counts = {};
-    let bestRarity = "common";
-    let leadGlyph = "✦";
-    for (const id of list) {
-      counts[id] = (counts[id] || 0) + 1;
-      const def = RELICS.find((r) => r.id === id);
-      if (def) {
-        if (def.rarity === "epic") { bestRarity = "epic"; leadGlyph = def.glyph; }
-        else if (def.rarity === "rare" && bestRarity === "common") { bestRarity = "rare"; leadGlyph = def.glyph; }
-        else if (bestRarity === "common") { leadGlyph = def.glyph; }
-      }
-    }
-    const summaryParts = Object.entries(counts).map(([id, n]) => {
-      const def = RELICS.find((r) => r.id === id);
-      return def ? `${def.name}${n > 1 ? ` ×${n}` : ""}` : id;
-    });
     el.innerHTML = "";
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = `relic-chip rarity-${bestRarity}`;
-    btn.title = `Active Relics: ${summaryParts.join(" · ")}`;
-    btn.innerHTML = `<span>${leadGlyph}</span><span>×${list.length}</span>`;
-    btn.addEventListener("click", () => {
-      sfx.ui();
-      toast(`Relics: ${summaryParts.join(" · ")}`);
-    });
-    el.appendChild(btn);
+    if (list.length > 0) {
+      const counts = {};
+      let bestRarity = "common";
+      let leadGlyph = "✦";
+      for (const id of list) {
+        counts[id] = (counts[id] || 0) + 1;
+        const def = RELICS.find((r) => r.id === id);
+        if (def) {
+          if (def.rarity === "epic") { bestRarity = "epic"; leadGlyph = def.glyph; }
+          else if (def.rarity === "rare" && bestRarity === "common") { bestRarity = "rare"; leadGlyph = def.glyph; }
+          else if (bestRarity === "common") { leadGlyph = def.glyph; }
+        }
+      }
+      const summaryParts = Object.entries(counts).map(([id, n]) => {
+        const def = RELICS.find((r) => r.id === id);
+        return def ? `${def.name}${n > 1 ? ` ×${n}` : ""}` : id;
+      });
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `relic-chip rarity-${bestRarity}`;
+      btn.title = `Active Relics: ${summaryParts.join(" · ")}`;
+      btn.innerHTML = `<span>${leadGlyph}</span><span>×${list.length}</span>`;
+      btn.addEventListener("click", () => {
+        sfx.ui();
+        toast(`Relics: ${summaryParts.join(" · ")}`);
+      });
+      el.appendChild(btn);
+    }
+    if (syns.length > 0) {
+      const synDefs = syns.map((id) => BOARD_SYNERGIES.find((s) => s.id === id)).filter(Boolean);
+      const synSummary = synDefs.map((s) => `${s.name} (${s.short})`).join(" · ");
+      const sBtn = document.createElement("button");
+      sBtn.type = "button";
+      sBtn.className = "relic-chip synergy-chip";
+      sBtn.title = `Active Synergies: ${synSummary}`;
+      sBtn.innerHTML = `<span>◈</span><span>×${synDefs.length}</span>`;
+      sBtn.addEventListener("click", () => {
+        sfx.ui();
+        toast(`Synergies: ${synSummary}`);
+      });
+      el.appendChild(sBtn);
+    }
   }
 
   function callNextWaveEarly() {
@@ -2397,6 +2661,7 @@
       state.path = generatePath(state.seed, state.w, state.h, runLayoutDiffId());
       for (const t of state.towers) {
         if (t.nx != null) { t.x = t.nx * state.w; t.y = t.ny * state.h; }
+        applyTowerLevelStats(t);
       }
     }
   }
@@ -2413,6 +2678,7 @@
       pendingRelicDraft: !!state.pendingRelicDraft,
       relicRerolls: state.relicRerolls || 0, relicDraftSalt: state.relicDraftSalt || 0,
       blessingDrafts: state.blessingDrafts || 0,
+      waveBounty: state.waveBounty ? { ...state.waveBounty } : null,
       meteorCd: state.meteorCd || 0, surgeCd: state.surgeCd || 0, surgeT: state.surgeT || 0, novaCd: state.novaCd || 0,
       streak: state.streak || 0, streakT: state.streakT || 0, streakTier: state.streakTier || 0,
       waveLeaks: state.waveLeaks || 0, flawlessStreak: state.flawlessStreak || 0, paidWave: state.paidWave || 0,
@@ -2421,6 +2687,7 @@
       towers: state.towers.map((t) => ({
         type: t.type, nx: t.x / state.w, ny: t.y / state.h,
         level: t.level, cooldown: t.cooldown, levelCd: t.levelCd || 0,
+        evolution: t.evolution || null,
         elements: t.elements || [], targetMode: t.targetMode || "first",
         aim: typeof t.aim === "number" ? t.aim : -Math.PI / 2,
         investedScrap: t.investedScrap || towerStats(t.type).cost,
@@ -2431,7 +2698,7 @@
         slow: e.slow, slowT: e.slowT, burn: e.burn, burnT: e.burnT,
         chillT: e.chillT, shred: e.shred, knockCd: e.knockCd || 0,
         stunT: e.stunT || 0, stunCd: e.stunCd || 0, freezeT: e.freezeT || 0, freezeCd: e.freezeCd || 0,
-        ccDR: e.ccDR || 0, brittleT: e.brittleT || 0, rimeShield: e.rimeShield || 0, plasmaMark: e.plasmaMark || 0,
+        ccDR: e.ccDR || 0, brittleT: e.brittleT || 0, cryoVulnT: e.cryoVulnT || 0, rimeShield: e.rimeShield || 0, plasmaMark: e.plasmaMark || 0,
         bountyTag: !!e.bountyTag, regenTag: !!e.regenTag, unstoppable: !!e.unstoppable,
         reward: e.reward, tags: e.tags,
         resist: e.resist, bossIndex: e.bossIndex, bossTotal: e.bossTotal, color: e.color, r: e.r,
@@ -2460,6 +2727,7 @@
     const tower = {
       type: t.type, x: t.nx * state.w, y: t.ny * state.h, nx: t.nx, ny: t.ny,
       level, cooldown: t.cooldown || 0, levelCd: t.levelCd || 0,
+      evolution: t.evolution || null,
       elements: [...(t.elements || [])],
       targetMode: TARGET_MODES.includes(t.targetMode) ? t.targetMode : "first",
       aim: typeof t.aim === "number" ? t.aim : -Math.PI / 2,
@@ -2488,6 +2756,7 @@
       state.relicRerolls = data.relicRerolls || 0;
       state.relicDraftSalt = data.relicDraftSalt || 0;
       state.blessingDrafts = data.blessingDrafts || 0;
+      state.waveBounty = data.waveBounty && typeof data.waveBounty === "object" ? { ...data.waveBounty } : null;
       state.meteorCd = data.meteorCd || 0;
       state.surgeCd = data.surgeCd || 0;
       state.surgeT = data.surgeT || 0;
@@ -2516,6 +2785,7 @@
       state.waveInterval = data.waveInterval || 0.75;
       state.spawnQueue = data.spawnQueue || [];
       state.towers = (data.towers || []).map(hydrateTower);
+      refreshBoardSynergies({ silent: true });
       let maxId = data.enemySeq || 0;
       state.enemies = (data.enemies || []).map((e, idx) => {
         const def = ENEMY[e.type] || ENEMY.drone;
@@ -2534,7 +2804,7 @@
           slow: e.slow || 1, slowT: e.slowT || 0, burn: e.burn || 0, burnT: e.burnT || 0,
           chillT: e.chillT || 0, shred: e.shred || 0, knockCd: e.knockCd || 0,
           stunT: e.stunT || 0, stunCd: e.stunCd || 0, freezeT: e.freezeT || 0, freezeCd: e.freezeCd || 0,
-          ccDR: e.ccDR || 0, brittleT: e.brittleT || 0, rimeShield: e.rimeShield || 0, plasmaMark: e.plasmaMark || 0,
+          ccDR: e.ccDR || 0, brittleT: e.brittleT || 0, cryoVulnT: e.cryoVulnT || 0, rimeShield: e.rimeShield || 0, plasmaMark: e.plasmaMark || 0,
           bountyTag: !!e.bountyTag, regenTag: !!e.regenTag, unstoppable: !!e.unstoppable,
           matchFxAt: 0, reward: e.reward, alive: true, hitFlash: 0, lane: e.lane || 0,
         };
@@ -2608,6 +2878,9 @@
     state.relicRerolls = 0;
     state.relicDraftSalt = 0;
     state.blessingDrafts = 0;
+    state.synergies = [];
+    state.synBuffs = { rateMul: 1, elemMul: 1, critAdd: 0 };
+    state.waveBounty = null;
     if (!runIsDaily && (meta.blessings || 0) > 0) {
       state.blessingDrafts = Math.min(MAX_BLESSINGS, meta.blessings);
       meta.blessings = 0;
@@ -2721,7 +2994,7 @@
       ? (wave >= 8 ? 15 : 0) + (victory ? DAILY.clearBonus : 0)
       : 0;
     const rs = state.runStats || defaultRunStats();
-    // Balanced, non-exploding chip payout: waves survived + bosses + flawless + sqrt(score) bonus.
+    // Balanced, non-exploding chip payout: waves survived + bosses + flawless + sqrt(score) bonus + Hoarder/Contract bonusChips.
     const waveChips =
       Math.min(wave, 20) * 4.5 +
       Math.max(0, Math.min(wave, 50) - 20) * 7.0 +
@@ -2731,7 +3004,8 @@
     const scoreChips = Math.floor(Math.sqrt(Math.max(0, score)) * 0.9);
     const abandonMul = abandoned ? 0.5 : 1.0;
     const chipScale = diff.chipMul * nmProf.chipMul * (wasDaily ? DAILY.chipMul : 1);
-    const chips = Math.floor((waveChips + bossChips + flawlessChips + scoreChips) * abandonMul * chipScale) + dailyBonus;
+    const bonusChips = Math.max(0, Math.floor(rs.bonusChips || 0));
+    const chips = Math.floor((waveChips + bossChips + flawlessChips + scoreChips) * abandonMul * chipScale) + dailyBonus + bonusChips;
     meta.chips += Math.max(0, chips);
     if (!meta.bestByDifficulty[diff.id]) meta.bestByDifficulty[diff.id] = { wave: 0, score: 0 };
     const rec = meta.bestByDifficulty[diff.id];
@@ -2778,6 +3052,7 @@
     hideCoach(false);
     if (els.bossBar) els.bossBar.classList.add("hidden");
     if (els.relicStrip) els.relicStrip.classList.add("hidden");
+    if (els.bountyPill) els.bountyPill.classList.add("hidden");
     if (els.overTitle) {
       els.overTitle.textContent = victory
         ? "Rift Sealed"
@@ -2791,6 +3066,7 @@
       (abandoned ? " (abandoned)" : victory ? " · clear" : "");
     els.overChips.textContent =
       `+${formatCompact(Math.max(0, chips))} chips` +
+      (bonusChips ? ` · loot +${bonusChips}` : "") +
       (dailyBonus ? ` · daily +${dailyBonus}` : "") +
       (newly.length ? ` · ${newly.join(", ")}` : "");
 
@@ -2814,11 +3090,13 @@
       }
       if (mvp) {
         els.overMvp.classList.remove("hidden");
+        const evoDef = getEvolutionDef(mvp.type, mvp.evolution);
+        const evoTag = evoDef ? ` · ${evoDef.name}` : "";
         const comboTag = (mvp.elements && mvp.elements.length >= 2 && COMBO_SHORT[comboKey(mvp.elements)])
           ? ` · ${COMBO_SHORT[comboKey(mvp.elements)]}`
           : (mvp.elements && mvp.elements.length === 1 ? ` · ${ELEMENTS[mvp.elements[0]].name}` : "");
         els.overMvp.innerHTML =
-          `<div><div class="over-mvp-tag">★ MVP Tower</div><div class="over-mvp-title">${BASE_TOWER[mvp.type].name} Lv${mvp.level}${comboTag}</div></div>` +
+          `<div><div class="over-mvp-tag">★ MVP Tower</div><div class="over-mvp-title">${BASE_TOWER[mvp.type].name}${evoTag} Lv${mvp.level}${comboTag}</div></div>` +
           `<div class="over-mvp-meta"><strong>${formatCompact(Math.round(mvp.totalDmg))} DMG</strong><br>${mvp.kills || 0} kills</div>`;
       } else {
         els.overMvp.classList.add("hidden");
@@ -2864,12 +3142,18 @@
       const counts = {};
       for (const id of state.relics || []) counts[id] = (counts[id] || 0) + 1;
       const entries = Object.entries(counts);
-      relEl.classList.toggle("hidden", entries.length === 0);
-      relEl.innerHTML = entries.map(([id, n]) => {
+      const synPills = (state.synergies || []).map((id) => {
+        const s = BOARD_SYNERGIES.find((x) => x.id === id);
+        if (!s) return "";
+        return `<span class="pause-relic-pill" style="border-color:rgba(111,191,138,0.55);color:#9fe8b8" title="${s.req}: ${s.short}">◈ ${s.name}</span>`;
+      }).filter(Boolean);
+      const relicPills = entries.map(([id, n]) => {
         const def = RELICS.find((r) => r.id === id);
         if (!def) return "";
         return `<span class="pause-relic-pill" title="${def.desc}">${def.glyph} ${def.name}${n > 1 ? ` ×${n}` : ""}</span>`;
-      }).join("");
+      }).filter(Boolean);
+      relEl.classList.toggle("hidden", relicPills.length === 0 && synPills.length === 0);
+      relEl.innerHTML = [...synPills, ...relicPills].join("");
     }
   }
 
@@ -2892,7 +3176,9 @@
     state.mode = "hub";
     state.towers = []; state.enemies = []; state.projectiles = [];
     state.fx = []; state.particles = []; state.hazards = [];
-    state.relics = []; state.selectedBuilt = null; state.selectedTower = null;
+    state.relics = []; state.synergies = []; state.synBuffs = { rateMul: 1, elemMul: 1, critAdd: 0 };
+    state.waveBounty = null;
+    state.selectedBuilt = null; state.selectedTower = null;
     state.armedAbility = null; state.movingTower = null;
     state.pendingRelicDraft = false; state.relicRerolls = 0;
     state.flawlessStreak = 0; state.hitstopT = 0; state.paidWave = 0; state.sendWaveCd = 0;
@@ -2900,6 +3186,7 @@
     if (els.app) els.app.dataset.boss = "0";
     if (els.bossBar) els.bossBar.classList.add("hidden");
     if (els.relicStrip) els.relicStrip.classList.add("hidden");
+    if (els.bountyPill) els.bountyPill.classList.add("hidden");
     if (els.wavePreview) els.wavePreview.classList.add("hidden");
     treeScrollMemory.clear();
     upgradeTab = "forge";
@@ -2962,25 +3249,35 @@
       }).join("");
       body.innerHTML = elRows + comboRows;
     } else if (codexTab === "towers") {
-      body.innerHTML = Object.entries(BASE_TOWER).map(([id, def]) => {
+      const towerRows = Object.entries(BASE_TOWER).map(([id, def]) => {
         const st = towerStats(id);
         const dps = Math.round(st.damage / Math.max(0.1, st.fireRate));
-        return `<div class="codex-item"><div class="codex-item-top"><span style="color:${def.color}">${def.name}</span><span class="codex-pill">${st.cost} scrap · ~${dps} DPS</span></div><div class="codex-item-sub">${def.blurb} · Range ${Math.round(st.range)}</div></div>`;
+        const evos = (TOWER_EVOLUTIONS[id] || []).map((ev) => `${ev.name} (${ev.tag})`).join(" / ");
+        return `<div class="codex-item"><div class="codex-item-top"><span style="color:${def.color}">${def.name}</span><span class="codex-pill">${st.cost} scrap · ~${dps} DPS</span></div><div class="codex-item-sub">${def.blurb} · Range ${Math.round(st.range)}<br>Lv5 Evo: ${evos}</div></div>`;
       }).join("");
+      const runeRows = Object.values(RUNE_DEFS).map((r) =>
+        `<div class="codex-item"><div class="codex-item-top"><span style="color:${r.color}">${r.glyph} ${r.name}</span><span class="codex-pill">Map Shrine</span></div><div class="codex-item-sub">Build a tower on this tile for ${r.short}.</div></div>`
+      ).join("");
+      const synRows = BOARD_SYNERGIES.map((s) =>
+        `<div class="codex-item"><div class="codex-item-top"><span style="color:#9fe8b8">◈ ${s.name}</span><span class="codex-pill">${s.short}</span></div><div class="codex-item-sub">Requires: ${s.req}.</div></div>`
+      ).join("");
+      body.innerHTML = towerRows + runeRows + synRows;
     } else {
-      const keys = ["drone", "crawler", "armor", "swarm", ...BOSS_ROSTER];
+      const keys = ["drone", "crawler", "armor", "swarm", "hoarder", ...BOSS_ROSTER];
       body.innerHTML = keys.map((k) => {
         const e = ENEMY[k];
         const isBoss = isBossType(k);
         const res = formatResistLine(e.resist || {});
-        const abilityDesc = ({
-          bulk: "Heavy armored vanguard",
-          ashregen: "Flying · regenerates HP unless chilled",
-          carapace: "Regenerating carapace shield",
-          brood: "Spawns Swarm adds periodically",
-          tempest: "Enrages & surges below 45% HP",
-        })[e.ability] || (e.tags.includes("flying") ? "Flying unit" : "Ground unit");
-        return `<div class="codex-item"><div class="codex-item-top"><span style="color:${e.color}">${e.label}</span><span class="codex-pill">${isBoss ? "BOSS" : e.tags.join(" · ")}</span></div><div class="codex-item-sub">${abilityDesc} · ${res}</div></div>`;
+        const abilityDesc = k === "hoarder"
+          ? "Rare treasure runner · never damages Wellheart · drops gold, bonus chips & −8s power CDs"
+          : (({
+            bulk: "Heavy armored vanguard",
+            ashregen: "Flying · regenerates HP unless chilled",
+            carapace: "Regenerating carapace shield",
+            brood: "Spawns Swarm adds periodically",
+            tempest: "Enrages & surges below 45% HP",
+          })[e.ability] || (e.tags.includes("flying") ? "Flying unit" : "Ground unit"));
+        return `<div class="codex-item"><div class="codex-item-top"><span style="color:${e.color}">${e.label}</span><span class="codex-pill">${isBoss ? "BOSS" : k === "hoarder" ? "LOOT" : e.tags.join(" · ")}</span></div><div class="codex-item-sub">${abilityDesc}${k === "hoarder" ? "" : ` · ${res}`}</div></div>`;
       }).join("");
     }
   }
@@ -3351,6 +3648,7 @@
     syncWavePreview();
     syncBossBar();
     syncRelicStrip();
+    syncBountyPill();
     syncAbilitiesUI();
   }
   function refreshTowerButtons() {
@@ -3437,12 +3735,66 @@
       levelCdMul: base.levelCdMul || 1,
       killScrapAura: base.killScrapAura || 0,
       leakGuardNear: base.leakGuardNear || 0,
+      comboDmgMul: 1,
     });
+
+    // Level-5 Branching Tower Evolution modifiers
+    const evo = t.evolution;
+    if (evo === "gatling") {
+      t.fireRate /= 1.35;
+    } else if (evo === "shrapnel") {
+      t.damage *= 1.15;
+    } else if (evo === "thermo") {
+      t.damage *= 1.45;
+      t.splash = (t.splash || 44) * 1.12;
+    } else if (evo === "storm") {
+      t.chain = (t.chain || 0) + 2;
+    } else if (evo === "cryo") {
+      t.slow = Math.min(t.slow || 0.72, 0.56);
+      t.slowDur = (t.slowDur || 1.2) * 1.35;
+    } else if (evo === "exec") {
+      t.crit = (t.crit || 0) + 0.12;
+    } else if (evo === "piercer") {
+      t.pierce = 99;
+      t.bossBonus = (t.bossBonus || 0) + 0.32;
+      t.armorBonus = (t.armorBonus || 1) * 1.32;
+    }
+
+    // Terrain Power Shrine / Rift Rune modifiers (always recomputed from live map coordinates)
+    const rune = runeForTower(t);
+    t.runeId = rune ? rune.type : null;
+    if (rune && RUNE_DEFS[rune.type]) {
+      const rd = RUNE_DEFS[rune.type];
+      if (rd.dmgMul) t.damage *= rd.dmgMul;
+      if (rd.rateMul) t.fireRate *= rd.rateMul;
+      if (rd.rangeMul) t.range = clampTowerRange(t.type, t.range * rd.rangeMul);
+      if (rd.critAdd) t.crit = (t.crit || 0) + rd.critAdd;
+      if (rd.socketCostMul) t.elementCostMul *= rd.socketCostMul;
+      if (rd.comboMul) t.comboDmgMul *= rd.comboMul;
+    }
+  }
+  function evolveTower(t, evoId) {
+    if (!t || t.level < EVO_UNLOCK_LEVEL || t.evolution) return false;
+    const def = getEvolutionDef(t.type, evoId);
+    if (!def) return false;
+    t.evolution = def.id;
+    applyTowerLevelStats(t);
+    refreshBoardSynergies();
+    burstUpgrade(t.x, t.y, def.color || "#ffd97d");
+    pushCombatFx({ kind: "ring", x: t.x, y: t.y, t: 0.55, r0: 12, r1: 62, color: def.color || "#ffd97d" });
+    state.fx.push({ kind: "text", x: t.x, y: t.y - 28, t: 1.0, text: `${def.name.toUpperCase()}!`, color: def.color || "#ffd97d", scale: 1.25 });
+    sfx.relic();
+    toast(`Evolved: ${BASE_TOWER[t.type].name} · ${def.name}`);
+    lastEvolveSig = "";
+    updateHUD();
+    saveRun();
+    return true;
   }
   function levelTower(t, opts = {}) {
     if (!t || !towerLevelReady(t)) return false;
     const cost = upgradeCost(t);
     if (state.scrap < cost) return false;
+    const prevLv = t.level;
     state.scrap -= cost;
     t.investedScrap = (t.investedScrap || towerStats(t.type).cost) + cost;
     t.level += 1;
@@ -3454,6 +3806,9 @@
     if (!opts.silent) {
       burstUpgrade(t.x, t.y, t.color);
       sfx.upgrade();
+      if (prevLv < EVO_UNLOCK_LEVEL && t.level >= EVO_UNLOCK_LEVEL && !t.evolution) {
+        toast(`${BASE_TOWER[t.type].name} ready to Evolve!`);
+      }
     }
     return true;
   }
@@ -3500,6 +3855,7 @@
     }
     let levels = 0;
     let spent = 0;
+    let newlyEvolvable = 0;
     const touched = new Set();
     for (let guard = 0; guard < 200; guard++) {
       let best = -1, bestCost = Infinity;
@@ -3510,10 +3866,12 @@
       }
       if (best < 0) break;
       const t = state.towers[best];
+      const prevLv = t.level;
       state.scrap -= bestCost;
       t.investedScrap = (t.investedScrap || towerStats(t.type).cost) + bestCost;
       t.level += 1;
       applyTowerLevelStats(t);
+      if (prevLv < EVO_UNLOCK_LEVEL && t.level >= EVO_UNLOCK_LEVEL && !t.evolution) newlyEvolvable++;
       spent += bestCost;
       levels += 1;
       touched.add(best);
@@ -3532,10 +3890,11 @@
     }
     sfx.upgrade();
     const towersN = touched.size;
+    const evoHint = newlyEvolvable > 0 ? ` · ${newlyEvolvable} ready to Evolve!` : "";
     toast(
-      levels === 1
+      (levels === 1
         ? `+1 level · −${spent} scrap`
-        : `+${levels} levels on ${towersN} tower${towersN > 1 ? "s" : ""} · −${spent}`
+        : `+${levels} levels on ${towersN} tower${towersN > 1 ? "s" : ""} · −${spent}`) + evoHint
     );
     updateHUD();
     saveRun();
@@ -3550,23 +3909,63 @@
     return Math.max(8, Math.floor(base * pathMul * selfMul));
   }
 
+  let lastEvolveSig = "";
   function updateInspect() {
     const sel = state.selectedBuilt != null ? state.towers[state.selectedBuilt] : null;
     if (!sel || state.mode !== "playing") {
       els.inspect.classList.add("hidden");
+      els.inspect.classList.remove("is-evolving");
+      if (els.evolveBar) els.evolveBar.classList.add("hidden");
       if (els.app) els.app.dataset.inspect = "0";
+      lastEvolveSig = "";
       return;
     }
     els.inspect.classList.remove("hidden");
     if (els.app) els.app.dataset.inspect = "1";
     const elsList = sel.elements || [];
-    const dps = Math.round(sel.damage / Math.max(0.1, sel.fireRate));
+    const synRate = (state.synBuffs && state.synBuffs.rateMul) || 1;
+    const dps = Math.round(sel.damage / Math.max(0.08, sel.fireRate * synRate));
     const dmgTxt = formatCompact(Math.round(sel.totalDmg || 0));
     const killsTxt = sel.kills || 0;
-    const nextTxt = elsList.length < MAX_ELEMENTS ? ` · Socket ${elementCost(sel, "fire")}+` : " · Full";
+    const evoDef = getEvolutionDef(sel.type, sel.evolution);
+    const evoInline = evoDef ? ` · ${evoDef.name}` : "";
+    const rd = sel.runeId ? RUNE_DEFS[sel.runeId] : null;
+    const runeBadge = rd ? `<span class="inspect-rune" style="color:${rd.color}" title="${rd.name}: ${rd.short}">${rd.glyph} ${rd.short}</span>` : "";
+    const canEvolve = sel.level >= EVO_UNLOCK_LEVEL && !sel.evolution && !!(TOWER_EVOLUTIONS[sel.type]);
+    const nextTxt = canEvolve
+      ? " · ★ Choose Lv5 Evolution"
+      : (elsList.length < MAX_ELEMENTS ? ` · Socket ${elementCost(sel, "fire")}+` : " · Full");
     els.inspectText.innerHTML =
-      `<strong>${BASE_TOWER[sel.type].name}</strong> Lv${sel.level} · ${dps} DPS · ${dmgTxt} DMG · ${killsTxt}K` +
-      `<span class="inspect-sub">${describeCombo(elsList)}${nextTxt}</span>`;
+      `<strong>${BASE_TOWER[sel.type].name}${evoInline}</strong> Lv${sel.level} · ${dps} DPS · ${dmgTxt} DMG · ${killsTxt}K` +
+      `<span class="inspect-sub">${describeCombo(elsList)}${nextTxt}${runeBadge}</span>`;
+
+    // Compact Level-5 Evolution picker replaces #element-bar while pending so #inspect never grows taller on 355x700!
+    els.inspect.classList.toggle("is-evolving", canEvolve);
+    if (els.evolveBar) {
+      els.evolveBar.classList.toggle("hidden", !canEvolve);
+      if (canEvolve) {
+        const sig = `${state.selectedBuilt}:${sel.type}:${sel.level}:${sel.evolution || ""}`;
+        if (sig !== lastEvolveSig) {
+          lastEvolveSig = sig;
+          const opts = TOWER_EVOLUTIONS[sel.type] || [];
+          els.evolveBar.innerHTML = "";
+          for (const opt of opts) {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "evolve-btn";
+            btn.dataset.evo = opt.id;
+            btn.title = `${opt.name}: ${opt.desc}`;
+            btn.innerHTML =
+              `<span class="evolve-head"><span>${opt.name}</span><span class="evolve-badge">Free Evo</span></span>` +
+              `<span class="evolve-tag">${opt.tag}</span>`;
+            btn.addEventListener("click", () => evolveTower(sel, opt.id));
+            els.evolveBar.appendChild(btn);
+          }
+        }
+      } else {
+        lastEvolveSig = "";
+      }
+    }
 
     if (els.btnMove) {
       const mc = moveTowerCost();
@@ -4477,7 +4876,16 @@
     if (!append) state.spawnTimer = 0.35;
     else state.spawnTimer = Math.min(state.spawnTimer, 0.25);
     state.betweenWaves = 0; state.awaitingStart = false;
+    // Dynamic Wave Bounty Contract: roll on eligible waves when starting a fresh wave (never clobber active contract on mid-wave rush)
+    if (!append) {
+      const nextBounty = rollWaveBounty(state.wave, plan);
+      state.waveBounty = nextBounty;
+    } else if (!state.waveBounty || state.waveBounty.done || state.waveBounty.failed) {
+      const nextBounty = rollWaveBounty(state.wave, plan);
+      if (nextBounty) state.waveBounty = nextBounty;
+    }
     syncStartBtn();
+    syncBountyPill();
     let banner = `W${state.wave}`;
     if (plan.bossN > 1) {
       const names = [...new Set(plan.mix.filter((p) => isBossType(p.type)).map((p) => (ENEMY[p.type] || {}).label || p.type))];
@@ -4517,13 +4925,14 @@
     const w = Math.max(1, state.wave);
     const waveRewardScale = 1 + Math.min(w, 30) * 0.042 + Math.max(0, w - 30) * 0.018;
     state.enemySeq = (state.enemySeq || 0) + 1;
-    state.enemies.push({
+    const spawned = {
       id: state.enemySeq,
       type, dist: 0, hp, maxHp: hp, hpTrail: hp,
       speed: def.speed * jitter * speedMul * packSlow,
       baseSpeed: def.speed * jitter * speedMul * packSlow,
       reward: Math.max(1, Math.floor(def.reward * waveRewardScale * rewardMul * (boss && bossTotal > 1 ? 0.85 : 1))),
       r, color: def.color, shape: def.shape, tags: [...def.tags],
+      noLeak: !!def.noLeak,
       resist: { ...(def.resist || {}) },
       label: def.label || type,
       ability, bossIndex, bossTotal,
@@ -4535,9 +4944,17 @@
       enraged: false,
       slow: 1, slowT: 0, burn: 0, burnT: 0, burnTower: null, chillT: 0, shred: 0, knockCd: 0,
       stunT: 0, stunCd: 0, freezeT: 0, freezeCd: 0, ccDR: 0,
-      brittleT: 0, rimeShield: 0, plasmaMark: 0, matchFxAt: 0, alive: true, hitFlash: 0,
+      brittleT: 0, cryoVulnT: 0, rimeShield: 0, plasmaMark: 0, matchFxAt: 0, alive: true, hitFlash: 0,
       lane: meta.lane || 0,
-    });
+    };
+    state.enemies.push(spawned);
+    if (type === "hoarder") {
+      const sp = enemyPos(spawned);
+      spawnParticles(sp.x, sp.y, "#ffd97d", 18, 110);
+      showBanner("★ Rift Hoarder!");
+      sfx.relic();
+    }
+    return spawned;
   }
 
   function moveFloorFor(e) {
@@ -4653,15 +5070,24 @@
       return;
     }
     state.scrap -= stats.cost;
-    state.towers.push({
+    const tower = {
       ...stats,
       type, x, y, nx: x / state.w, ny: y / state.h,
-      level: 1, cooldown: 0, levelCd: 0, elements: [], targetMode: "first",
+      level: 1, cooldown: 0, levelCd: 0, evolution: null, elements: [], targetMode: "first",
       aim: -Math.PI / 2, recoil: 0, turnRate: stats.turnRate || 3.5,
       lockId: null, acquireT: 0,
       investedScrap: stats.cost, totalDmg: 0, kills: 0, combos: 0,
-    });
+    };
+    applyTowerLevelStats(tower);
+    state.towers.push(tower);
     burstPlace(x, y, stats.color);
+    if (tower.runeId && RUNE_DEFS[tower.runeId]) {
+      const rd = RUNE_DEFS[tower.runeId];
+      spawnParticles(x, y, rd.color, 14, 95);
+      state.fx.push({ kind: "text", x, y: y - 24, t: 0.9, text: `${rd.glyph} ${rd.short}`, color: rd.color, scale: 1.1 });
+      toast(`${rd.name}: ${rd.short}`);
+    }
+    refreshBoardSynergies();
     sfx.place();
     state.selectedTower = null;
     updateHUD(); saveRun();
@@ -4681,11 +5107,18 @@
     state.scrap -= cost;
     t.x = x; t.y = y; t.nx = x / state.w; t.ny = y / state.h;
     t.lockId = null; t.acquireT = 0;
+    applyTowerLevelStats(t);
     state.movingTower = null;
     state.selectedBuilt = idx;
     burstPlace(x, y, t.color);
     sfx.place();
-    toast(cost ? `Relocated (−${cost})` : "Relocated");
+    if (t.runeId && RUNE_DEFS[t.runeId]) {
+      const rd = RUNE_DEFS[t.runeId];
+      spawnParticles(x, y, rd.color, 12, 85);
+      toast(`${rd.name}: ${rd.short}`);
+    } else {
+      toast(cost ? `Relocated (−${cost})` : "Relocated");
+    }
     updateHUD(); saveRun();
     return true;
   }
@@ -4761,9 +5194,9 @@
 
     const mb = metaBonuses();
     if (elsArr.length) {
-      mul *= mb.elementDmgMul;
+      mul *= mb.elementDmgMul * ((state.synBuffs && state.synBuffs.elemMul) || 1);
       if (elsArr.length >= 2) {
-        mul *= mb.dualSocketDmg;
+        mul *= mb.dualSocketDmg * (tower.comboDmgMul || 1);
         const cAmp = relicCount("combo_amp");
         if (cAmp > 0) mul *= Math.pow(1.24, cAmp);
       }
@@ -4783,8 +5216,9 @@
       mul *= Math.pow(1.25, sunder);
     }
 
-    if (enemy.shred > 0) mul *= 1 + Math.min(0.5, enemy.shred);
+    if (enemy.shred > 0) mul *= 1 + Math.min(0.6, enemy.shred);
     if ((enemy.plasmaMark || 0) > 0) mul *= 1.18;
+    if ((enemy.cryoVulnT || 0) > 0) mul *= 1.22;
     if (key === "water+wind" && enemy.chillT > 0) mul *= 1.75;
     return mul;
   }
@@ -4798,6 +5232,11 @@
       if (state.meteorCd > 0) state.meteorCd = Math.max(0, state.meteorCd - trim);
       if (state.surgeCd > 0) state.surgeCd = Math.max(0, state.surgeCd - trim);
       if (state.novaCd > 0) state.novaCd = Math.max(0, state.novaCd - trim);
+    }
+    if (state.waveBounty && state.waveBounty.kind === "combo" && !state.waveBounty.done && !state.waveBounty.failed) {
+      state.waveBounty.cur = (state.waveBounty.cur || 0) + 1;
+      if (state.waveBounty.cur >= state.waveBounty.target) completeWaveBounty();
+      else syncBountyPill();
     }
   }
 
@@ -4843,7 +5282,14 @@
       const v = r[el] == null ? 1 : r[el];
       return Math.max(0.25, Math.min(1.6, v));
     };
-    const cAmp = 1 + 0.4 * relicCount("combo_amp");
+    const cAmp = (1 + 0.4 * relicCount("combo_amp")) * (tower.comboDmgMul || 1) * ((state.synBuffs && state.synBuffs.elemMul) || 1);
+
+    // Cryo Disrupter Lv5 Coil evolution: deep chill + +22% vulnerability mark!
+    if (tower.evolution === "cryo") {
+      enemy.chillT = Math.max(enemy.chillT || 0, 2.2);
+      enemy.cryoVulnT = Math.max(enemy.cryoVulnT || 0, 2.6);
+      applyFreezeChill(enemy, 0.52, 1.8, 0.55, st);
+    }
 
     // Primary sockets — single-target potency unless this hit is splash.
     if (has("fire") || tower.burn) {
@@ -5072,10 +5518,22 @@
       state.runStats.peakStreak = state.streak;
     }
     state.streakT = 2.6;
-    const cdTrim = (isBossEnemy(e) ? 1.4 : 0.14) * (1 + 0.35 * relicCount("rapid_rite"));
+    const isHoarder = e.type === "hoarder" || (e.tags && e.tags.includes("loot"));
+    const cdTrim = isHoarder ? 8.0 : (isBossEnemy(e) ? 1.4 : 0.14) * (1 + 0.35 * relicCount("rapid_rite"));
     if (state.meteorCd > 0) state.meteorCd = Math.max(0, state.meteorCd - cdTrim);
     if (state.surgeCd > 0) state.surgeCd = Math.max(0, state.surgeCd - cdTrim);
     if (state.novaCd > 0) state.novaCd = Math.max(0, state.novaCd - cdTrim);
+
+    // Wave Bounty Contract tracking (streak & boss_blitz)
+    if (state.waveBounty && !state.waveBounty.done && !state.waveBounty.failed) {
+      if (state.waveBounty.kind === "streak") {
+        state.waveBounty.cur = Math.max(state.waveBounty.cur || 0, state.streak);
+        if (state.streak >= state.waveBounty.target) completeWaveBounty();
+      } else if (state.waveBounty.kind === "boss_blitz" && isBossEnemy(e)) {
+        const ratio = e.dist / Math.max(1, enemyPathTotal(e));
+        if (ratio <= 0.65) completeWaveBounty();
+      }
+    }
 
     const streakMarks = [8, 16, 25, 40, 60, 90, 125];
     const nextMark = streakMarks[state.streakTier || 0];
@@ -5089,8 +5547,20 @@
     }
 
     pushCombatFx({ kind: "pop", x: p.x, y: p.y, t: 0.4, color: e.color });
-    spawnParticles(p.x, p.y, e.color, isBossEnemy(e) ? 34 : 12, isBossEnemy(e) ? 160 : 90);
-    if (isBossEnemy(e)) {
+    spawnParticles(p.x, p.y, e.color, isBossEnemy(e) ? 34 : isHoarder ? 28 : 12, isBossEnemy(e) ? 160 : isHoarder ? 150 : 90);
+    if (isHoarder) {
+      const bonusChips = Math.min(35, 14 + Math.floor(state.wave * 0.8));
+      if (state.runStats) {
+        state.runStats.bonusChips = (state.runStats.bonusChips || 0) + bonusChips;
+        state.runStats.hoarders = (state.runStats.hoarders || 0) + 1;
+      }
+      spawnParticles(p.x, p.y, "#fff0a8", 22, 130);
+      pushCombatFx({ kind: "ring", x: p.x, y: p.y, t: 0.55, r0: 10, r1: 72, color: "#ffd97d" });
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 34, t: 1.1, text: `JACKPOT! +${gained}⬡ · +${bonusChips}c`, color: "#ffd97d", scale: 1.3 });
+      showBanner(`Hoarder Slain! +${bonusChips}c · −8s CDs`);
+      addShake(0.85);
+      sfx.bossKill();
+    } else if (isBossEnemy(e)) {
       spawnParticles(p.x, p.y, "#ffd166", 24, 140);
       pushCombatFx({ kind: "ring", x: p.x, y: p.y, t: 0.6, r0: 12, r1: 84, color: "#ffd97d" });
       state.hitstopT = Math.max(state.hitstopT || 0, 0.052);
@@ -5126,7 +5596,7 @@
 
     if (opts.magma) {
       noteComboProc(killer);
-      const cAmp = 1 + 0.4 * relicCount("combo_amp");
+      const cAmp = (1 + 0.4 * relicCount("combo_amp")) * ((killer && killer.comboDmgMul) || 1) * ((state.synBuffs && state.synBuffs.elemMul) || 1);
       pushHazard({ kind: "magma", x: p.x, y: p.y, r: 48, t: 2.8, dps: Math.max(12, opts.magma * 0.42 * cAmp), tower: killer });
       for (const o of state.enemies) {
         if (!o.alive) continue;
@@ -5152,9 +5622,10 @@
     let dmg = amount * matchMul;
     let didCrit = false;
     const surgeCrit = state.surgeT > 0 ? ABILITY_DEF.surge.critAdd * abilityDmgMul() : 0;
-    const critChance = (opts.critChance || 0) + surgeCrit;
+    const synCrit = (state.synBuffs && state.synBuffs.critAdd) || 0;
+    const critChance = (opts.critChance || 0) + surgeCrit + synCrit;
     if (critChance > 0 && Math.random() < critChance) {
-      dmg *= 2;
+      dmg *= tower && tower.evolution === "exec" ? 2.55 : 2;
       didCrit = true;
       const p = enemyPos(e);
       state.fx.push({ kind: "text", x: p.x, y: p.y - 16, t: 0.55, text: "CRIT!", color: "#ffd166", scale: 1.24 });
@@ -5229,6 +5700,14 @@
     }
     spawnParticles(p.x, p.y, opts.color || tower.color, 4, 55);
     sfx.hit();
+    // Executioner Rail Lv5 Spire evolution: instant execute non-boss foes below 18% HP!
+    if (tower && tower.evolution === "exec" && e.alive && e.hp > 0 && !isBossEnemy(e) && !e.noLeak && e.hp / Math.max(1, e.maxHp) < 0.18) {
+      const rem = e.hp;
+      e.hp = 0;
+      if (typeof tower.totalDmg === "number") tower.totalDmg += rem;
+      if (state.runStats) state.runStats.totalDmg = (state.runStats.totalDmg || 0) + rem;
+      state.fx.push({ kind: "text", x: p.x, y: p.y - 24, t: 0.65, text: "EXECUTE!", color: "#ffe082", scale: 1.2 });
+    }
     if (e.hp <= 0) {
       const magma = comboKey(tower.elements || []) === "earth+fire" ? dmg * 0.9 : 0;
       killEnemy(e, { magma, killer: tower });
@@ -5241,6 +5720,14 @@
     const elsArr = tower.elements || [];
     const tint = elsArr.length ? ELEMENTS[elsArr[0]].color : tower.color;
     tower.recoil = 1;
+    tower.shotCount = (tower.shotCount || 0) + 1;
+
+    if (tower.evolution === "gatling") {
+      if (tower.rampTargetId === target.id) tower.rampStacks = Math.min(6, (tower.rampStacks || 0) + 1);
+      else { tower.rampTargetId = target.id; tower.rampStacks = 0; }
+    } else {
+      tower.rampStacks = 0;
+    }
 
     if (tower.type === "mortar") {
       state.projectiles.push({
@@ -5252,6 +5739,7 @@
       damageEnemy(target, tower.damage, tower, { color: tint, critChance: tower.crit || 0 });
       state.fx.push({ kind: "beam", arc: true, x: tower.x, y: tower.y, x2: p.x, y2: p.y, t: 0.14, color: tint });
       const totalChains = (tower.chain || 0) + relicCount("arc_fork");
+      const chainRange = tower.evolution === "storm" ? 104 : 82;
       if (totalChains > 0) {
         const hitSet = new Set([target]);
         let prev = p;
@@ -5262,7 +5750,7 @@
             if (!e.alive || hitSet.has(e) || !canTarget(tower, e)) continue;
             const q = enemyPos(e);
             const d = Math.hypot(q.x - prev.x, q.y - prev.y);
-            if (d < 82 && d < bestD) { bestD = d; nextE = e; }
+            if (d < chainRange && d < bestD) { bestD = d; nextE = e; }
           }
           if (!nextE) break;
           hitSet.add(nextE);
@@ -5293,9 +5781,10 @@
       const ey = end ? enemyPos(end.e).y : tower.y + uy * tower.range;
       state.fx.push({ kind: "beam", rail: true, x: tower.x, y: tower.y, x2: ex, y2: ey, t: 0.2, color: tint });
       const sunder = relicCount("sunder_beam");
+      const falloff = tower.evolution === "piercer" ? 0.04 : 0.11;
       hits.slice(0, pierce).forEach((h, i) => {
-        if (sunder > 0) h.e.shred = Math.min(0.55, (h.e.shred || 0) + 0.18 * sunder);
-        damageEnemy(h.e, tower.damage * (1 - i * 0.11), tower, { color: tint, critChance: tower.crit || 0 });
+        if (sunder > 0) h.e.shred = Math.min(0.6, (h.e.shred || 0) + 0.18 * sunder);
+        damageEnemy(h.e, tower.damage * Math.max(0.45, 1 - i * falloff), tower, { color: tint, critChance: tower.crit || 0 });
       });
     } else {
       state.projectiles.push({
@@ -5303,6 +5792,26 @@
         t: 0, dur: 0.11, target, damage: tower.damage,
         critChance: tower.crit || 0, tower, color: tint,
       });
+      // Shrapnel Fan Lv5 Turret evolution: every 3rd shot blasts 2 extra fan bolts!
+      if (tower.evolution === "shrapnel" && tower.shotCount % 3 === 0) {
+        const extras = [];
+        for (const e of state.enemies) {
+          if (!e.alive || e === target || !canTarget(tower, e)) continue;
+          const q = enemyPos(e);
+          const d = Math.hypot(q.x - tower.x, q.y - tower.y);
+          if (d <= tower.range) extras.push({ e, d });
+        }
+        extras.sort((a, b) => a.d - b.d);
+        for (let k = 0; k < 2; k++) {
+          const tFan = (extras[k] && extras[k].e) || target;
+          const pf = enemyPos(tFan);
+          state.projectiles.push({
+            kind: "bolt", x: tower.x, y: tower.y, tx: pf.x, ty: pf.y,
+            t: 0, dur: 0.12 + k * 0.02, target: tFan, damage: tower.damage * (tFan === target ? 0.52 : 0.78),
+            critChance: tower.crit || 0, tower, color: "#ff9b54",
+          });
+        }
+      }
       // Split Chamber relic: Turret fires an extra split bolt at a secondary target or same target.
       const splits = relicCount("twin_bolt");
       if (splits > 0) {
@@ -5340,8 +5849,12 @@
     const step = dt * speed;
     state.time += step; state.frame++;
 
-    // Active abilities & streak timers
+    // Active abilities, wave bounty display timer & streak timers
     if (state.sendWaveCd > 0) state.sendWaveCd = Math.max(0, state.sendWaveCd - dt);
+    if (state.waveBounty && (state.waveBounty.done || state.waveBounty.failed) && (state.waveBounty.doneT || 0) > 0) {
+      state.waveBounty.doneT = Math.max(0, state.waveBounty.doneT - dt);
+      if (state.waveBounty.doneT <= 0) syncBountyPill();
+    }
     if (!state.awaitingStart) {
       if (state.meteorCd > 0) state.meteorCd = Math.max(0, state.meteorCd - step);
       if (state.surgeCd > 0) state.surgeCd = Math.max(0, state.surgeCd - step);
@@ -5420,6 +5933,7 @@
       if (e.slowT > 0) { e.slowT -= step; if (e.slowT <= 0) e.slow = 1; }
       if (e.chillT > 0) e.chillT -= step;
       if (e.brittleT > 0) e.brittleT -= step;
+      if (e.cryoVulnT > 0) e.cryoVulnT -= step;
       if (e.plasmaMark > 0) e.plasmaMark -= step;
       if (e.ccDR > 0) e.ccDR = Math.max(0, e.ccDR - BALANCE.ccDrDecay * step);
       if (e.burnT > 0) {
@@ -5430,6 +5944,11 @@
         }
         dealDirectDamage(e, e.burn * step, e.burnTower || null, { silentFlash: true });
         if (!e.alive) continue;
+      }
+      // Golden coin glint trail behind fleeing Rift Hoarder
+      if (e.type === "hoarder" && Math.random() < step * 8) {
+        const hp = enemyPos(e);
+        spawnParticles(hp.x, hp.y, "#ffd97d", 1, 24);
       }
       // Regenerating wave mutator (halved while chilled)
       if (e.regenTag && e.hp < e.maxHp) {
@@ -5479,8 +5998,17 @@
       }
       if (e.dist >= enemyPathTotal(e)) {
         e.alive = false;
+        // Rift Hoarder escapes harmlessly — 0 Wellheart damage, preserves Flawless streak & contracts!
+        if (e.noLeak || (e.tags && e.tags.includes("loot"))) {
+          const ep = enemyPos(e);
+          spawnParticles(ep.x, ep.y, "#ffd97d", 14, 95);
+          state.fx.push({ kind: "text", x: ep.x, y: ep.y - 16, t: 0.9, text: "ESCAPED!", color: "#ffd97d", scale: 1.15 });
+          toast("Rift Hoarder escaped!");
+          continue;
+        }
         state.waveLeaks = (state.waveLeaks || 0) + 1;
         state.flawlessStreak = 0;
+        failFlawlessBounty();
         {
           const mb = metaBonuses();
           let guard = 0;
@@ -5535,6 +6063,7 @@
     }
 
     const surgeRateMul = state.surgeT > 0 ? ABILITY_DEF.surge.rateMul * Math.pow(0.9, relicCount("rapid_rite")) : 1;
+    const synRateMul = (state.synBuffs && state.synBuffs.rateMul) || 1;
     for (const tower of state.towers) {
       if (tower.levelCd > 0) tower.levelCd = Math.max(0, tower.levelCd - dt);
       if (tower.recoil > 0) tower.recoil = Math.max(0, tower.recoil - step * 4.5);
@@ -5546,7 +6075,10 @@
         tower.lockId = trackId;
         tower.acquireT = BALANCE.acquireDelay * (tower.type === "mortar" ? 1.35 : tower.type === "spire" ? 1.15 : 1);
       }
-      if (!track) tower.lockId = null;
+      if (!track) {
+        tower.lockId = null;
+        tower.rampStacks = 0;
+      }
 
       let aligned = false;
       if (track) {
@@ -5563,7 +6095,8 @@
       if (tower.cooldown > 0) continue;
       if (track && aligned && (tower.acquireT || 0) <= 0) {
         fireTower(tower, track);
-        tower.cooldown = tower.fireRate * surgeRateMul;
+        const rampMul = tower.evolution === "gatling" ? (1 / (1 + (tower.rampStacks || 0) * 0.085)) : 1;
+        tower.cooldown = tower.fireRate * surgeRateMul * synRateMul * rampMul;
       }
     }
 
@@ -5579,21 +6112,37 @@
         }
       } else if (p.kind === "shell") {
         if (u >= 1) {
+          const isThermo = p.tower && p.tower.evolution === "thermo";
           for (const e of state.enemies) {
             if (!e.alive || !canTarget(p.tower, e)) continue;
             const q = enemyPos(e);
             if (Math.hypot(q.x - p.tx, q.y - p.ty) <= p.splash) {
+              if (isThermo) e.shred = Math.min(0.6, (e.shred || 0) + 0.35);
               damageEnemy(e, p.damage, p.tower, { color: p.color, aoe: true });
             }
           }
+          // Cluster Barrage Lv5 Mortar evolution: splits into 3 mini-bomblets around impact!
+          if (p.tower && p.tower.evolution === "cluster" && !p.mini) {
+            for (let k = 0; k < 3; k++) {
+              const ang = k * (Math.PI * 2 / 3) + (state.frame * 0.37);
+              const dist = 24 + (k % 2) * 8;
+              const bx = Math.max(12, Math.min(state.w - 12, p.tx + Math.cos(ang) * dist));
+              const by = Math.max(12, Math.min(state.h - 12, p.ty + Math.sin(ang) * dist));
+              state.projectiles.push({
+                kind: "shell", mini: true, x: p.tx, y: p.ty, tx: bx, ty: by,
+                t: 0, dur: 0.22, damage: p.damage * 0.42, splash: Math.max(24, p.splash * 0.54),
+                tower: p.tower, color: "#8ae8a0",
+              });
+            }
+          }
           const lavaShell = relicCount("lava_shell");
-          if (lavaShell > 0) {
+          if (lavaShell > 0 && !p.mini) {
             pushHazard({ kind: "magma", x: p.tx, y: p.ty, r: Math.max(36, p.splash * 0.72), t: 2.6 + lavaShell * 0.6, dps: Math.max(12, p.damage * 0.25 * lavaShell) });
           }
-          pushCombatFx({ kind: "blast", x: p.tx, y: p.ty, t: 0.35, r: p.splash, color: p.color });
-          spawnParticles(p.tx, p.ty, p.color, 18, 120);
+          pushCombatFx({ kind: "blast", x: p.tx, y: p.ty, t: p.mini ? 0.24 : 0.35, r: p.splash, color: p.color });
+          spawnParticles(p.tx, p.ty, p.color, p.mini ? 8 : 18, p.mini ? 80 : 120);
           sfx.boom();
-          addShake(0.45);
+          if (!p.mini) addShake(0.45);
           p.dead = true;
         }
       }
@@ -6198,6 +6747,36 @@
         ctx.restore();
       }
     }
+    // Carved stone Power Shrine / Rift Rune plinths baked into terrain cache
+    if (state.path.runes) {
+      for (const r of state.path.runes) {
+        const def = RUNE_DEFS[r.type];
+        if (!def) continue;
+        ctx.save();
+        ctx.translate(r.x, r.y);
+        // Subtle recessed basalt octagon
+        ctx.fillStyle = "rgba(10, 9, 8, 0.52)";
+        ctx.beginPath();
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+          const px = Math.cos(a) * 16.5;
+          const py = Math.sin(a) * 14.5;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255, 232, 195, 0.14)";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        // Inner carved stone plate
+        ctx.fillStyle = "rgba(38, 32, 26, 0.72)";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 12.5, 10.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
   }
 
   function ensureTerrainCache() {
@@ -6271,11 +6850,53 @@
     }
   }
 
+  function drawMapRunes() {
+    const runes = state.path && state.path.runes;
+    if (!runes || !runes.length) return;
+    for (const r of runes) {
+      const def = RUNE_DEFS[r.type];
+      if (!def) continue;
+      const occupied = state.towers.some((t) => Math.hypot(t.x - r.x, t.y - r.y) <= 15);
+      const pulse = 0.5 + 0.5 * Math.sin(state.time * 3.1 + r.x * 0.08);
+      ctx.save();
+      ctx.translate(r.x, r.y);
+      // Soft mineral glow — brighter when open/inviting, subtle aura ring when occupied
+      const glowR = occupied ? 20 : 19 + pulse * 2.5;
+      const g = ctx.createRadialGradient(0, 0, 2, 0, 0, glowR);
+      g.addColorStop(0, def.color);
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalAlpha = occupied ? 0.24 : 0.18 + pulse * 0.14;
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 0, glowR, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.globalAlpha = occupied ? 0.55 : 0.72 + pulse * 0.24;
+      ctx.strokeStyle = def.color;
+      ctx.lineWidth = occupied ? 1.4 : 1.5;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 13.5, 11.2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      if (!occupied) {
+        ctx.globalAlpha = 0.88 + pulse * 0.12;
+        ctx.fillStyle = def.color;
+        ctx.font = "800 11px Bricolage Grotesque, Avenir Next, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(def.glyph, 0, 0.5);
+        ctx.textBaseline = "alphabetic";
+      }
+      ctx.restore();
+    }
+  }
+
   function drawRiftPath() {
     ensureTerrainCache();
     if (terrainCanvas) {
       ctx.drawImage(terrainCanvas, 0, 0, state.w, state.h);
     }
+    drawMapRunes();
     drawAmbientEmbers();
     drawHazards();
     if (!state.path) return;
@@ -6315,13 +6936,18 @@
     const { x, y, ok } = state.ghost;
     const ghostType = moving ? moving.type : state.selectedTower;
     const stats = moving || towerStats(ghostType);
+    const snapRune = ok ? runeAtPoint(x, y, 15) : null;
+    const snapRuneDef = snapRune ? RUNE_DEFS[snapRune.type] : null;
+    const previewRange = snapRuneDef && snapRuneDef.rangeMul
+      ? clampTowerRange(ghostType, stats.range * (moving && moving.runeId === snapRune.type ? 1 : snapRuneDef.rangeMul))
+      : stats.range;
     ctx.save();
     ctx.globalAlpha = 0.34;
     ctx.beginPath();
-    ctx.arc(x, y, stats.range, 0, Math.PI * 2);
+    ctx.arc(x, y, previewRange, 0, Math.PI * 2);
     ctx.fillStyle = ok ? "rgba(255, 184, 84, 0.06)" : "rgba(232, 93, 76, 0.07)";
     ctx.fill();
-    ctx.strokeStyle = ok ? "rgba(255,184,84,0.75)" : "rgba(232,93,76,0.75)";
+    ctx.strokeStyle = ok ? (snapRuneDef ? snapRuneDef.color : "rgba(255,184,84,0.75)") : "rgba(232,93,76,0.75)";
     ctx.lineWidth = 1.8;
     ctx.setLineDash([5, 4]);
     ctx.stroke();
@@ -6330,8 +6956,8 @@
     // Footprint disk — red when overlapping road/rocks
     ctx.save();
     ctx.fillStyle = ok ? "rgba(111,191,138,0.16)" : "rgba(232,93,76,0.24)";
-    ctx.strokeStyle = ok ? "rgba(111,191,138,0.65)" : "rgba(232,93,76,0.9)";
-    ctx.lineWidth = 1.8;
+    ctx.strokeStyle = ok ? (snapRuneDef ? snapRuneDef.color : "rgba(111,191,138,0.65)") : "rgba(232,93,76,0.9)";
+    ctx.lineWidth = snapRuneDef ? 2.2 : 1.8;
     ctx.beginPath();
     ctx.arc(x, y, TOWER_PLACE_R, 0, Math.PI * 2);
     ctx.fill();
@@ -6344,9 +6970,28 @@
     ctx.scale(0.92, 0.92);
     drawTower({
       x: 0, y: 0, type: ghostType, aim: moving ? moving.aim : -Math.PI / 2,
-      recoil: 0, level: moving ? moving.level : 1, elements: moving ? (moving.elements || []) : [],
+      recoil: 0, level: moving ? moving.level : 1, evolution: moving ? (moving.evolution || null) : null,
+      elements: moving ? (moving.elements || []) : [],
     }, false, false);
     ctx.restore();
+    if (snapRuneDef) {
+      ctx.save();
+      const label = `${snapRuneDef.glyph} ${snapRuneDef.name} · ${snapRuneDef.short}`;
+      ctx.font = "800 10px Bricolage Grotesque, Avenir Next, sans-serif";
+      const tw = Math.min(state.w - 16, ctx.measureText(label).width + 14);
+      const bx = Math.max(8 + tw / 2, Math.min(state.w - 8 - tw / 2, x));
+      const by = Math.max(24, y - 34);
+      ctx.fillStyle = "rgba(18, 14, 11, 0.9)";
+      roundRect(bx - tw / 2, by - 9, tw, 18, 9); ctx.fill();
+      ctx.strokeStyle = snapRuneDef.color;
+      ctx.lineWidth = 1.2;
+      roundRect(bx - tw / 2, by - 9, tw, 18, 9); ctx.stroke();
+      ctx.fillStyle = snapRuneDef.color;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, bx, by + 0.5);
+      ctx.restore();
+    }
     if (!ok) {
       ctx.save();
       ctx.strokeStyle = "rgba(232,93,76,0.95)";
@@ -6706,14 +7351,46 @@
       ctx.strokeStyle = "rgba(255,255,255,0.35)";
       ctx.lineWidth = 1; ctx.stroke();
     });
-    if (t.level > 1) {
-      ctx.fillStyle = "rgba(0,0,0,0.45)";
-      roundRect(-7, 18, 14, 11, 3); ctx.fill();
-      ctx.fillStyle = "#f3ebe2";
-      ctx.font = "800 9px Bricolage Grotesque, Avenir Next, sans-serif";
+    if (t.evolution) {
+      const evoDef = getEvolutionDef(t.type, t.evolution);
+      ctx.save();
+      ctx.strokeStyle = (evoDef && evoDef.color) || "#ffd97d";
+      ctx.globalAlpha = 0.72;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.ellipse(0, 10, 18.5, 7.6, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    } else if (t.level >= EVO_UNLOCK_LEVEL && TOWER_EVOLUTIONS[t.type]) {
+      const ey = -31 + Math.sin(state.time * 5.2) * 1.4;
+      ctx.save();
+      ctx.fillStyle = "rgba(42, 26, 8, 0.92)";
+      roundRect(-13, ey - 5.5, 26, 11, 5); ctx.fill();
+      ctx.strokeStyle = "#ffd97d";
+      ctx.lineWidth = 1.1;
+      roundRect(-13, ey - 5.5, 26, 11, 5); ctx.stroke();
+      ctx.fillStyle = "#ffe69e";
+      ctx.font = "800 7.5px Bricolage Grotesque, Avenir Next, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("L" + t.level, 0, 23.5);
+      ctx.fillText("★ EVO", 0, ey + 0.3);
+      ctx.restore();
+    }
+    if (t.level > 1) {
+      const isEvo = !!t.evolution;
+      const bw = isEvo ? 20 : 14;
+      ctx.fillStyle = isEvo ? "rgba(48, 32, 10, 0.85)" : "rgba(0,0,0,0.45)";
+      roundRect(-bw / 2, 18, bw, 11, 3); ctx.fill();
+      if (isEvo) {
+        ctx.strokeStyle = "rgba(255, 217, 125, 0.65)";
+        ctx.lineWidth = 0.9;
+        roundRect(-bw / 2, 18, bw, 11, 3); ctx.stroke();
+      }
+      ctx.fillStyle = isEvo ? "#ffd97d" : "#f3ebe2";
+      ctx.font = "800 8.8px Bricolage Grotesque, Avenir Next, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText((isEvo ? "★L" : "L") + t.level, 0, 23.5);
       ctx.textBaseline = "alphabetic";
     }
     ctx.restore();
@@ -7106,6 +7783,43 @@
       }
       ctx.restore();
 
+    } else if (e.shape === "hoarder") {
+      // Golden Rift Hoarder — treasure-laden loot runner with shimmering gold pack
+      ctx.save();
+      const hop = Math.abs(Math.sin(state.time * 11 + e.dist * 0.14)) * 2.4;
+      ctx.translate(0, -hop);
+      const aura = ctx.createRadialGradient(0, 0, 2, 0, 0, e.r + 7);
+      aura.addColorStop(0, "rgba(255, 226, 130, 0.36)");
+      aura.addColorStop(1, "rgba(255, 190, 60, 0)");
+      ctx.fillStyle = aura;
+      ctx.beginPath(); ctx.arc(0, 0, e.r + 7, 0, Math.PI * 2); ctx.fill();
+      // Bulging gold treasure sack
+      const sack = ctx.createRadialGradient(-3, -3, 1, 0, 1, e.r);
+      sack.addColorStop(0, flash ? "#ffffff" : "#fff7c8");
+      sack.addColorStop(0.45, flash ? "#ffffff" : "#ffd166");
+      sack.addColorStop(1, flash ? "#ffffff" : "#9c5e12");
+      ctx.fillStyle = sack;
+      ctx.beginPath(); ctx.ellipse(-1, 1, e.r * 0.92, e.r * 0.78, -0.15, 0, Math.PI * 2); ctx.fill();
+      if (!flash) {
+        // Crimson tie strap + crown glint
+        ctx.strokeStyle = "#b83226";
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(-e.r * 0.55, -e.r * 0.35);
+        ctx.quadraticCurveTo(0, 2, e.r * 0.62, -e.r * 0.2);
+        ctx.stroke();
+        // Little nimble head & gleaming eyes
+        ctx.fillStyle = "#5c3410";
+        ctx.beginPath(); ctx.arc(e.r * 0.42, -e.r * 0.42, 4.4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#fff8d8";
+        ctx.beginPath(); ctx.arc(e.r * 0.52, -e.r * 0.46, 1.3, 0, Math.PI * 2); ctx.fill();
+        // Sparkling coins poking out of sack
+        ctx.fillStyle = "#fff5b8";
+        ctx.beginPath(); ctx.arc(-4, -5, 2.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(1, -6.5, 1.8, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+
     } else {
       // Swarm mite cluster — distinct carapaces, not soft blobs
       ctx.save();
@@ -7227,6 +7941,15 @@
       ctx.textBaseline = "middle";
       const suffix = (e.bossTotal || 1) > 1 ? ` ${(e.bossIndex || 0) + 1}/${e.bossTotal}` : "";
       ctx.fillText(tag + suffix, 0, e.r + 8.5);
+      ctx.textBaseline = "alphabetic";
+    } else if (e.type === "hoarder") {
+      ctx.fillStyle = "rgba(44, 28, 6, 0.82)";
+      roundRect(-21, e.r + 3, 42, 10, 4); ctx.fill();
+      ctx.fillStyle = "#ffd97d";
+      ctx.font = "800 7.5px Bricolage Grotesque, Avenir Next, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("★ LOOT", 0, e.r + 8.2);
       ctx.textBaseline = "alphabetic";
     }
     ctx.restore();
@@ -7425,11 +8148,13 @@
         ctx.globalAlpha = Math.min(1, a * 2.8);
         ctx.font = `800 ${px}px Bricolage Grotesque, Avenir Next, sans-serif`;
         ctx.textAlign = "center";
+        const halfW = ctx.measureText(f.text).width * 0.5 + 8;
+        const tx = halfW * 2 >= w ? w * 0.5 : Math.max(halfW, Math.min(w - halfW, f.x));
         const ty = f.y - (0.55 - a) * (20 + sc * 5);
         ctx.fillStyle = "rgba(10,8,6,0.82)";
-        ctx.fillText(f.text, f.x + 1, ty + 1.2);
+        ctx.fillText(f.text, tx + 1, ty + 1.2);
         ctx.fillStyle = f.color;
-        ctx.fillText(f.text, f.x, ty);
+        ctx.fillText(f.text, tx, ty);
         ctx.globalAlpha = 1;
       } else if (f.kind === "leak") {
         ctx.globalAlpha = a; ctx.fillStyle = "rgba(232,93,76,0.28)";
@@ -7472,8 +8197,12 @@
     return true;
   }
 
-  // Gentle magnetic nudge so placing inside road turns or beside towers nestles into the nearest valid pocket.
+  // Gentle magnetic nudge so placing inside road turns, beside towers, or near Power Runes nestles cleanly.
   function resolvePlacement(x, y, ignoreIdx = -1) {
+    const nearRune = runeAtPoint(x, y, 18);
+    if (nearRune && placementOk(nearRune.x, nearRune.y, ignoreIdx)) {
+      return { x: nearRune.x, y: nearRune.y, ok: true, rune: nearRune };
+    }
     if (placementOk(x, y, ignoreIdx)) return { x, y, ok: true };
     const radii = [5, 10, 15];
     const steps = 12;
@@ -7812,6 +8541,7 @@
         pushCombatFx({ kind: "ring", x: t.x, y: t.y, t: 0.45, r0: 12, r1: 48, color: ELEMENTS[el].color });
         haptic([10, 40, 18]);
       }
+      refreshBoardSynergies();
       sfx.socket();
       updateHUD(); saveRun();
       advanceCoach(1);
@@ -7824,6 +8554,7 @@
     state.scrap += towerSellValue(t);
     spawnParticles(t.x, t.y, t.color, 10, 70);
     state.towers.splice(state.selectedBuilt, 1);
+    refreshBoardSynergies({ silent: true });
     state.selectedBuilt = null; updateHUD(); saveRun();
     sfx.ui();
   });
@@ -8045,8 +8776,10 @@
   }
   kickFrame();
   window.__RD = {
-    state, startNewRun, saveRun, loadRun, generatePath, wavePlan, beginWave, endRun,
-    ELEMENTS, RELICS, settings, sfx, DAILY, BALANCE, DIFFICULTIES,
+    state, startNewRun, saveRun, loadRun, generatePath, wavePlan, beginWave, endRun, updateHUD,
+    ELEMENTS, RELICS, RUNE_DEFS, TOWER_EVOLUTIONS, BOARD_SYNERGIES,
+    settings, sfx, DAILY, BALANCE, DIFFICULTIES,
     openRelicDraft, resetAllProgress, respecForge, fireMeteorAt, triggerSurge, callNextWaveEarly,
+    evolveTower, spawnEnemy, placeTower, refreshBoardSynergies, rollWaveBounty, resolvePlacement,
   };
 })();
