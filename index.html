@@ -11,13 +11,13 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="application-name" content="Emberwell" />
   <meta name="description" content="Endless molten-rift tower defense with elemental combos, rift relics, and active powers. Play offline anywhere." />
-  <link rel="manifest" href="manifest.webmanifest?v=2.7.0" />
+  <link rel="manifest" href="manifest.webmanifest?v=2.8.0" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" sizes="192x192" />
   <link rel="apple-touch-icon" href="icons/icon-512.png" sizes="512x512" />
   <title>Emberwell — Molten Rift Tower Defense</title>
-  <script src="version.js?v=2.7.0"></script>
-  <link rel="stylesheet" href="styles.css?v=2.7.0" />
+  <script src="version.js?v=2.8.0"></script>
+  <link rel="stylesheet" href="styles.css?v=2.8.0" />
 </head>
 <body>
   <div id="app" data-ui="hub">
@@ -78,6 +78,7 @@
 
       <div id="banner" class="wave-chip hidden" aria-live="polite"></div>
       <div id="streak-pill" class="streak-pill hidden" aria-live="polite"></div>
+      <div id="bounty-pill" class="bounty-pill hidden" aria-live="polite"></div>
       <div id="toast" class="hidden" role="status" aria-live="polite"></div>
 
       <div id="coach" class="coach hidden" aria-live="polite">
@@ -127,6 +128,7 @@
             <button type="button" id="btn-inspect-close" class="close-btn" aria-label="Close inspector" title="Close">×</button>
           </div>
         </div>
+        <div id="evolve-bar" class="evolve-bar hidden" aria-label="Tower evolution"></div>
         <div id="element-bar" class="element-bar" aria-label="Socket element">
           <button type="button" class="el-btn" data-el="fire" title="Fire: burn DoT">Fire</button>
           <button type="button" class="el-btn" data-el="water" title="Water: chill slow">Water</button>
@@ -399,10 +401,10 @@
       </div>
     </section>
   </div>
-  <script src="game.js?v=2.7.0" defer></script>
+  <script src="game.js?v=2.8.0" defer></script>
   <script>
     (function () {
-      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "2.7.0";
+      var ver = (typeof APP_VERSION !== "undefined" && APP_VERSION) || "2.8.0";
       var el = document.getElementById("app-version");
       if (el) el.textContent = "v" + ver;
       var sv = document.getElementById("settings-version");

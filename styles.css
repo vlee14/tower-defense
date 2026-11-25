@@ -503,14 +503,15 @@ button {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Compact Relic Badge (top-left of battlefield — never crowds portals) */
+/* Compact Relic & Synergy Badges (top-left of battlefield — <=50px wide, never crowds boss bar or portals) */
 .relic-strip {
   position: absolute;
   left: 8px;
   top: 6px;
   z-index: var(--z-float);
   display: inline-flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 3px;
   pointer-events: auto;
 }
@@ -537,6 +538,68 @@ button {
 .relic-chip:active { transform: scale(0.92); }
 .relic-chip.rarity-rare { border-color: rgba(77, 184, 196, 0.58); color: #8be0ea; }
 .relic-chip.rarity-epic { border-color: rgba(255, 196, 92, 0.78); color: #ffd97d; background: rgba(46, 30, 14, 0.9); }
+.synergy-chip {
+  border-color: rgba(111, 191, 138, 0.62);
+  color: #9fe8b8;
+  background: rgba(16, 32, 24, 0.88);
+}
+
+/* Slim bottom-left Wave Bounty Contract pill (never overlaps dock, inspect, or coach) */
+.bounty-pill {
+  position: absolute;
+  left: 8px;
+  bottom: 6px;
+  max-width: calc(100% - 16px);
+  z-index: var(--z-float);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(22, 17, 12, 0.86);
+  border: 1px solid rgba(255, 209, 102, 0.48);
+  color: var(--cream);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.42);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity 0.16s ease, transform 0.16s ease, border-color 0.2s ease;
+}
+.bounty-pill.hidden { display: none; }
+.bounty-pill.done {
+  border-color: rgba(111, 191, 138, 0.78);
+  background: rgba(18, 34, 22, 0.92);
+  color: #bff5ce;
+}
+.bounty-pill.failed {
+  border-color: rgba(232, 93, 76, 0.55);
+  color: #f0a89e;
+  opacity: 0.8;
+}
+.bounty-pill .bp-ico {
+  color: #ffd166;
+  flex-shrink: 0;
+}
+.bounty-pill.done .bp-ico { color: #7ee89c; }
+.bounty-pill .bp-prog {
+  color: var(--ember-hot);
+  font-family: var(--display);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.bounty-pill .bp-rew {
+  color: var(--muted);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+#app[data-inspect="1"] .bounty-pill {
+  opacity: 0;
+  transform: translateY(6px);
+}
 
 /* Razor-slim Boss Health Bar pinned at very top edge (clears Portals 1 & 2!) */
 .boss-bar {
@@ -934,6 +997,70 @@ button {
   justify-content: center;
 }
 .close-btn:hover { color: var(--cream); background: rgba(255, 255, 255, 0.11); }
+
+.inspect-rune {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 800;
+  vertical-align: middle;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid currentColor;
+}
+.inspect.is-evolving .element-bar { display: none; }
+.evolve-bar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+.evolve-bar.hidden { display: none; }
+.evolve-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  min-height: 44px;
+  padding: 5px 7px;
+  border-radius: 10px;
+  background: linear-gradient(155deg, rgba(64, 44, 18, 0.96), rgba(30, 20, 10, 0.96));
+  border: 1px solid rgba(255, 209, 102, 0.65);
+  color: var(--cream);
+  text-align: left;
+  box-shadow: 0 3px 12px rgba(232, 136, 58, 0.22);
+  transition: transform 0.13s var(--ease-spring), border-color 0.15s ease, filter 0.15s ease;
+}
+.evolve-btn:hover { border-color: #ffe394; filter: brightness(1.07); }
+.evolve-btn:active { transform: scale(0.96); }
+.evolve-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  width: 100%;
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 800;
+  color: #ffd97d;
+}
+.evolve-badge {
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(255, 217, 125, 0.18);
+  color: #ffe8a8;
+  flex-shrink: 0;
+}
+.evolve-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ember-pale);
+  line-height: 1.2;
+}
 
 .element-bar {
   display: grid;
